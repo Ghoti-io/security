@@ -44,16 +44,18 @@ rsa_private	pending	openssl	-
 
 # Not now, and not by adding a row as implemented without the caller the
 # design names. aes_cbc is 7z, if 7z is ever wanted. rsa_private is skippable
-# if no RSA private key is ever held; it stays pending so declaring it without
+# if no RSA private key is ever held. des and rc4 are broken, and old formats
+# still use them. argon2, scrypt, and bcrypt are password hashes for storage;
+# PBKDF2 is not one of them. Each stays pending so declaring it without
 # flipping this row still fails, and flipping it is the decision.
 aes_cbc	pending	openssl	-
+des	pending	openssl	-
+rc4	pending	openssl	-
+argon2	pending	none	-
+scrypt	pending	openssl	-
+bcrypt	pending	none	-
 
 md5	implemented	openssl	tests/data/vectors/md5.vec
-des	excluded	none	-
-rc4	excluded	none	-
-argon2	excluded	none	-
-scrypt	excluded	none	-
-bcrypt	excluded	none	-
 x509	excluded	none	-
 pem	excluded	none	-
 pkcs8	excluded	none	-

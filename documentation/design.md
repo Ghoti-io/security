@@ -126,8 +126,6 @@ Recorded in `CONVENTIONS.md` section 13.
 
 | Id | Why it is absent |
 | --- | --- |
-| `des`, `rc4` | Broken primitives with no caller. A format that needed MD5 is different: the digest is `gsec_md5`, and the header says it is not a signature, a MAC, or a password hash. |
-| `argon2`, `scrypt`, `bcrypt` | Password hashing is a policy and a memory-hard construction. Not a primitive this set needs for TLS or for the archive formats the plan names. |
 | `x509`, `pem`, `pkcs8`, `der` | Encoding and policy. They belong in `certificates`. |
 
 `rsa_private` stays `pending` and skippable. Verification has no secret.
@@ -137,6 +135,12 @@ decision to implement it.
 
 `aes_cbc` stays `pending` for 7z, if 7z is ever wanted. It is not part of
 the TLS 1.3 set.
+
+`des`, `rc4`, `argon2`, `scrypt`, and `bcrypt` are `pending`. DES and RC4
+are broken, and old formats still use them. Argon2, scrypt, and bcrypt are
+password hashes for storage. PBKDF2 is the slow derivation a format names;
+it is not one of those three. Declaring any of them before its row says
+`implemented` fails the build.
 
 ## 7. Phases
 
@@ -158,6 +162,8 @@ Phase 9 may never be built.
 | 9 | RSA private operations | Skippable |
 | 10 | P-384, if certificates need it | |
 | 11 | AES-CBC, if 7z needs it | |
+| 12 | DES and RC4 | Broken, and old formats still use them |
+| 13 | Argon2, scrypt, and bcrypt | Password hashes for storage. Not PBKDF2 |
 
 Nonces are the caller's. The GCM and ChaCha20-Poly1305 declarations say what a repeated nonce
 does. ECDSA signing uses RFC 6979 so the nonce is a
