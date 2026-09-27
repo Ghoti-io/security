@@ -34,6 +34,7 @@
 #include <ghoti.io/security/bcrypt.h>
 #include <ghoti.io/security/scrypt.h>
 #include <ghoti.io/security/rc4.h>
+#include <ghoti.io/security/der.h>
 #include <ghoti.io/security/des.h>
 #include <ghoti.io/security/aes_cbc.h>
 #include <ghoti.io/security/aes_ctr.h>
@@ -1079,6 +1080,14 @@ GSEC_Result gsec_selftest(void) {
     gsec_wipe(pub, sizeof pub);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+  {
+    static const unsigned char der[] = {0x30, 0x03, 0x02, 0x01, 0x01};
+    GSEC_Der view;
+    result = gsec_der_tlv(der, sizeof der, &view);
+    if (result != GSEC_OK || view.number != 16 || view.value_len != 3) {
+      return result == GSEC_OK ? GSEC_ERR_INTERNAL : result;
     }
   }
   return GSEC_OK;

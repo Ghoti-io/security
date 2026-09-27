@@ -15,7 +15,7 @@ run that fails when two files that are supposed to name one pin have drifted,
 or when a primitive was declared without a row saying who judges it.
 
 The classifier is run on a planted declaration before it is trusted on the
-tree. A planted `gsec_x509` is excluded and must be reported. If it is
+tree. A planted `gsec_pkcs12` is excluded and must be reported. If it is
 not, this program is not a gate.
 """
 
@@ -193,13 +193,18 @@ def main():
         "gsec_bcrypt",
         "gsec_rsa_pkcs1_v15_verify", "gsec_rsa_pss_verify",
         "gsec_rsa_private_pkcs1_v15_sign", "gsec_rsa_private_pss_sign",
+        "gsec_der_tlv",
+        "gsec_pem_decode", "gsec_pem_encode",
+        "gsec_pkcs8_parse",
+        "gsec_x509_parse", "gsec_x509_signed_by", "gsec_x509_path",
+        "gsec_x509_hostname",
     }
     clean = classify(present, rows)
     if clean:
         fail("the implemented set was rejected: %r" % clean)
-    planted = classify(present | {"gsec_x509"}, rows)
-    if not any("x509" in item and "excluded" in item for item in planted):
-        fail("a planted gsec_x509 was not rejected: %r" % planted)
+    planted = classify(present | {"gsec_pkcs12"}, rows)
+    if not any("pkcs12" in item and "excluded" in item for item in planted):
+        fail("a planted gsec_pkcs12 was not rejected: %r" % planted)
 
     functions = declarations()
     missing = sorted(FOUNDATION - functions)

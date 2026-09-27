@@ -26,10 +26,10 @@
  * Primitives only: comparison, wiping, the entropy call, SHA-256, SHA-512,
  * SHA-384, SHA-1, MD5, HMAC over the SHA hashes, HKDF, PBKDF2, AES,
  * AES-CTR, AES-CBC, AES-GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH,
- * ECDSA P-256, ECDSA P-384, RSA signature verification, scrypt, bcrypt, and Argon2.
- * The rest of the set is named in `tools/oracle/primitives.txt` and is not
- * declared until the commit that implements it. X.509, PEM, and the
- * handshake are other libraries. See documentation/design.md.
+ * ECDSA P-256, ECDSA P-384, RSA signature verification, scrypt, bcrypt, Argon2,
+ * and the certificate encodings (strict DER, PEM, unencrypted PKCS#8, and
+ * X.509). Those encodings live here until a certificates library takes them.
+ * The handshake does not. See documentation/design.md.
  */
 
 #ifndef GHOTI_IO_GSEC_SECURITY_H
@@ -45,7 +45,10 @@
 #include <ghoti.io/security/hkdf.h>
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/pbkdf2.h>
+#include <ghoti.io/security/pem.h>
+#include <ghoti.io/security/pkcs8.h>
 #include <ghoti.io/security/core.h>
+#include <ghoti.io/security/der.h>
 #include <ghoti.io/security/des.h>
 #include <ghoti.io/security/ecdsa_p256.h>
 #include <ghoti.io/security/ecdsa_p384.h>
@@ -65,5 +68,6 @@
 #include <ghoti.io/security/sha384.h>
 #include <ghoti.io/security/sha512.h>
 #include <ghoti.io/security/x25519.h>
+#include <ghoti.io/security/x509.h>
 
 #endif /* GHOTI_IO_GSEC_SECURITY_H */

@@ -1,0 +1,1470 @@
+/*
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * Copyright (C) 2026 Corey Pennycuff
+ *
+ * This file is part of Ghoti.io Security.
+ *
+ * Ghoti.io Security is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * Ghoti.io Security is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+ * License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * @file
+ *
+ * X.509 parse and path validation. Certificate bytes are public. The
+ * signature is checked with the primitives already in this library.
+ */
+
+#include <ghoti.io/security/macros.h>
+
+#include <ghoti.io/security/ecdsa_p256.h>
+#include <ghoti.io/security/ecdsa_p384.h>
+#include <ghoti.io/security/ed25519.h>
+#include <ghoti.io/security/rsa.h>
+#include <ghoti.io/security/x509.h>
+
+#include "../der/der_int.h"
+
+#include <string.h>
+
+static const unsigned char OID_RSA[] = {
+  0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01
+};
+static const unsigned char OID_RSA_MD5[] = {
+  0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x04
+};
+static const unsigned char OID_RSA_SHA1[] = {
+  0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x05
+};
+static const unsigned char OID_RSA_SHA256[] = {
+  0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b
+};
+static const unsigned char OID_RSA_SHA384[] = {
+  0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0c
+};
+static const unsigned char OID_RSA_SHA512[] = {
+  0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0d
+};
+static const unsigned char OID_EC[] = {
+  0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01
+};
+static const unsigned char OID_P256[] = {
+  0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07
+};
+static const unsigned char OID_P384[] = {
+  0x2b, 0x81, 0x04, 0x00, 0x22
+};
+static const unsigned char OID_ECDSA_SHA256[] = {
+  0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x02
+};
+static const unsigned char OID_ECDSA_SHA384[] = {
+  0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x03
+};
+static const unsigned char OID_ED25519[] = {0x2b, 0x65, 0x70};
+static const unsigned char OID_CN[] = {0x55, 0x04, 0x03};
+static const unsigned char OID_BC[] = {0x55, 0x1d, 0x13};
+static const unsigned char OID_KU[] = {0x55, 0x1d, 0x0f};
+static const unsigned char OID_SAN[] = {0x55, 0x1d, 0x11};
+static const unsigned char OID_NC[] = {0x55, 0x1d, 0x1e};
+static const unsigned char OID_SKI[] = {0x55, 0x1d, 0x0e};
+static const unsigned char OID_AKI[] = {0x55, 0x1d, 0x23};
+static const unsigned char OID_EKU[] = {0x55, 0x1d, 0x25};
+static const unsigned char OID_CP[] = {0x55, 0x1d, 0x20};
+
+enum {
+  SEEN_BC = 1u,
+  SEEN_KU = 2u,
+  SEEN_SAN = 4u,
+  SEEN_NC = 8u,
+  SEEN_SKI = 16u,
+  SEEN_AKI = 32u,
+  SEEN_EKU = 64u,
+  SEEN_CP = 128u
+};
+
+static void clear_cert(GSEC_X509 * out) {
+  memset(out, 0, sizeof *out);
+}
+
+static GSEC_Result whole(const unsigned char * p, size_t n, GSEC_Der * out) {
+  GSEC_Result result = gsec_der_tlv(p, n, out);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  if (out->total_len != n) {
+    return GSEC_ERR_CORRUPT;
+  }
+  return GSEC_OK;
+}
+
+static GSEC_Result null_param(const unsigned char ** p, size_t * left) {
+  GSEC_Der param;
+  GSEC_Result result;
+
+  if (*left == 0) {
+    return GSEC_ERR_CORRUPT;
+  }
+  result = gsec_der_next(p, left, &param);
+  if (result != GSEC_OK || *left != 0 ||
+      !gsec_der_is(&param, GSEC_DER_UNIVERSAL, 0, 5) || param.value_len != 0) {
+    return GSEC_ERR_CORRUPT;
+  }
+  return GSEC_OK;
+}
+
+static GSEC_Result parse_spki(const GSEC_Der * spki, GSEC_X509 * out) {
+  const unsigned char * p;
+  size_t left;
+  GSEC_Der field;
+  GSEC_Der oid;
+  GSEC_Result result;
+  const unsigned char * bits;
+  size_t bits_len;
+
+  if (!gsec_der_is(spki, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  p = spki->value;
+  left = spki->value_len;
+  result = gsec_der_next(&p, &left, &field);
+  if (result != GSEC_OK || !gsec_der_is(&field, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  {
+    const unsigned char * alg = field.value;
+    size_t alg_left = field.value_len;
+    result = gsec_der_next(&alg, &alg_left, &oid);
+    if (result != GSEC_OK || gsec_der_oid_ok(&oid) != GSEC_OK) {
+      return GSEC_ERR_CORRUPT;
+    }
+    result = gsec_der_next(&p, &left, &field);
+    if (result != GSEC_OK || left != 0) {
+      return GSEC_ERR_CORRUPT;
+    }
+    result = gsec_der_bit_payload(&field, &bits, &bits_len);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    if (gsec_der_oid_is(&oid, OID_RSA, sizeof OID_RSA)) {
+      GSEC_Der key;
+      GSEC_Der n;
+      GSEC_Der e;
+      const unsigned char * kp;
+      size_t kleft;
+      result = null_param(&alg, &alg_left);
+      if (result != GSEC_OK) {
+        return result;
+      }
+      result = whole(bits, bits_len, &key);
+      if (result != GSEC_OK || !gsec_der_is(&key, GSEC_DER_UNIVERSAL, 1, 16)) {
+        return GSEC_ERR_CORRUPT;
+      }
+      kp = key.value;
+      kleft = key.value_len;
+      result = gsec_der_next(&kp, &kleft, &n);
+      if (result != GSEC_OK) {
+        return result;
+      }
+      result = gsec_der_unsigned(&n, &out->n, &out->n_len);
+      if (result != GSEC_OK || out->n_len == 0 || out->n_len > 512) {
+        return GSEC_ERR_CORRUPT;
+      }
+      result = gsec_der_next(&kp, &kleft, &e);
+      if (result != GSEC_OK || kleft != 0) {
+        return GSEC_ERR_CORRUPT;
+      }
+      result = gsec_der_unsigned(&e, &out->e, &out->e_len);
+      if (result != GSEC_OK || out->e_len == 0) {
+        return GSEC_ERR_CORRUPT;
+      }
+      out->key = GSEC_X509_RSA;
+      return GSEC_OK;
+    }
+    if (gsec_der_oid_is(&oid, OID_EC, sizeof OID_EC)) {
+      GSEC_Der curve;
+      size_t want;
+      uint32_t kind;
+      result = gsec_der_next(&alg, &alg_left, &curve);
+      if (result != GSEC_OK || alg_left != 0) {
+        return GSEC_ERR_CORRUPT;
+      }
+      if (gsec_der_oid_is(&curve, OID_P256, sizeof OID_P256)) {
+        kind = GSEC_X509_P256;
+        want = 32;
+      } else if (gsec_der_oid_is(&curve, OID_P384, sizeof OID_P384)) {
+        kind = GSEC_X509_P384;
+        want = 48;
+      } else {
+        return GSEC_ERR_UNSUPPORTED;
+      }
+      if (bits_len != 1u + want * 2u || bits[0] != 0x04) {
+        return bits_len > 0 && (bits[0] == 0x02 || bits[0] == 0x03)
+            ? GSEC_ERR_UNSUPPORTED : GSEC_ERR_CORRUPT;
+      }
+      out->point = bits + 1;
+      out->point_len = want * 2u;
+      out->key = kind;
+      return GSEC_OK;
+    }
+    if (gsec_der_oid_is(&oid, OID_ED25519, sizeof OID_ED25519)) {
+      if (alg_left != 0 || bits_len != 32) {
+        return GSEC_ERR_CORRUPT;
+      }
+      out->point = bits;
+      out->point_len = 32;
+      out->key = GSEC_X509_ED25519;
+      return GSEC_OK;
+    }
+  }
+  return GSEC_ERR_UNSUPPORTED;
+}
+
+static GSEC_Result parse_sig_alg(const GSEC_Der * alg, GSEC_X509 * out) {
+  const unsigned char * p;
+  size_t left;
+  GSEC_Der oid;
+  GSEC_Result result;
+
+  if (!gsec_der_is(alg, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  p = alg->value;
+  left = alg->value_len;
+  result = gsec_der_next(&p, &left, &oid);
+  if (result != GSEC_OK || gsec_der_oid_ok(&oid) != GSEC_OK) {
+    return GSEC_ERR_CORRUPT;
+  }
+  if (gsec_der_oid_is(&oid, OID_RSA_MD5, sizeof OID_RSA_MD5)) {
+    out->sig_hash = GSEC_RSA_MD5;
+    out->sig_key = GSEC_X509_RSA;
+  } else if (gsec_der_oid_is(&oid, OID_RSA_SHA1, sizeof OID_RSA_SHA1)) {
+    out->sig_hash = GSEC_RSA_SHA1;
+    out->sig_key = GSEC_X509_RSA;
+  } else if (gsec_der_oid_is(&oid, OID_RSA_SHA256, sizeof OID_RSA_SHA256)) {
+    out->sig_hash = GSEC_RSA_SHA256;
+    out->sig_key = GSEC_X509_RSA;
+  } else if (gsec_der_oid_is(&oid, OID_RSA_SHA384, sizeof OID_RSA_SHA384)) {
+    out->sig_hash = GSEC_RSA_SHA384;
+    out->sig_key = GSEC_X509_RSA;
+  } else if (gsec_der_oid_is(&oid, OID_RSA_SHA512, sizeof OID_RSA_SHA512)) {
+    out->sig_hash = GSEC_RSA_SHA512;
+    out->sig_key = GSEC_X509_RSA;
+  } else if (gsec_der_oid_is(&oid, OID_ECDSA_SHA256, sizeof OID_ECDSA_SHA256)) {
+    out->sig_key = GSEC_X509_P256;
+  } else if (gsec_der_oid_is(&oid, OID_ECDSA_SHA384, sizeof OID_ECDSA_SHA384)) {
+    out->sig_key = GSEC_X509_P384;
+  } else if (gsec_der_oid_is(&oid, OID_ED25519, sizeof OID_ED25519)) {
+    out->sig_key = GSEC_X509_ED25519;
+    if (left != 0) {
+      return GSEC_ERR_CORRUPT;
+    }
+    return GSEC_OK;
+  } else {
+    return GSEC_ERR_UNSUPPORTED;
+  }
+  if (out->sig_key == GSEC_X509_RSA) {
+    return null_param(&p, &left);
+  }
+  if (left != 0) {
+    return GSEC_ERR_CORRUPT;
+  }
+  return GSEC_OK;
+}
+
+static GSEC_Result ecdsa_raw(const unsigned char * bits, size_t bits_len,
+    size_t width, unsigned char * raw) {
+  GSEC_Der seq;
+  GSEC_Der num;
+  GSEC_Result result;
+  const unsigned char * p;
+  size_t left;
+  const unsigned char * be;
+  size_t be_len;
+  size_t i;
+
+  result = whole(bits, bits_len, &seq);
+  if (result != GSEC_OK || !gsec_der_is(&seq, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  p = seq.value;
+  left = seq.value_len;
+  for (i = 0; i < width * 2u; i++) {
+    raw[i] = 0;
+  }
+  for (i = 0; i < 2; i++) {
+    result = gsec_der_next(&p, &left, &num);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_der_unsigned(&num, &be, &be_len);
+    if (result != GSEC_OK || be_len == 0 || be_len > width) {
+      return GSEC_ERR_CORRUPT;
+    }
+    {
+      size_t j;
+      unsigned char * dest = raw + i * width + (width - be_len);
+      for (j = 0; j < be_len; j++) {
+        dest[j] = be[j];
+      }
+    }
+  }
+  if (left != 0) {
+    return GSEC_ERR_CORRUPT;
+  }
+  return GSEC_OK;
+}
+
+static GSEC_Result walk_ok(const unsigned char * p, size_t n) {
+  while (n != 0) {
+    GSEC_Der field;
+    GSEC_Result result = gsec_der_next(&p, &n, &field);
+    if (result != GSEC_OK) {
+      return result;
+    }
+  }
+  return GSEC_OK;
+}
+
+static GSEC_Result parse_bc(const unsigned char * p, size_t n, GSEC_X509 * out) {
+  GSEC_Der seq;
+  GSEC_Der field;
+  GSEC_Result result;
+  const unsigned char * cursor;
+  size_t left;
+
+  result = whole(p, n, &seq);
+  if (result != GSEC_OK || !gsec_der_is(&seq, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  cursor = seq.value;
+  left = seq.value_len;
+  out->ca = 0;
+  out->basic_constraints = 1;
+  out->path_len_set = 0;
+  if (left == 0) {
+    return GSEC_OK;
+  }
+  result = gsec_der_next(&cursor, &left, &field);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  if (gsec_der_is(&field, GSEC_DER_UNIVERSAL, 0, 1)) {
+    if (field.value_len != 1 || (field.value[0] != 0 && field.value[0] != 0xff)) {
+      return GSEC_ERR_CORRUPT;
+    }
+    out->ca = field.value[0] == 0xff;
+    if (left == 0) {
+      return GSEC_OK;
+    }
+    result = gsec_der_next(&cursor, &left, &field);
+    if (result != GSEC_OK) {
+      return result;
+    }
+  }
+  if (!out->ca) {
+    return GSEC_ERR_CORRUPT;
+  }
+  {
+    const unsigned char * be;
+    size_t be_len;
+    size_t i;
+    uint32_t value;
+    result = gsec_der_unsigned(&field, &be, &be_len);
+    if (result != GSEC_OK || be_len == 0 || be_len > 4 || left != 0) {
+      return GSEC_ERR_CORRUPT;
+    }
+    value = 0;
+    for (i = 0; i < be_len; i++) {
+      value = (value << 8) | be[i];
+    }
+    out->path_len = value;
+    out->path_len_set = 1;
+  }
+  return GSEC_OK;
+}
+
+static GSEC_Result parse_ku(const unsigned char * p, size_t n, GSEC_X509 * out) {
+  GSEC_Der bits;
+  const unsigned char * payload;
+  size_t payload_len;
+  GSEC_Result result;
+
+  result = whole(p, n, &bits);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  result = gsec_der_bit_payload(&bits, &payload, &payload_len);
+  if (result != GSEC_OK || payload_len == 0 || payload_len > 2) {
+    return GSEC_ERR_CORRUPT;
+  }
+  /* Bit 0 is the high bit of the first payload byte. keyCertSign is 0x04. */
+  out->key_usage = payload[0];
+  if (payload_len > 1) {
+    out->key_usage |= (unsigned)payload[1] << 8;
+  }
+  out->key_usage_set = 1;
+  return GSEC_OK;
+}
+
+static int dns_eq(const unsigned char * a, size_t an, const unsigned char * b,
+    size_t bn) {
+  size_t i;
+  if (an != bn) {
+    return 0;
+  }
+  for (i = 0; i < an; i++) {
+    unsigned char ca = a[i];
+    unsigned char cb = b[i];
+    if (ca >= 'A' && ca <= 'Z') {
+      ca = (unsigned char)(ca - 'A' + 'a');
+    }
+    if (cb >= 'A' && cb <= 'Z') {
+      cb = (unsigned char)(cb - 'A' + 'a');
+    }
+    if (ca != cb) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static int dns_in(const unsigned char * name, size_t nn, const unsigned char * base,
+    size_t bn) {
+  if (bn == 0 || nn == 0) {
+    return 0;
+  }
+  if (dns_eq(name, nn, base, bn)) {
+    return 1;
+  }
+  if (nn > bn + 1u && name[nn - bn - 1u] == '.' &&
+      dns_eq(name + (nn - bn), bn, base, bn)) {
+    return 1;
+  }
+  return 0;
+}
+
+static int host_ok(const unsigned char * name, size_t n) {
+  size_t i;
+  int label = 0;
+  if (n == 0 || n > 253) {
+    return 0;
+  }
+  for (i = 0; i < n; i++) {
+    unsigned char c = name[i];
+    if (c == '.') {
+      if (label == 0) {
+        return 0;
+      }
+      label = 0;
+      continue;
+    }
+    if (c < 0x20 || c >= 0x7f) {
+      return 0;
+    }
+    label++;
+    if (label > 63) {
+      return 0;
+    }
+  }
+  return label != 0;
+}
+
+static int host_match(const unsigned char * host, size_t hn,
+    const unsigned char * pat, size_t pn) {
+  size_t i;
+  if (!host_ok(pat, pn)) {
+    return 0;
+  }
+  if (pn >= 2 && pat[0] == '*' && pat[1] == '.') {
+    for (i = 2; i < pn; i++) {
+      if (pat[i] == '*') {
+        return 0;
+      }
+    }
+    for (i = 0; i < hn; i++) {
+      if (host[i] == '.') {
+        break;
+      }
+    }
+    if (i == 0 || i == hn) {
+      return 0;
+    }
+    return dns_eq(host + i, hn - i, pat + 1, pn - 1);
+  }
+  for (i = 0; i < pn; i++) {
+    if (pat[i] == '*') {
+      return 0;
+    }
+  }
+  return dns_eq(host, hn, pat, pn);
+}
+
+static GSEC_Result dn_suffix(const unsigned char * name, size_t name_len,
+    const unsigned char * base, size_t base_len) {
+  GSEC_Der name_seq;
+  GSEC_Der base_seq;
+  const unsigned char * nr[16];
+  size_t nl[16];
+  const unsigned char * br[16];
+  size_t bl[16];
+  size_t nn;
+  size_t bn;
+  size_t i;
+  GSEC_Result result;
+  const unsigned char * p;
+  size_t left;
+
+  result = whole(name, name_len, &name_seq);
+  if (result != GSEC_OK || !gsec_der_is(&name_seq, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  result = whole(base, base_len, &base_seq);
+  if (result != GSEC_OK || !gsec_der_is(&base_seq, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  nn = 0;
+  p = name_seq.value;
+  left = name_seq.value_len;
+  while (left != 0) {
+    GSEC_Der rdn;
+    if (nn == 16) {
+      return GSEC_ERR_LIMIT;
+    }
+    result = gsec_der_next(&p, &left, &rdn);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    nr[nn] = p - rdn.total_len;
+    nl[nn] = rdn.total_len;
+    nn++;
+  }
+  bn = 0;
+  p = base_seq.value;
+  left = base_seq.value_len;
+  while (left != 0) {
+    GSEC_Der rdn;
+    if (bn == 16) {
+      return GSEC_ERR_LIMIT;
+    }
+    result = gsec_der_next(&p, &left, &rdn);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    br[bn] = p - rdn.total_len;
+    bl[bn] = rdn.total_len;
+    bn++;
+  }
+  if (bn == 0 || bn > nn) {
+    return GSEC_ERR_MISMATCH;
+  }
+  for (i = 0; i < bn; i++) {
+    if (!gsec_der_eq(nr[nn - bn + i], nl[nn - bn + i], br[i], bl[i])) {
+      return GSEC_ERR_MISMATCH;
+    }
+  }
+  return GSEC_OK;
+}
+
+/* [0] and [1] are IMPLICIT. Their contents are the GeneralSubtree values.
+ * An EXPLICIT encoding wraps those values in one more SEQUENCE. */
+static GSEC_Result general_subtrees(const GSEC_Der * choice,
+    const unsigned char ** p, size_t * left) {
+  GSEC_Der outer;
+  GSEC_Der first;
+  GSEC_Result result;
+
+  *p = choice->value;
+  *left = choice->value_len;
+  if (*left == 0) {
+    return GSEC_ERR_CORRUPT;
+  }
+  result = gsec_der_tlv(*p, *left, &outer);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  if (!gsec_der_is(&outer, GSEC_DER_UNIVERSAL, 1, 16) ||
+      outer.total_len != *left || outer.value_len == 0) {
+    return GSEC_OK;
+  }
+  result = gsec_der_tlv(outer.value, outer.value_len, &first);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  if (gsec_der_is(&first, GSEC_DER_UNIVERSAL, 1, 16)) {
+    *p = outer.value;
+    *left = outer.value_len;
+  }
+  return GSEC_OK;
+}
+
+static GSEC_Result apply_one_nc(const GSEC_X509 * cert, const unsigned char * nc,
+    size_t nc_len) {
+  GSEC_Der seq;
+  GSEC_Result result;
+  const unsigned char * p;
+  size_t left;
+  int saw_permit_dns;
+  int dns_permitted;
+  int san_dns;
+
+  result = whole(nc, nc_len, &seq);
+  if (result != GSEC_OK || !gsec_der_is(&seq, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  saw_permit_dns = 0;
+  dns_permitted = 0;
+  san_dns = 0;
+  p = seq.value;
+  left = seq.value_len;
+  while (left != 0) {
+    GSEC_Der choice;
+    const unsigned char * sp;
+    size_t sleft;
+    int excluded;
+    result = gsec_der_next(&p, &left, &choice);
+    if (result != GSEC_OK || choice.tag_class != GSEC_DER_CONTEXT ||
+        choice.constructed == 0 || choice.number > 1) {
+      return GSEC_ERR_CORRUPT;
+    }
+    excluded = choice.number == 1;
+    result = general_subtrees(&choice, &sp, &sleft);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    if (sleft == 0) {
+      return GSEC_ERR_CORRUPT;
+    }
+    while (sleft != 0) {
+      GSEC_Der tree;
+      GSEC_Der base;
+      const unsigned char * tp;
+      size_t tleft;
+      result = gsec_der_next(&sp, &sleft, &tree);
+      if (result != GSEC_OK || !gsec_der_is(&tree, GSEC_DER_UNIVERSAL, 1, 16)) {
+        return GSEC_ERR_CORRUPT;
+      }
+      tp = tree.value;
+      tleft = tree.value_len;
+      result = gsec_der_next(&tp, &tleft, &base);
+      if (result != GSEC_OK) {
+        return result;
+      }
+      if (tleft != 0) {
+        GSEC_Der extra;
+        result = gsec_der_next(&tp, &tleft, &extra);
+        if (result != GSEC_OK) {
+          return result;
+        }
+        if (!(extra.tag_class == GSEC_DER_CONTEXT && extra.number == 0 &&
+            extra.value_len == 3 && extra.value[0] == 0x02 &&
+            extra.value[1] == 0x01 && extra.value[2] == 0x00) || tleft != 0) {
+          return GSEC_ERR_UNSUPPORTED;
+        }
+      }
+      if (base.tag_class == GSEC_DER_CONTEXT && base.constructed == 0 &&
+          base.number == 2) {
+        int inside = dns_in(NULL, 0, base.value, base.value_len);
+        (void)inside;
+        if (excluded) {
+          if (cert->san != NULL && cert->san_len != 0) {
+            GSEC_Der names;
+            const unsigned char * np;
+            size_t nleft;
+            result = whole(cert->san, cert->san_len, &names);
+            if (result != GSEC_OK) {
+              return result;
+            }
+            np = names.value;
+            nleft = names.value_len;
+            while (nleft != 0) {
+              GSEC_Der gn;
+              result = gsec_der_next(&np, &nleft, &gn);
+              if (result != GSEC_OK) {
+                return result;
+              }
+              if (gn.tag_class == GSEC_DER_CONTEXT && gn.constructed == 0 &&
+                  gn.number == 2 &&
+                  dns_in(gn.value, gn.value_len, base.value, base.value_len)) {
+                return GSEC_ERR_MISMATCH;
+              }
+            }
+          }
+        } else {
+          saw_permit_dns = 1;
+        }
+      } else if (base.tag_class == GSEC_DER_CONTEXT && base.constructed == 1 &&
+          base.number == 4) {
+        result = dn_suffix(cert->subject, cert->subject_len, base.value,
+            base.value_len);
+        if (excluded) {
+          if (result == GSEC_OK) {
+            return GSEC_ERR_MISMATCH;
+          }
+          if (result != GSEC_ERR_MISMATCH) {
+            return result;
+          }
+        } else if (result != GSEC_OK) {
+          return result;
+        }
+      } else {
+        return GSEC_ERR_UNSUPPORTED;
+      }
+    }
+  }
+  if (saw_permit_dns) {
+    if (cert->san == NULL) {
+      return GSEC_OK;
+    }
+    {
+      GSEC_Der names;
+      const unsigned char * np;
+      size_t nleft;
+      result = whole(cert->san, cert->san_len, &names);
+      if (result != GSEC_OK || !gsec_der_is(&names, GSEC_DER_UNIVERSAL, 1, 16)) {
+        return GSEC_ERR_CORRUPT;
+      }
+      np = names.value;
+      nleft = names.value_len;
+      while (nleft != 0) {
+        GSEC_Der gn;
+        int matched;
+        result = gsec_der_next(&np, &nleft, &gn);
+        if (result != GSEC_OK) {
+          return result;
+        }
+        if (!(gn.tag_class == GSEC_DER_CONTEXT && gn.constructed == 0 &&
+            gn.number == 2)) {
+          continue;
+        }
+        san_dns = 1;
+        matched = 0;
+        {
+          const unsigned char * cp = seq.value;
+          size_t cleft = seq.value_len;
+          while (cleft != 0) {
+            GSEC_Der choice;
+            result = gsec_der_next(&cp, &cleft, &choice);
+            if (result != GSEC_OK) {
+              return result;
+            }
+            if (choice.number != 0) {
+              continue;
+            }
+            {
+              const unsigned char * tp;
+              size_t tleft;
+              result = general_subtrees(&choice, &tp, &tleft);
+              if (result != GSEC_OK) {
+                return result;
+              }
+              while (tleft != 0) {
+                GSEC_Der tree;
+                GSEC_Der base;
+                const unsigned char * ip;
+                size_t ileft;
+                result = gsec_der_next(&tp, &tleft, &tree);
+                if (result != GSEC_OK) {
+                  return result;
+                }
+                ip = tree.value;
+                ileft = tree.value_len;
+                result = gsec_der_next(&ip, &ileft, &base);
+                if (result != GSEC_OK) {
+                  return result;
+                }
+                if (base.number == 2 && base.tag_class == GSEC_DER_CONTEXT &&
+                    dns_in(gn.value, gn.value_len, base.value, base.value_len)) {
+                  matched = 1;
+                }
+              }
+            }
+          }
+        }
+        if (!matched) {
+          return GSEC_ERR_MISMATCH;
+        }
+        dns_permitted = 1;
+      }
+    }
+    (void)dns_permitted;
+    (void)san_dns;
+  }
+  return GSEC_OK;
+}
+
+static GSEC_Result light_seq(const unsigned char * p, size_t n, int oids) {
+  GSEC_Der seq;
+  GSEC_Result result;
+  const unsigned char * cursor;
+  size_t left;
+
+  result = whole(p, n, &seq);
+  if (result != GSEC_OK || !gsec_der_is(&seq, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  cursor = seq.value;
+  left = seq.value_len;
+  if (left == 0) {
+    return GSEC_ERR_CORRUPT;
+  }
+  while (left != 0) {
+    GSEC_Der field;
+    result = gsec_der_next(&cursor, &left, &field);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    if (oids) {
+      if (gsec_der_oid_ok(&field) != GSEC_OK) {
+        return GSEC_ERR_CORRUPT;
+      }
+    } else if (!gsec_der_is(&field, GSEC_DER_UNIVERSAL, 1, 16)) {
+      return GSEC_ERR_CORRUPT;
+    } else {
+      const unsigned char * ip = field.value;
+      size_t ileft = field.value_len;
+      GSEC_Der oid;
+      result = gsec_der_next(&ip, &ileft, &oid);
+      if (result != GSEC_OK || gsec_der_oid_ok(&oid) != GSEC_OK) {
+        return GSEC_ERR_CORRUPT;
+      }
+      result = walk_ok(ip, ileft);
+      if (result != GSEC_OK) {
+        return result;
+      }
+    }
+  }
+  return GSEC_OK;
+}
+
+static GSEC_Result parse_extensions(const unsigned char * p, size_t n,
+    GSEC_X509 * out) {
+  GSEC_Der seq;
+  GSEC_Result result;
+  const unsigned char * cursor;
+  size_t left;
+  unsigned seen;
+
+  result = whole(p, n, &seq);
+  if (result != GSEC_OK || !gsec_der_is(&seq, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  cursor = seq.value;
+  left = seq.value_len;
+  seen = 0;
+  if (left == 0) {
+    return GSEC_ERR_CORRUPT;
+  }
+  while (left != 0) {
+    GSEC_Der ext;
+    GSEC_Der oid;
+    GSEC_Der value;
+    const unsigned char * ep;
+    size_t eleft;
+    int critical;
+    unsigned flag;
+    result = gsec_der_next(&cursor, &left, &ext);
+    if (result != GSEC_OK || !gsec_der_is(&ext, GSEC_DER_UNIVERSAL, 1, 16)) {
+      return GSEC_ERR_CORRUPT;
+    }
+    ep = ext.value;
+    eleft = ext.value_len;
+    result = gsec_der_next(&ep, &eleft, &oid);
+    if (result != GSEC_OK || gsec_der_oid_ok(&oid) != GSEC_OK) {
+      return GSEC_ERR_CORRUPT;
+    }
+    critical = 0;
+    if (eleft != 0) {
+      GSEC_Der maybe;
+      const unsigned char * save = ep;
+      size_t save_left = eleft;
+      result = gsec_der_next(&ep, &eleft, &maybe);
+      if (result != GSEC_OK) {
+        return result;
+      }
+      if (gsec_der_is(&maybe, GSEC_DER_UNIVERSAL, 0, 1)) {
+        if (maybe.value_len != 1 || (maybe.value[0] != 0 && maybe.value[0] != 0xff)) {
+          return GSEC_ERR_CORRUPT;
+        }
+        critical = maybe.value[0] == 0xff;
+      } else {
+        ep = save;
+        eleft = save_left;
+      }
+    }
+    result = gsec_der_next(&ep, &eleft, &value);
+    if (result != GSEC_OK || eleft != 0 ||
+        !gsec_der_is(&value, GSEC_DER_UNIVERSAL, 0, 4)) {
+      return GSEC_ERR_CORRUPT;
+    }
+    flag = 0;
+    if (gsec_der_oid_is(&oid, OID_BC, sizeof OID_BC)) {
+      flag = SEEN_BC;
+      result = parse_bc(value.value, value.value_len, out);
+    } else if (gsec_der_oid_is(&oid, OID_KU, sizeof OID_KU)) {
+      flag = SEEN_KU;
+      result = parse_ku(value.value, value.value_len, out);
+    } else if (gsec_der_oid_is(&oid, OID_SAN, sizeof OID_SAN)) {
+      flag = SEEN_SAN;
+      out->san = value.value;
+      out->san_len = value.value_len;
+      result = whole(value.value, value.value_len, &ext);
+      if (result == GSEC_OK && !gsec_der_is(&ext, GSEC_DER_UNIVERSAL, 1, 16)) {
+        result = GSEC_ERR_CORRUPT;
+      }
+      if (result == GSEC_OK) {
+        GSEC_Der names;
+        const unsigned char * np;
+        size_t nleft;
+        result = whole(value.value, value.value_len, &names);
+        if (result != GSEC_OK) {
+          return result;
+        }
+        np = names.value;
+        nleft = names.value_len;
+        while (nleft != 0) {
+          GSEC_Der gn;
+          result = gsec_der_next(&np, &nleft, &gn);
+          if (result != GSEC_OK) {
+            return result;
+          }
+          if (gn.tag_class == GSEC_DER_CONTEXT && gn.number == 2 &&
+              gn.constructed == 0) {
+            out->dns_san = 1;
+          }
+        }
+        result = GSEC_OK;
+      }
+    } else if (gsec_der_oid_is(&oid, OID_NC, sizeof OID_NC)) {
+      flag = SEEN_NC;
+      out->name_constraints = value.value;
+      out->name_constraints_len = value.value_len;
+      result = GSEC_OK;
+    } else if (gsec_der_oid_is(&oid, OID_SKI, sizeof OID_SKI)) {
+      flag = SEEN_SKI;
+      result = whole(value.value, value.value_len, &ext);
+      if (result == GSEC_OK && !gsec_der_is(&ext, GSEC_DER_UNIVERSAL, 0, 4)) {
+        result = GSEC_ERR_CORRUPT;
+      }
+    } else if (gsec_der_oid_is(&oid, OID_AKI, sizeof OID_AKI)) {
+      flag = SEEN_AKI;
+      result = walk_ok(value.value, value.value_len);
+    } else if (gsec_der_oid_is(&oid, OID_EKU, sizeof OID_EKU)) {
+      flag = SEEN_EKU;
+      result = light_seq(value.value, value.value_len, 1);
+    } else if (gsec_der_oid_is(&oid, OID_CP, sizeof OID_CP)) {
+      flag = SEEN_CP;
+      result = light_seq(value.value, value.value_len, 0);
+    } else if (critical) {
+      return GSEC_ERR_UNSUPPORTED;
+    } else {
+      result = walk_ok(value.value, value.value_len);
+    }
+    if (result != GSEC_OK) {
+      return result;
+    }
+    if (flag != 0) {
+      if ((seen & flag) != 0) {
+        return GSEC_ERR_CORRUPT;
+      }
+      seen |= flag;
+    }
+  }
+  return GSEC_OK;
+}
+
+static GSEC_Result parse_tbs(const GSEC_Der * tbs, const unsigned char * tbs_bytes,
+    size_t tbs_len, GSEC_X509 * out) {
+  const unsigned char * p;
+  size_t left;
+  GSEC_Der field;
+  GSEC_Result result;
+  unsigned version;
+  const unsigned char * alg_bytes;
+  size_t alg_len;
+
+  p = tbs->value;
+  left = tbs->value_len;
+  version = 0;
+  result = gsec_der_next(&p, &left, &field);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  if (field.tag_class == GSEC_DER_CONTEXT && field.constructed == 1 &&
+      field.number == 0) {
+    GSEC_Der ver;
+    const unsigned char * be;
+    size_t be_len;
+    result = whole(field.value, field.value_len, &ver);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_der_unsigned(&ver, &be, &be_len);
+    if (result != GSEC_OK || be_len != 1 || be[0] > 2) {
+      return GSEC_ERR_CORRUPT;
+    }
+    version = be[0];
+    result = gsec_der_next(&p, &left, &field);
+    if (result != GSEC_OK) {
+      return result;
+    }
+  }
+  {
+    const unsigned char * be;
+    size_t be_len;
+    result = gsec_der_unsigned(&field, &be, &be_len);
+    if (result != GSEC_OK || be_len == 0 || be_len > 20) {
+      return GSEC_ERR_CORRUPT;
+    }
+  }
+  result = gsec_der_next(&p, &left, &field);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  alg_bytes = p - field.total_len;
+  alg_len = field.total_len;
+  result = parse_sig_alg(&field, out);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  result = gsec_der_next(&p, &left, &field);
+  if (result != GSEC_OK || !gsec_der_is(&field, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  out->issuer = p - field.total_len;
+  out->issuer_len = field.total_len;
+  {
+    const unsigned char * np = field.value;
+    size_t nleft = field.value_len;
+    while (nleft != 0) {
+      GSEC_Der rdn;
+      result = gsec_der_next(&np, &nleft, &rdn);
+      if (result != GSEC_OK) {
+        return result;
+      }
+      result = gsec_der_set_sorted(&rdn);
+      if (result != GSEC_OK || rdn.value_len == 0) {
+        return result != GSEC_OK ? result : GSEC_ERR_CORRUPT;
+      }
+    }
+  }
+  result = gsec_der_next(&p, &left, &field);
+  if (result != GSEC_OK || !gsec_der_is(&field, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  {
+    const unsigned char * vp = field.value;
+    size_t vleft = field.value_len;
+    GSEC_Der t0;
+    GSEC_Der t1;
+    result = gsec_der_next(&vp, &vleft, &t0);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_der_time(&t0, &out->not_before);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_der_next(&vp, &vleft, &t1);
+    if (result != GSEC_OK || vleft != 0) {
+      return GSEC_ERR_CORRUPT;
+    }
+    result = gsec_der_time(&t1, &out->not_after);
+    if (result != GSEC_OK) {
+      return result;
+    }
+  }
+  result = gsec_der_next(&p, &left, &field);
+  if (result != GSEC_OK || !gsec_der_is(&field, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  out->subject = p - field.total_len;
+  out->subject_len = field.total_len;
+  {
+    const unsigned char * np = field.value;
+    size_t nleft = field.value_len;
+    while (nleft != 0) {
+      GSEC_Der rdn;
+      result = gsec_der_next(&np, &nleft, &rdn);
+      if (result != GSEC_OK) {
+        return result;
+      }
+      result = gsec_der_set_sorted(&rdn);
+      if (result != GSEC_OK || rdn.value_len == 0) {
+        return result != GSEC_OK ? result : GSEC_ERR_CORRUPT;
+      }
+    }
+  }
+  result = gsec_der_next(&p, &left, &field);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  result = parse_spki(&field, out);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  while (left != 0) {
+    result = gsec_der_next(&p, &left, &field);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    if (field.tag_class == GSEC_DER_CONTEXT && field.number == 1) {
+      if (version < 1) {
+        return GSEC_ERR_CORRUPT;
+      }
+      continue;
+    }
+    if (field.tag_class == GSEC_DER_CONTEXT && field.number == 2) {
+      if (version < 1) {
+        return GSEC_ERR_CORRUPT;
+      }
+      continue;
+    }
+    if (field.tag_class == GSEC_DER_CONTEXT && field.constructed == 1 &&
+        field.number == 3) {
+      GSEC_Der ext;
+      if (version != 2) {
+        return GSEC_ERR_CORRUPT;
+      }
+      result = whole(field.value, field.value_len, &ext);
+      if (result != GSEC_OK || !gsec_der_is(&ext, GSEC_DER_UNIVERSAL, 1, 16)) {
+        return result != GSEC_OK ? result : GSEC_ERR_CORRUPT;
+      }
+      result = parse_extensions(field.value, field.value_len, out);
+      if (result != GSEC_OK) {
+        return result;
+      }
+      continue;
+    }
+    return GSEC_ERR_CORRUPT;
+  }
+  (void)alg_bytes;
+  (void)alg_len;
+  (void)tbs_bytes;
+  (void)tbs_len;
+  out->tbs = tbs_bytes;
+  out->tbs_len = tbs_len;
+  return GSEC_OK;
+}
+
+GSEC_Result gsec_x509_parse(const void * der, size_t len, GSEC_X509 * out) {
+  GSEC_Der seq;
+  GSEC_Der tbs;
+  GSEC_Der alg;
+  GSEC_Der sig;
+  GSEC_Result result;
+  const unsigned char * p;
+  size_t left;
+  const unsigned char * tbs_bytes;
+  const unsigned char * bits;
+  size_t bits_len;
+  uint32_t inner_key;
+  uint32_t inner_hash;
+
+  if (out == NULL || (der == NULL && len != 0)) {
+    return GSEC_ERR_INVALID;
+  }
+  clear_cert(out);
+  if (len == 0 || len > GSEC_X509_DER_MAX) {
+    return len == 0 ? GSEC_ERR_CORRUPT : GSEC_ERR_LIMIT;
+  }
+  result = whole((const unsigned char *)der, len, &seq);
+  if (result != GSEC_OK || !gsec_der_is(&seq, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  p = seq.value;
+  left = seq.value_len;
+  result = gsec_der_next(&p, &left, &tbs);
+  if (result != GSEC_OK || !gsec_der_is(&tbs, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  tbs_bytes = p - tbs.total_len;
+  result = gsec_der_next(&p, &left, &alg);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  result = gsec_der_next(&p, &left, &sig);
+  if (result != GSEC_OK || left != 0) {
+    return GSEC_ERR_CORRUPT;
+  }
+  result = gsec_der_bit_payload(&sig, &bits, &bits_len);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  result = parse_tbs(&tbs, tbs_bytes, tbs.total_len, out);
+  if (result != GSEC_OK) {
+    clear_cert(out);
+    return result;
+  }
+  inner_key = out->sig_key;
+  inner_hash = out->sig_hash;
+  out->sig_key = 0;
+  out->sig_hash = 0;
+  result = parse_sig_alg(&alg, out);
+  if (result != GSEC_OK || out->sig_key != inner_key ||
+      out->sig_hash != inner_hash) {
+    clear_cert(out);
+    return result != GSEC_OK ? result : GSEC_ERR_CORRUPT;
+  }
+  if (out->sig_key == GSEC_X509_RSA || out->sig_key == GSEC_X509_ED25519) {
+    out->sig = bits;
+    out->sig_len = bits_len;
+  } else {
+    size_t width = out->sig_key == GSEC_X509_P256 ? 32u : 48u;
+    result = ecdsa_raw(bits, bits_len, width, out->ecdsa_raw);
+    if (result != GSEC_OK) {
+      clear_cert(out);
+      return result;
+    }
+    out->sig = out->ecdsa_raw;
+    out->sig_len = width * 2u;
+  }
+  return GSEC_OK;
+}
+
+GSEC_Result gsec_x509_signed_by(const GSEC_X509 * cert, const GSEC_X509 * issuer) {
+  if (cert == NULL || issuer == NULL || cert->tbs == NULL || issuer->key == 0) {
+    return GSEC_ERR_INVALID;
+  }
+  if (cert->sig_key != issuer->key) {
+    return GSEC_ERR_MISMATCH;
+  }
+  if (issuer->key == GSEC_X509_RSA) {
+    return gsec_rsa_pkcs1_v15_verify(cert->sig_hash, issuer->n, issuer->n_len,
+        issuer->e, issuer->e_len, cert->tbs, cert->tbs_len, cert->sig,
+        cert->sig_len);
+  }
+  if (issuer->key == GSEC_X509_P256) {
+    return gsec_ecdsa_p256_verify(issuer->point, cert->tbs, cert->tbs_len,
+        cert->sig);
+  }
+  if (issuer->key == GSEC_X509_P384) {
+    return gsec_ecdsa_p384_verify(issuer->point, cert->tbs, cert->tbs_len,
+        cert->sig);
+  }
+  if (issuer->key == GSEC_X509_ED25519) {
+    return gsec_ed25519_verify(issuer->point, cert->tbs, cert->tbs_len,
+        cert->sig);
+  }
+  return GSEC_ERR_UNSUPPORTED;
+}
+
+static int names_eq(const GSEC_X509 * a_subject, const GSEC_X509 * b_issuer) {
+  return gsec_der_eq(a_subject->subject, a_subject->subject_len,
+      b_issuer->issuer, b_issuer->issuer_len);
+}
+
+static int in_force(const GSEC_X509 * cert, int64_t unix_time) {
+  return cert->not_before <= unix_time && unix_time <= cert->not_after;
+}
+
+static int self_issued(const GSEC_X509 * cert) {
+  return gsec_der_eq(cert->subject, cert->subject_len, cert->issuer,
+      cert->issuer_len);
+}
+
+static GSEC_Result check_link(const GSEC_X509 * cert, const GSEC_X509 * parent,
+    int64_t unix_time, const GSEC_X509 * const * prior, size_t prior_n,
+    int require_ca) {
+  GSEC_Result result;
+  size_t i;
+
+  if (!names_eq(parent, cert)) {
+    return GSEC_ERR_MISMATCH;
+  }
+  result = gsec_x509_signed_by(cert, parent);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  if (!in_force(cert, unix_time)) {
+    return GSEC_ERR_MISMATCH;
+  }
+  for (i = 0; i < prior_n; i++) {
+    if (prior[i]->name_constraints_len == 0) {
+      continue;
+    }
+    result = apply_one_nc(cert, prior[i]->name_constraints,
+        prior[i]->name_constraints_len);
+    if (result != GSEC_OK) {
+      return result;
+    }
+  }
+  if (require_ca) {
+    if (!cert->ca) {
+      return GSEC_ERR_MISMATCH;
+    }
+    if (cert->key_usage_set && (cert->key_usage & 0x04u) == 0) {
+      return GSEC_ERR_MISMATCH;
+    }
+  }
+  return GSEC_OK;
+}
+
+GSEC_Result gsec_x509_path(const void * leaf, size_t leaf_len,
+    const void * const * mids, const size_t * mid_lens, size_t mid_count,
+    const void * anchor, size_t anchor_len, int64_t unix_time) {
+  GSEC_X509 trust;
+  GSEC_X509 chain[GSEC_X509_CHAIN_MAX];
+  GSEC_X509 end;
+  GSEC_Result result;
+  const GSEC_X509 * prior[GSEC_X509_CHAIN_MAX + 1u];
+  size_t prior_n;
+  size_t i;
+  int room;
+
+  if (leaf == NULL || anchor == NULL || (mids == NULL && mid_count != 0) ||
+      (mid_lens == NULL && mid_count != 0)) {
+    return GSEC_ERR_INVALID;
+  }
+  if (mid_count > GSEC_X509_CHAIN_MAX) {
+    return GSEC_ERR_LIMIT;
+  }
+  result = gsec_x509_parse(anchor, anchor_len, &trust);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  if (trust.basic_constraints && !trust.ca) {
+    return GSEC_ERR_MISMATCH;
+  }
+  if (trust.key_usage_set && (trust.key_usage & 0x04u) == 0) {
+    return GSEC_ERR_MISMATCH;
+  }
+  prior[0] = &trust;
+  prior_n = 1;
+  room = trust.path_len_set ? (int)trust.path_len : -1;
+  for (i = 0; i < mid_count; i++) {
+    if (room == 0) {
+      return GSEC_ERR_MISMATCH;
+    }
+    result = gsec_x509_parse(mids[i], mid_lens[i], &chain[i]);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = check_link(&chain[i], prior[prior_n - 1u], unix_time, prior,
+        prior_n, 1);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    if (!self_issued(&chain[i]) && room > 0) {
+      room--;
+    }
+    if (chain[i].path_len_set && (room < 0 || (int)chain[i].path_len < room)) {
+      room = (int)chain[i].path_len;
+    }
+    prior[prior_n++] = &chain[i];
+  }
+  result = gsec_x509_parse(leaf, leaf_len, &end);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  return check_link(&end, prior[prior_n - 1u], unix_time, prior, prior_n, 0);
+}
+
+static GSEC_Result match_cn(const GSEC_X509 * cert, const unsigned char * host,
+    size_t host_len) {
+  GSEC_Der name;
+  GSEC_Result result;
+  const unsigned char * p;
+  size_t left;
+
+  result = whole(cert->subject, cert->subject_len, &name);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  p = name.value;
+  left = name.value_len;
+  while (left != 0) {
+    GSEC_Der rdn;
+    const unsigned char * rp;
+    size_t rleft;
+    result = gsec_der_next(&p, &left, &rdn);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    rp = rdn.value;
+    rleft = rdn.value_len;
+    while (rleft != 0) {
+      GSEC_Der atv;
+      GSEC_Der oid;
+      GSEC_Der val;
+      const unsigned char * ap;
+      size_t aleft;
+      result = gsec_der_next(&rp, &rleft, &atv);
+      if (result != GSEC_OK || !gsec_der_is(&atv, GSEC_DER_UNIVERSAL, 1, 16)) {
+        return GSEC_ERR_CORRUPT;
+      }
+      ap = atv.value;
+      aleft = atv.value_len;
+      result = gsec_der_next(&ap, &aleft, &oid);
+      if (result != GSEC_OK) {
+        return result;
+      }
+      result = gsec_der_next(&ap, &aleft, &val);
+      if (result != GSEC_OK || aleft != 0) {
+        return GSEC_ERR_CORRUPT;
+      }
+      if (gsec_der_oid_is(&oid, OID_CN, sizeof OID_CN) && val.constructed == 0 &&
+          host_match(host, host_len, val.value, val.value_len)) {
+        return GSEC_OK;
+      }
+    }
+  }
+  return GSEC_ERR_MISMATCH;
+}
+
+GSEC_Result gsec_x509_hostname(const GSEC_X509 * cert, const char * name,
+    size_t name_len) {
+  const unsigned char * host;
+  size_t i;
+
+  if (cert == NULL || (name == NULL && name_len != 0)) {
+    return GSEC_ERR_INVALID;
+  }
+  host = (const unsigned char *)name;
+  if (name_len > 0 && host[name_len - 1u] == '.') {
+    name_len--;
+  }
+  if (!host_ok(host, name_len)) {
+    return GSEC_ERR_INVALID;
+  }
+  for (i = 0; i < name_len; i++) {
+    if (host[i] == 0) {
+      return GSEC_ERR_INVALID;
+    }
+  }
+  if (cert->dns_san) {
+    GSEC_Der names;
+    const unsigned char * p;
+    size_t left;
+    int matched;
+    GSEC_Result result = whole(cert->san, cert->san_len, &names);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    p = names.value;
+    left = names.value_len;
+    matched = 0;
+    while (left != 0) {
+      GSEC_Der gn;
+      result = gsec_der_next(&p, &left, &gn);
+      if (result != GSEC_OK) {
+        return result;
+      }
+      if (gn.tag_class == GSEC_DER_CONTEXT && gn.constructed == 0 &&
+          gn.number == 2 && host_match(host, name_len, gn.value, gn.value_len)) {
+        matched = 1;
+      }
+    }
+    return matched ? GSEC_OK : GSEC_ERR_MISMATCH;
+  }
+  return match_cn(cert, host, name_len);
+}
