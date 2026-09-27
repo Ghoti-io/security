@@ -107,6 +107,8 @@
 #define gsec_version_number GHOTIIO_SECURITY(gsec_version_number)
 #define gsec_version_string GHOTIIO_SECURITY(gsec_version_string)
 #define gsec_wipe GHOTIIO_SECURITY(gsec_wipe)
+#define gsec_x25519 GHOTIIO_SECURITY(gsec_x25519)
+#define gsec_x25519_public GHOTIIO_SECURITY(gsec_x25519_public)
 
 /// @endcond
 
