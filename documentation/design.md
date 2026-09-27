@@ -90,9 +90,12 @@ phases that allocate.
 | `gsec_x25519`, `gsec_x25519_public` | RFC 7748. The scalar is clamped inside the function. The all-zero shared secret is rejected and the output is wiped. |
 | `gsec_ed25519_public`, `gsec_ed25519_sign`, `gsec_ed25519_verify` | RFC 8032, pure, with no context string. Verification rejects a non-canonical point and an S that is not strictly less than the group order. |
 | `gsec_ecdh_p256`, `gsec_ecdh_p256_public` | A 32-byte scalar and a 64-byte point, x then y. A non-canonical coordinate, an off-curve point, and infinity are rejected and the output is wiped. A shared x of zero is a result. |
+| `gsec_ecdh_p384`, `gsec_ecdh_p384_public` | The same contract on P-384: a 48-byte scalar and a 96-byte point. TLS 1.2 and TLS 1.3 both name this curve for key agreement. |
 | `gsec_ecdsa_p256_public`, `gsec_ecdsa_p256_sign`, `gsec_ecdsa_p256_verify` | SHA-256 of the message and an RFC 6979 nonce. The signature is 64 bytes, r then s. Signing emits the low s. Verification accepts a high s. An r or s of zero, or one that is not strictly less than the group order, is `GSEC_ERR_MISMATCH`. |
 | `gsec_rsa_pkcs1_v15_verify`, `gsec_rsa_pss_verify` | The public exponent. PKCS#1 v1.5 accepts the DER DigestInfo, including the NULL, and at least eight 0xff bytes. PSS takes the salt length and encodes one bit shorter than the modulus. A modulus past 4096 bits is `GSEC_ERR_LIMIT`. |
 | `gsec_rsa_private_pkcs1_v15_sign`, `gsec_rsa_private_pss_sign` | The same encodings, raised to the private exponent. The exponentiation does not branch on that exponent. The base is blinded with a value from the kernel generator, and the signature bytes are still the unblinded result. The PSS salt is the caller's. A failure wipes the signature. |
+| `gsec_rsa_pkcs1_v15_encrypt`, `gsec_rsa_pkcs1_v15_decrypt` | RSAES-PKCS1-v1_5. Decrypt is the blinded private operation. The padding scan does not branch on the encoded message. This is the TLS 1.2 RSA key-transport primitive. |
+| `gsec_rsa_oaep_encrypt`, `gsec_rsa_oaep_decrypt` | RSAES-OAEP. The hash is the label hash and MGF1. A bad label and bad padding are both `GSEC_ERR_MISMATCH`. |
 | `gsec_allocator_default` | cutil's default allocator. |
 | `gsec_limits_default` | Fills the default caps. NULL is ignored. |
 | `gsec_result_string` | Static string, including for a value outside the enum. |

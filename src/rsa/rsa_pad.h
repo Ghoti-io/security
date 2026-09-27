@@ -53,4 +53,13 @@ GSEC_Result rsa_mgf1(uint32_t hash, const unsigned char * seed, size_t seed_len,
 void rsa_em_shape(const unsigned char * np, size_t k, size_t * em_len,
     unsigned * unused);
 
+/* Private exponent, checked against the modulus. The caller wipes d. */
+GSEC_Result rsa_load_private(bn * d, const bn * mod, const void * raw,
+    size_t raw_len);
+
+/* em^d mod n, blinded. sig is wiped when the result is not GSEC_OK. */
+GSEC_Result rsa_blinded(unsigned char * sig, size_t k, const bn * mod,
+    const unsigned char * e, size_t e_len, const bn * d,
+    const unsigned char * em);
+
 #endif /* GHOTI_IO_GSEC_RSA_PAD_H */

@@ -25,7 +25,8 @@
  *
  * Primitives only: comparison, wiping, the entropy call, SHA-256, SHA-512,
  * SHA-384, SHA-1, MD5, HMAC over the SHA hashes, HKDF, PBKDF2, AES,
- * AES-CTR, AES-CBC, AES-GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH,
+ * AES-CTR, AES-CBC, AES-GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 and
+ * P-384 ECDH,
  * ECDSA P-256, ECDSA P-384, RSA signature verification, scrypt, bcrypt, Argon2,
  * and the certificate encodings (strict DER, PEM, unencrypted PKCS#8, and
  * X.509). Those encodings live here until a certificates library takes them.
@@ -53,6 +54,7 @@
 #include <ghoti.io/security/ecdsa_p256.h>
 #include <ghoti.io/security/ecdsa_p384.h>
 #include <ghoti.io/security/ecdh_p256.h>
+#include <ghoti.io/security/ecdh_p384.h>
 #include <ghoti.io/security/ed25519.h>
 #include <ghoti.io/security/macros.h>
 #include <ghoti.io/security/md5.h>

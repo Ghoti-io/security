@@ -74,7 +74,7 @@ static uint32_t bn_same(const bn * a, const bn * b) {
   return fold32(diff) ^ 1u;
 }
 
-static GSEC_Result load_private(bn * d, const bn * mod, const void * raw,
+GSEC_Result rsa_load_private(bn * d, const bn * mod, const void * raw,
     size_t raw_len) {
   const unsigned char * p = raw;
   size_t n = raw_len;
@@ -116,7 +116,7 @@ static GSEC_Result load_private(bn * d, const bn * mod, const void * raw,
   return GSEC_OK;
 }
 
-static GSEC_Result blinded(unsigned char * sig, size_t k, const bn * mod,
+GSEC_Result rsa_blinded(unsigned char * sig, size_t k, const bn * mod,
     const unsigned char * e, size_t e_len, const bn * d,
     const unsigned char * em) {
   bn m;
@@ -343,7 +343,7 @@ GSEC_Result gsec_rsa_private_pkcs1_v15_sign(uint32_t hash, const void * n,
     gsec_wipe(&mod, sizeof mod);
     return GSEC_ERR_INVALID;
   }
-  result = load_private(&priv, &mod, d, d_len);
+  result = rsa_load_private(&priv, &mod, d, d_len);
   if (result != GSEC_OK) {
     gsec_wipe(&mod, sizeof mod);
     gsec_wipe(sig, sig_len);
@@ -357,7 +357,7 @@ GSEC_Result gsec_rsa_private_pkcs1_v15_sign(uint32_t hash, const void * n,
     gsec_wipe(sig, sig_len);
     return result;
   }
-  result = blinded(sig, k, &mod, exp, exp_len, &priv, em);
+  result = rsa_blinded(sig, k, &mod, exp, exp_len, &priv, em);
   gsec_wipe(&mod, sizeof mod);
   gsec_wipe(&priv, sizeof priv);
   gsec_wipe(em, sizeof em);
@@ -387,7 +387,7 @@ GSEC_Result gsec_rsa_private_pss_sign(uint32_t hash, uint32_t mgf_hash,
     gsec_wipe(&mod, sizeof mod);
     return GSEC_ERR_INVALID;
   }
-  result = load_private(&priv, &mod, d, d_len);
+  result = rsa_load_private(&priv, &mod, d, d_len);
   if (result != GSEC_OK) {
     gsec_wipe(&mod, sizeof mod);
     gsec_wipe(sig, sig_len);
@@ -402,7 +402,7 @@ GSEC_Result gsec_rsa_private_pss_sign(uint32_t hash, uint32_t mgf_hash,
     gsec_wipe(sig, sig_len);
     return result;
   }
-  result = blinded(sig, k, &mod, exp, exp_len, &priv, em);
+  result = rsa_blinded(sig, k, &mod, exp, exp_len, &priv, em);
   gsec_wipe(&mod, sizeof mod);
   gsec_wipe(&priv, sizeof priv);
   gsec_wipe(em, sizeof em);

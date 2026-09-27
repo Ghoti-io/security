@@ -21,7 +21,8 @@
 /**
  * @file rsa.h
  *
- * RSA signature verification. PKCS#1 v1.5 and PSS, public exponent only.
+ * RSA signatures and encryption. PKCS#1 v1.5 and PSS signatures, and
+ * PKCS#1 v1.5 and OAEP encryption.
  *
  * The modulus is at most 4096 bits. A leading zero byte is ignored, which
  * is how an ASN.1 integer is written when its top bit is set. The
@@ -39,6 +40,11 @@
  * encoded message raised to the private exponent. The PSS salt is the
  * caller's, the same rule as every other nonce in this library. A
  * modulus past 4096 bits is rejected.
+ *
+ * Encryption uses the same modulus rules. PKCS#1 v1.5 type 2 is what TLS
+ * 1.2 RSA key transport decrypts, and the padding check does not branch on
+ * the encoded message. OAEP is the same operation with the safer padding.
+ * Neither uses the Chinese remainder theorem.
  */
 
 #ifndef GHOTI_IO_GSEC_RSA_H
@@ -180,6 +186,115 @@ GSEC_API GSEC_Result gsec_rsa_private_pss_sign(uint32_t hash,
     size_t e_len, const void * d, size_t d_len, const void * msg,
     size_t msg_len, void * sig, size_t sig_len, const void * salt,
     size_t salt_len);
+
+/**
+ * @brief Encrypt with RSAES-PKCS1-v1_5.
+ *
+ * The padding is random nonzero bytes from the kernel generator. The
+ * message must be at least eleven bytes shorter than the stripped
+ * modulus.
+ *
+ * @param n Modulus, big-endian. A leading 0x00 is ignored.
+ * @param n_len Length of @p n.
+ * @param e Public exponent, big-endian. Odd and at least 3.
+ * @param e_len Length of @p e.
+ * @param msg Message. NULL only when @p msg_len is 0.
+ * @param msg_len Message length in bytes.
+ * @param out Ciphertext buffer, the stripped modulus length. Wiped on
+ *   failure.
+ * @param out_len Length of @p out. Any other length is ::GSEC_ERR_INVALID.
+ * @return ::GSEC_OK, ::GSEC_ERR_INVALID, ::GSEC_ERR_LIMIT, or
+ *   ::GSEC_ERR_IO.
+ */
+GSEC_API GSEC_Result gsec_rsa_pkcs1_v15_encrypt(const void * n, size_t n_len,
+    const void * e, size_t e_len, const void * msg, size_t msg_len, void * out,
+    size_t out_len);
+
+/**
+ * @brief Decrypt with RSAES-PKCS1-v1_5.
+ *
+ * The padding scan walks the whole encoded message and only then branches,
+ * on the public answer. A bad padding and a ciphertext that is not the
+ * modulus length are both ::GSEC_ERR_MISMATCH. @p msg is wiped on failure.
+ *
+ * @param n Modulus, big-endian. A leading 0x00 is ignored.
+ * @param n_len Length of @p n.
+ * @param e Public exponent, big-endian. Used to check the blinded result.
+ * @param e_len Length of @p e.
+ * @param d Private exponent, big-endian. Same rules as
+ *   ::gsec_rsa_private_pkcs1_v15_sign.
+ * @param d_len Length of @p d.
+ * @param cipher Ciphertext, big-endian.
+ * @param cipher_len Length of @p cipher.
+ * @param msg Output buffer. May alias @p cipher.
+ * @param msg_cap Capacity of @p msg. A message that does not fit is
+ *   ::GSEC_ERR_LIMIT, and @p msg is wiped.
+ * @param msg_len Receives the message length. Not written on failure.
+ * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH, ::GSEC_ERR_INVALID,
+ *   ::GSEC_ERR_LIMIT, ::GSEC_ERR_IO, or ::GSEC_ERR_INTERNAL.
+ */
+GSEC_API GSEC_Result gsec_rsa_pkcs1_v15_decrypt(const void * n, size_t n_len,
+    const void * e, size_t e_len, const void * d, size_t d_len,
+    const void * cipher, size_t cipher_len, void * msg, size_t msg_cap,
+    size_t * msg_len);
+
+/**
+ * @brief Encrypt with RSAES-OAEP.
+ *
+ * @p hash is both the label hash and MGF1. An empty label is @p label_len
+ * 0, and @p label may be NULL in that case. The message must be shorter
+ * than the modulus by two digests plus two bytes.
+ *
+ * @param hash One of the ids accepted by ::gsec_rsa_pkcs1_v15_verify.
+ * @param n Modulus, big-endian.
+ * @param n_len Length of @p n.
+ * @param e Public exponent, big-endian.
+ * @param e_len Length of @p e.
+ * @param label Label. NULL only when @p label_len is 0.
+ * @param label_len Label length in bytes.
+ * @param msg Message. NULL only when @p msg_len is 0.
+ * @param msg_len Message length in bytes.
+ * @param out Ciphertext buffer, the stripped modulus length. Wiped on
+ *   failure.
+ * @param out_len Length of @p out.
+ * @return ::GSEC_OK, ::GSEC_ERR_INVALID, ::GSEC_ERR_LIMIT, or
+ *   ::GSEC_ERR_IO.
+ */
+GSEC_API GSEC_Result gsec_rsa_oaep_encrypt(uint32_t hash, const void * n,
+    size_t n_len, const void * e, size_t e_len, const void * label,
+    size_t label_len, const void * msg, size_t msg_len, void * out,
+    size_t out_len);
+
+/**
+ * @brief Decrypt with RSAES-OAEP.
+ *
+ * The label check and the 0x01 separator scan do not branch on the encoded
+ * message. A bad label, bad padding, and a ciphertext of the wrong length
+ * are all ::GSEC_ERR_MISMATCH. @p msg is wiped on failure.
+ *
+ * @param hash The hash used to encrypt. The same ids as
+ *   ::gsec_rsa_oaep_encrypt.
+ * @param n Modulus, big-endian.
+ * @param n_len Length of @p n.
+ * @param e Public exponent, big-endian.
+ * @param e_len Length of @p e.
+ * @param d Private exponent, big-endian.
+ * @param d_len Length of @p d.
+ * @param label Label. NULL only when @p label_len is 0. A different label
+ *   from the one used to encrypt is ::GSEC_ERR_MISMATCH.
+ * @param label_len Label length in bytes.
+ * @param cipher Ciphertext, big-endian.
+ * @param cipher_len Length of @p cipher.
+ * @param msg Output buffer. May alias @p cipher.
+ * @param msg_cap Capacity of @p msg.
+ * @param msg_len Receives the message length. Not written on failure.
+ * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH, ::GSEC_ERR_INVALID,
+ *   ::GSEC_ERR_LIMIT, ::GSEC_ERR_IO, or ::GSEC_ERR_INTERNAL.
+ */
+GSEC_API GSEC_Result gsec_rsa_oaep_decrypt(uint32_t hash, const void * n,
+    size_t n_len, const void * e, size_t e_len, const void * d, size_t d_len,
+    const void * label, size_t label_len, const void * cipher,
+    size_t cipher_len, void * msg, size_t msg_cap, size_t * msg_len);
 
 #ifdef __cplusplus
 }

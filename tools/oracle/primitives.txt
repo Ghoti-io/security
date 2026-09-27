@@ -36,11 +36,14 @@ chacha20_poly1305	implemented	rfc	tests/data/vectors/chacha20_poly1305.vec
 x25519	implemented	rfc	tests/data/vectors/x25519.vec
 ed25519	implemented	rfc	tests/data/vectors/ed25519.vec
 ecdh_p256	implemented	wycheproof	tests/data/vectors/ecdh_p256.vec
+ecdh_p384	implemented	self	-
 ecdsa_p256	implemented	rfc	tests/data/vectors/ecdsa_p256.vec
 ecdsa_p384	implemented	openssl	tests/data/vectors/ecdsa_p384.vec
 rsa_pss	implemented	wycheproof	tests/data/vectors/rsa_pss.vec
 rsa_pkcs1_v15_verify	implemented	wycheproof	tests/data/vectors/rsa_pkcs1.vec
 rsa_private	implemented	openssl	tests/data/vectors/rsa_private.vec
+rsa_pkcs1_v15	implemented	self	-
+rsa_oaep	implemented	self	-
 
 # Not now, and not by adding a row as implemented without the caller the
 # design names. pkcs12 stays excluded. Password-encrypted PKCS#8 is rejected.

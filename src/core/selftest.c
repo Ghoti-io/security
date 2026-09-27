@@ -55,6 +55,7 @@
 #include <ghoti.io/security/ecdsa_p256.h>
 #include <ghoti.io/security/ecdsa_p384.h>
 #include <ghoti.io/security/ecdh_p256.h>
+#include <ghoti.io/security/ecdh_p384.h>
 #include <ghoti.io/security/ed25519.h>
 #include <ghoti.io/security/x25519.h>
 
@@ -665,6 +666,43 @@ GSEC_Result gsec_selftest(void) {
     }
   }
 
+  /* One P-384 ECDH known answer, generated with OpenSSL 3.5.7. */
+  {
+    static const unsigned char scalar[GSEC_P384_LEN] = {
+      0xd6, 0x3e, 0x1d, 0x34, 0x9c, 0x51, 0x7d, 0xfa, 0x43, 0xa1, 0x75, 0xca,
+      0x27, 0x1f, 0xcc, 0x2c, 0xfd, 0x30, 0xb2, 0xce, 0x67, 0xb7, 0x19, 0x41,
+      0xaa, 0xf3, 0x75, 0xf4, 0x45, 0x7e, 0xce, 0xf2, 0xf7, 0xc9, 0x9e, 0x9d,
+      0x78, 0x4b, 0x6a, 0x75, 0x3c, 0x33, 0x11, 0xb0, 0x4e, 0x4f, 0x3a, 0xab
+    };
+    static const unsigned char peer[GSEC_P384_PUBLIC_LEN] = {
+      0xc9, 0x54, 0x61, 0x45, 0x48, 0x96, 0x4d, 0x21, 0x0c, 0x07, 0x09, 0xfe,
+      0x4c, 0x9b, 0xd7, 0x16, 0xf1, 0x59, 0x84, 0x08, 0xda, 0x7b, 0x0d, 0x3e,
+      0xdb, 0xaa, 0xa0, 0xe7, 0x18, 0x16, 0x37, 0xc2, 0xe4, 0x7d, 0x63, 0x87,
+      0x94, 0xb7, 0xb5, 0x90, 0x49, 0x1f, 0x42, 0xb5, 0x7b, 0xb8, 0xad, 0x50,
+      0x32, 0x69, 0xc6, 0x0e, 0xb8, 0x39, 0x4f, 0xba, 0x2d, 0xe7, 0xb4, 0x7e,
+      0x7f, 0x84, 0x68, 0xcd, 0xff, 0x08, 0x03, 0xa6, 0x55, 0x46, 0x63, 0xd1,
+      0xaf, 0xbd, 0xee, 0x98, 0x48, 0xf8, 0xf1, 0xe0, 0x88, 0x23, 0x9f, 0x2d,
+      0x9a, 0x0d, 0x7f, 0xd1, 0xd6, 0xb3, 0xe9, 0x24, 0x73, 0xa5, 0xd6, 0x28
+    };
+    static const unsigned char shared[GSEC_P384_LEN] = {
+      0x1e, 0x95, 0x5d, 0x75, 0x76, 0x85, 0x86, 0xd4, 0x83, 0xab, 0x61, 0x29,
+      0x6a, 0x77, 0xab, 0xa8, 0xd8, 0x8d, 0xa2, 0x28, 0x35, 0x06, 0xd9, 0xc6,
+      0x85, 0x1a, 0xcf, 0x95, 0xe4, 0x1b, 0xd0, 0x92, 0xe8, 0xe0, 0xad, 0x46,
+      0xe2, 0xff, 0x9a, 0xd6, 0x32, 0xd8, 0x7a, 0x49, 0xb3, 0xd3, 0x97, 0xcd
+    };
+    unsigned char got[GSEC_P384_PUBLIC_LEN];
+
+    result = gsec_ecdh_p384(scalar, peer, got);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(got, shared, GSEC_P384_LEN);
+    gsec_wipe(got, sizeof got);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
   /* RFC 6979 A.2.5. Signing emits the low s. Verification accepts the high s. */
   {
     static const unsigned char scalar[GSEC_ECDSA_P256_LEN] = {
@@ -886,6 +924,51 @@ GSEC_Result gsec_selftest(void) {
     gsec_wipe(sig, sizeof sig);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+    result = gsec_rsa_pkcs1_v15_encrypt(n, sizeof n, e, sizeof e, msg,
+        sizeof msg, sig, sizeof sig);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    {
+      unsigned char got[8];
+      size_t got_len = 0;
+
+      result = gsec_rsa_pkcs1_v15_decrypt(n, sizeof n, e, sizeof e, d,
+          sizeof d, sig, sizeof sig, got, sizeof got, &got_len);
+      if (result != GSEC_OK || got_len != sizeof msg) {
+        gsec_wipe(got, sizeof got);
+        gsec_wipe(sig, sizeof sig);
+        return result == GSEC_OK ? GSEC_ERR_INTERNAL : result;
+      }
+      result = gsec_equal(got, msg, sizeof msg);
+      gsec_wipe(got, sizeof got);
+      gsec_wipe(sig, sizeof sig);
+      if (result != GSEC_OK) {
+        return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+      }
+    }
+    result = gsec_rsa_oaep_encrypt(GSEC_RSA_SHA1, n, sizeof n, e, sizeof e,
+        NULL, 0, msg, sizeof msg, sig, sizeof sig);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    {
+      unsigned char got[8];
+      size_t got_len = 0;
+
+      result = gsec_rsa_oaep_decrypt(GSEC_RSA_SHA1, n, sizeof n, e, sizeof e,
+          d, sizeof d, NULL, 0, sig, sizeof sig, got, sizeof got, &got_len);
+      gsec_wipe(sig, sizeof sig);
+      if (result != GSEC_OK || got_len != sizeof msg) {
+        gsec_wipe(got, sizeof got);
+        return result == GSEC_OK ? GSEC_ERR_INTERNAL : result;
+      }
+      result = gsec_equal(got, msg, sizeof msg);
+      gsec_wipe(got, sizeof got);
+      if (result != GSEC_OK) {
+        return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+      }
     }
   }
 

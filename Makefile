@@ -694,10 +694,12 @@ $(eval $(call fuzz-rule,fuzz_chacha20_poly1305,chacha20_poly1305))
 $(eval $(call fuzz-rule,fuzz_x25519,x25519))
 $(eval $(call fuzz-rule,fuzz_ed25519,ed25519))
 $(eval $(call fuzz-rule,fuzz_ecdh_p256,ecdh_p256))
+$(eval $(call fuzz-rule,fuzz_ecdh_p384,ecdh_p384))
 $(eval $(call fuzz-rule,fuzz_ecdsa_p256,ecdsa_p256))
 $(eval $(call fuzz-rule,fuzz_ecdsa_p384,ecdsa_p384))
 $(eval $(call fuzz-rule,fuzz_rsa_verify,rsa_verify))
 $(eval $(call fuzz-rule,fuzz_rsa_sign,rsa_sign))
+$(eval $(call fuzz-rule,fuzz_rsa_crypt,rsa_crypt))
 $(eval $(call fuzz-rule,fuzz_equal,equal))
 $(eval $(call fuzz-rule,fuzz_hmac,hmac))
 $(eval $(call fuzz-rule,fuzz_hkdf,hkdf))
@@ -712,7 +714,7 @@ $(eval $(call fuzz-rule,fuzz_pem,pem))
 $(eval $(call fuzz-rule,fuzz_pkcs8,pkcs8))
 $(eval $(call fuzz-rule,fuzz_x509,x509))
 
-FUZZERS := aes aes_cbc aes_ctr aes_gcm des rc4 scrypt bcrypt argon2 chacha20_poly1305 x25519 ed25519 ecdh_p256 ecdsa_p256 ecdsa_p384 rsa_verify rsa_sign equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512 der pem pkcs8 x509
+FUZZERS := aes aes_cbc aes_ctr aes_gcm des rc4 scrypt bcrypt argon2 chacha20_poly1305 x25519 ed25519 ecdh_p256 ecdh_p384 ecdsa_p256 ecdsa_p384 rsa_verify rsa_sign rsa_crypt equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512 der pem pkcs8 x509
 
 fuzz: $(addprefix fuzz-run-,$(FUZZERS)) ## Build and run every fuzzer
 

@@ -25,6 +25,7 @@
 #include <ghoti.io/security/ecdsa_p256.h>
 #include <ghoti.io/security/ecdsa_p384.h>
 #include <ghoti.io/security/ecdh_p256.h>
+#include <ghoti.io/security/ecdh_p384.h>
 #include <ghoti.io/security/ed25519.h>
 #include <ghoti.io/security/rsa.h>
 #include <ghoti.io/security/x25519.h>
@@ -260,6 +261,28 @@ int main(void) {
     gsec_wipe(scalar, sizeof scalar);
   }
   {
+    unsigned char scalar[GSEC_P384_LEN];
+    unsigned char peer[GSEC_P384_PUBLIC_LEN] = {
+      0xaa, 0x87, 0xca, 0x22, 0xbe, 0x8b, 0x05, 0x37, 0x8e, 0xb1, 0xc7, 0x1e,
+      0xf3, 0x20, 0xad, 0x74, 0x6e, 0x1d, 0x3b, 0x62, 0x8b, 0xa7, 0x9b, 0x98,
+      0x59, 0xf7, 0x41, 0xe0, 0x82, 0x54, 0x2a, 0x38, 0x55, 0x02, 0xf2, 0x5d,
+      0xbf, 0x55, 0x29, 0x6c, 0x3a, 0x54, 0x5e, 0x38, 0x72, 0x76, 0x0a, 0xb7,
+      0x36, 0x17, 0xde, 0x4a, 0x96, 0x26, 0x2c, 0x6f, 0x5d, 0x9e, 0x98, 0xbf,
+      0x92, 0x92, 0xdc, 0x29, 0xf8, 0xf4, 0x1d, 0xbd, 0x28, 0x9a, 0x14, 0x7c,
+      0xe9, 0xda, 0x31, 0x13, 0xb5, 0xf0, 0xb8, 0xc0, 0x0a, 0x60, 0xb1, 0xce,
+      0x1d, 0x7e, 0x81, 0x9d, 0x7a, 0x43, 0x1d, 0x7c, 0x90, 0xea, 0x0e, 0x5f
+    };
+    unsigned char out[GSEC_P384_LEN];
+
+    memset(scalar, 0x3c, sizeof scalar);
+    gsec_poison(scalar, sizeof scalar);
+    if (gsec_ecdh_p384(scalar, peer, out) != GSEC_OK) {
+      return 31;
+    }
+    gsec_wipe(out, sizeof out);
+    gsec_wipe(scalar, sizeof scalar);
+  }
+  {
     unsigned char scalar[GSEC_ECDSA_P256_LEN];
     unsigned char sig[GSEC_ECDSA_P256_SIG_LEN];
     static const unsigned char message[1] = {0x72};
@@ -324,6 +347,22 @@ int main(void) {
         e, sizeof e, d, sizeof d, message, sizeof message, sig, sizeof sig,
         salt, sizeof salt) != GSEC_OK) {
       return 24;
+    }
+    gsec_wipe(sig, sizeof sig);
+    if (gsec_rsa_pkcs1_v15_encrypt(n, sizeof n, e, sizeof e, message,
+        sizeof message, sig, sizeof sig) != GSEC_OK) {
+      return 32;
+    }
+    {
+      unsigned char got[8];
+      size_t got_len = 0;
+
+      if (gsec_rsa_pkcs1_v15_decrypt(n, sizeof n, e, sizeof e, d, sizeof d,
+          sig, sizeof sig, got, sizeof got, &got_len) != GSEC_OK ||
+          got_len != sizeof message || got[0] != message[0]) {
+        return 33;
+      }
+      gsec_wipe(got, sizeof got);
     }
     gsec_wipe(sig, sizeof sig);
     gsec_wipe(d, sizeof d);
