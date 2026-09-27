@@ -1,0 +1,23 @@
+# The oracle image, pinned.
+#
+# One line per reference, tab-separated: <name> <image> <version> <what it answers>.
+#
+# This image is built here, so the tag is not a digest of the finished image.
+# Two builds of one Containerfile are not two copies of one image. What is
+# pinned instead is everything the build reads — the Debian base by digest,
+# the openssl package by full apt version, Wycheproof by commit — and the
+# run-time check is the guarantee. oracle_env.check_pin() therefore runs in
+# both modes.
+#
+# The version field is what the reference must say. For openssl that is the
+# library version, not the Debian revision: a disagreement with NIST's
+# SHA-256("abc") is about OpenSSL 3.5.7. For Wycheproof the version is the
+# commit, because the vectors are the data. containers/CORPUS hashes one file
+# from that commit so a checkout of the right name with the wrong bytes fails
+# `make check-oracle`.
+#
+# Building it:
+#   make oracle-build
+
+openssl	localhost/ghoti-security-oracle-openssl:3.5.7	OpenSSL 3.5.7	SHA-256 of a published input, and the openssl CLI for later known-answer differentials
+wycheproof	localhost/ghoti-security-oracle-openssl:3.5.7	3fa63dd0344abb611f1fb1d77e119938603ea230	Negative test vectors at this commit; aes_gcm_test.json is hashed in CORPUS

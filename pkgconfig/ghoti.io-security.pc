@@ -1,0 +1,7 @@
+Name: Ghoti.io Security(BRANCH)
+Description: Cryptographic primitives
+Version: (VERSION)
+URL: https://github.com/Ghoti-io/security
+Libs: -L(PC_LIB_DIR) -l(SUITE)-(PROJECT)(BRANCH)
+CFlags: -I(PC_INCLUDE_DIR)
+Requires: (REQUIRES)

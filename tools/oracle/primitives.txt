@@ -1,0 +1,59 @@
+# The primitive set, and who is allowed to judge each one.
+#
+# Four tab-separated fields: id, status, judge, vectors.
+#
+#   id         the function prefix after gsec_. gsec_<id> and gsec_<id>_* match.
+#   status     implemented, pending, or excluded.
+#   judge      self, openssl, nist, rfc, wycheproof, or none.
+#   vectors    a path pinned in tests/data/vectors/MANIFEST, or "-".
+#
+# implemented with an outside judge requires a vector file. pending may name
+# one early — the corpus is allowed to land before the algorithm — and the
+# file then has to exist and match the manifest. excluded means a declaration
+# is a failed build: the design says this library does not grow that function.
+#
+# A new primitive is a new row, with a named caller in documentation/design.md,
+# before the function is declared. tools/check_foundation.py is what enforces
+# that. It is run on a planted gsec_sha256_init first, and fails if that plant
+# is not reported while sha256 is still pending.
+
+equal	implemented	self	tests/data/vectors/equal.vec
+wipe	implemented	self	-
+random	implemented	self	-
+
+sha256	pending	openssl	-
+sha384	pending	openssl	-
+sha512	pending	openssl	-
+sha1	pending	openssl	-
+hmac	pending	openssl	-
+hkdf	pending	rfc	-
+pbkdf2	pending	rfc	-
+aes_encrypt	pending	openssl	-
+aes_gcm	pending	openssl	-
+aes_ctr	pending	openssl	-
+chacha20_poly1305	pending	rfc	-
+x25519	pending	rfc	-
+ecdh_p256	pending	openssl	-
+ecdsa_p256	pending	openssl	-
+ecdsa_p384	pending	openssl	-
+ed25519	pending	rfc	-
+rsa_pss	pending	openssl	-
+rsa_pkcs1_v15_verify	pending	openssl	-
+rsa_private	pending	openssl	-
+
+# Not now, and not by adding a row as implemented without the caller the
+# design names. aes_cbc is 7z, if 7z is ever wanted. rsa_private is skippable
+# if no RSA private key is ever held; it stays pending so declaring it without
+# flipping this row still fails, and flipping it is the decision.
+aes_cbc	pending	openssl	-
+
+md5	excluded	none	-
+des	excluded	none	-
+rc4	excluded	none	-
+argon2	excluded	none	-
+scrypt	excluded	none	-
+bcrypt	excluded	none	-
+x509	excluded	none	-
+pem	excluded	none	-
+pkcs8	excluded	none	-
+der	excluded	none	-

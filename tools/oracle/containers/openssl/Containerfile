@@ -1,0 +1,36 @@
+# OpenSSL 3.5.7 and Wycheproof 3fa63dd, in one image.
+#
+# Built here, so the finished image has no digest to pin. Everything the build
+# reads is pinned instead: the Debian base by digest, the openssl package by
+# full apt version, Wycheproof by commit. The run-time checks — openssl-version
+# and the SHA-256 of aes_gcm_test.json — are what a second build has to satisfy.
+# documentation/oracles.md.
+#
+# The apt pin stops resolving when the archive drops it. That failure is the
+# point: an unpinned `apt-get install openssl` would silently move the oracle.
+FROM docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c
+
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# debian:13-slim already lists trixie-security, signed with the archive's
+# .pgp keyring. A second stanza for the same suite is rejected when its
+# Signed-By differs, which is what an extra security.sources file did.
+# The version pin is the guarantee: main may still be on an older openssl,
+# and an unpinned install would take it.
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends \
+      openssl=3.5.7-1~deb13u2 \
+      ca-certificates \
+      git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git init /opt/wycheproof \
+    && git -C /opt/wycheproof remote add origin https://github.com/C2SP/wycheproof.git \
+    && git -C /opt/wycheproof fetch --depth 1 origin 3fa63dd0344abb611f1fb1d77e119938603ea230 \
+    && git -C /opt/wycheproof checkout --detach FETCH_HEAD \
+    && git -C /opt/wycheproof rev-parse HEAD > /opt/wycheproof/PIN \
+    && rm -rf /opt/wycheproof/.git
+
+COPY openssl-version wycheproof-pin /usr/local/bin/
+RUN chmod 0755 /usr/local/bin/openssl-version /usr/local/bin/wycheproof-pin

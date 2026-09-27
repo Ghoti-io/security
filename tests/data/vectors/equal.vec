@@ -1,0 +1,59 @@
+# Committed known answers for gsec_equal.
+# Hand-written. A constant-time compare has no external oracle; these cases
+# pin the contract in documentation/design.md. Hex is lowercase. "null" is a
+# NULL pointer. "-" is an empty region.
+primitive equal
+
+case empty
+len 0
+a -
+b -
+expect ok
+
+case one-byte
+len 1
+a 00
+b 00
+expect ok
+
+case sixteen
+len 16
+a 00112233445566778899aabbccddeeff
+b 00112233445566778899aabbccddeeff
+expect ok
+
+case differ-first
+len 4
+a ff000000
+b 00000000
+expect mismatch
+
+case differ-last
+len 4
+a 00000000
+b 00000001
+expect mismatch
+
+case differ-middle
+len 5
+a 0000aa0000
+b 0000bb0000
+expect mismatch
+
+case null-left
+len 1
+a null
+b 00
+expect invalid
+
+case null-right
+len 2
+a 0000
+b null
+expect invalid
+
+case null-both-nonzero
+len 3
+a null
+b null
+expect invalid
