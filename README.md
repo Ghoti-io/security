@@ -1,9 +1,11 @@
 # Ghoti.io Security
 
 Cryptographic primitives: hashes, MACs, key derivation, authenticated
-encryption, key agreement, signatures, and the entropy call. It does not
-hold policy, certificates, or a handshake. `certificates` and `tls` are the
-libraries those belong in; this one is the layer under them.
+encryption, key agreement, signatures, and the entropy call. Strict DER,
+PEM, unencrypted PKCS#8, and X.509 path validation live here until a
+certificates library takes them. It does not hold a certificate store,
+revocation, a handshake, or policy. `certificates` and `tls` are the
+libraries those belong in.
 
 ## What is implemented
 
@@ -38,7 +40,12 @@ the modulus. MD5 and SHA-1 are there for old certificates. Signing
 takes the private exponent as well. The exponentiation does not branch on
 it, and each signature is blinded with a value from the kernel generator.
 The blinding does not change the signature bytes. The PSS salt is the
-caller's. A failure wipes the signature buffer.
+caller's. A failure wipes the signature buffer. AES-CBC, DES, three-key
+Triple DES, and RC4 are implemented for old formats. DES and RC4 are
+broken and are not constant-time. AES-CBC does not authenticate. scrypt,
+bcrypt, and Argon2 are password hashes for storage. They are not PBKDF2,
+and none of the three is constant-time. ECDSA P-384 is the same contract
+as P-256 with SHA-384 and 48-byte coordinates.
 
 - `gsec_equal` compares two regions and returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
@@ -57,7 +64,16 @@ caller's. A failure wipes the signature buffer.
 - `gsec_ecdsa_p256_public` multiplies a scalar by the base point. `gsec_ecdsa_p256_sign` signs a message and emits the low s. `gsec_ecdsa_p256_verify` returns `GSEC_ERR_MISMATCH` for a bad signature, a bad point, or an r or s that is zero or not strictly less than the group order. A high s verifies.
 - `gsec_rsa_pkcs1_v15_verify` and `gsec_rsa_pss_verify` check a signature with the public exponent. A modulus past 4096 bits is `GSEC_ERR_LIMIT`.
 - `gsec_rsa_private_pkcs1_v15_sign` and `gsec_rsa_private_pss_sign` produce that signature. The private exponent is raised in constant time and the base is blinded. The PSS salt is the caller's. Eight unusable blinding values are `GSEC_ERR_INTERNAL`. The kernel generator failing is `GSEC_ERR_IO`.
-- `gsec_selftest` runs the known-answer checks an embedder can call at startup: equal, wipe, a short entropy call, each hash, HMAC, HKDF, PBKDF2, AES, CTR, GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH, ECDSA P-256, and a 512-bit RSA signature in both paddings. RSA verification's known answer is the vector file.
+- `gsec_aes_cbc_encrypt` and `gsec_aes_cbc_decrypt` are AES-CBC with no padding. The initialization vector is the caller's. The mode does not authenticate.
+- `gsec_des_encrypt` and `gsec_des_decrypt` are single DES. `gsec_des_ede3_encrypt` and `gsec_des_ede3_decrypt` are three-key Triple DES. Each has a CBC form. Both algorithms are broken. Neither is constant-time.
+- `gsec_rc4` is RC4 with no drop. It is broken and not constant-time.
+- `gsec_scrypt`, `gsec_bcrypt`, and `gsec_argon2` hash a password for storage. The salt is the caller's. bcrypt rejects a password longer than 72 bytes. Argon2 is version 0x13, and BLAKE2b stays inside it.
+- `gsec_ecdsa_p384_public`, `gsec_ecdsa_p384_sign`, and `gsec_ecdsa_p384_verify` are ECDSA on P-384. Coordinates and each half of a signature are 48 bytes. Signing uses SHA-384 and RFC 6979 and emits the low s. Verification accepts a high s.
+- `gsec_der_tlv` reads one strict DER value. An indefinite length, a non-minimal integer, and a SET that is not strictly ascending are rejected.
+- `gsec_pem_decode` reads the first PEM block. `gsec_pem_encode` writes one.
+- `gsec_pkcs8_parse` reads an unencrypted PKCS#8 key: RSA, P-256, P-384, or Ed25519. A password-encrypted key is `GSEC_ERR_UNSUPPORTED`. The pointers address the caller's buffer.
+- `gsec_x509_parse` reads one certificate. `gsec_x509_signed_by` checks the signature. `gsec_x509_path` walks a chain the caller arranged, leaf then intermediates then anchor, at a Unix second the caller supplies. `gsec_x509_hostname` matches a DNS name. Revocation is not checked. A critical extension this parser does not know is rejected.
+- `gsec_selftest` runs the known-answer checks an embedder can call at startup: equal, wipe, a short entropy call, each hash, HMAC, HKDF, PBKDF2, AES, CTR, CBC, GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH, ECDSA P-256 and P-384, a 512-bit RSA signature in both paddings, and one DER value. RSA verification's known answer is the vector file.
 - `gsec_poison` and `gsec_unpoison` mark secret bytes for the constant-time gate. In a normal build they do nothing.
 
 The primitive set, including what is pending and what is excluded, is
@@ -113,9 +129,10 @@ the image is absent. `make docs` builds the manual.
 
 ## Status
 
-Phases 0 through 8 are built: the gate, the hashes, HMAC, HKDF, PBKDF2,
-AES, CTR, GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH, ECDSA P-256,
-and RSA verification. `make test` runs the unit tests, the symbol, aliasing,
+Phases 0 through 13 are built: the gate, the hashes, HMAC, HKDF, PBKDF2,
+AES, CTR, CBC, GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH, ECDSA
+P-256 and P-384, RSA verification and signing, DES, RC4, scrypt, bcrypt,
+Argon2, and the certificate encodings. `make test` runs the unit tests, the symbol, aliasing,
 stamp, secret, foundation, and constant-time gates. `make check-oracle` is
 separate, because it needs the container. It compares the implemented
 primitives with pinned OpenSSL 3.5.7 and with the Wycheproof files named in
