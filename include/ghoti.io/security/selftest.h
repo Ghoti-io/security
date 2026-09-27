@@ -42,7 +42,8 @@ extern "C" {
  *
  * Covers comparison, wiping, one read from the kernel generator, and the
  * SHA-256, SHA-512, SHA-384, and SHA-1 of the empty message and of `abc`,
- * and HMAC-SHA-256 of RFC 4231 test case 1.
+ * HMAC-SHA-256 of RFC 4231 test case 1, and HKDF-SHA-256 of RFC 5869
+ * test case 1.
  * Later primitives add their vectors here in the same commit that adds the
  * primitive.
  *

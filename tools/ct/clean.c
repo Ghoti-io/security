@@ -14,6 +14,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/secret.h>
+#include <ghoti.io/security/hkdf.h>
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/sha1.h>
 #include <ghoti.io/security/sha256.h>
@@ -111,6 +112,16 @@ int main(void) {
     }
     gsec_wipe(mac, sizeof mac);
     gsec_wipe(key, sizeof key);
+  }
+  {
+    unsigned char okm[16];
+
+    gsec_poison(secret, sizeof secret);
+    if (gsec_hkdf(GSEC_HKDF_SHA256, NULL, 0, secret, sizeof secret, NULL, 0,
+        okm, sizeof okm) != GSEC_OK) {
+      return 12;
+    }
+    gsec_wipe(okm, sizeof okm);
   }
   return 0;
 }

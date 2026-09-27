@@ -288,6 +288,72 @@ def diff_hmac():
                     "hmac %s %s is %s, openssl says %s\n" % (alg, how, got, want))
                 return 1
         print("hmac %s %s" % (alg, want))
+    return diff_hkdf()
+
+
+def colon_hex(text):
+    return "".join(ch for ch in text.lower() if ch in "0123456789abcdef")
+
+
+def openssl_hkdf(digest, ikm, salt, info, n):
+    command = [
+        "openssl", "kdf", "-keylen", str(n), "-digest", digest,
+        "-kdfopt", "hexkey:" + ikm]
+    if salt:
+        command.extend(["-kdfopt", "hexsalt:" + salt])
+    if info:
+        command.extend(["-kdfopt", "hexinfo:" + info])
+    command.append("HKDF")
+    proc = subprocess.run(
+        oracle_env.command("openssl", command), capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        raise SystemExit(1)
+    got = colon_hex(proc.stdout.decode("utf-8", "replace"))
+    if len(got) != n * 2:
+        sys.stderr.write("openssl hkdf wrote %r\n" % got)
+        raise SystemExit(1)
+    return got
+
+
+def library_hkdf(binary, alg, ikm, salt, info, n):
+    proc = subprocess.run(
+        [binary, alg, ikm, salt if salt else "-", info if info else "-", str(n)],
+        capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        sys.stderr.write("hkdf helper exited %s\n" % proc.returncode)
+        raise SystemExit(1)
+    got = proc.stdout.decode("utf-8", "replace").strip()
+    if len(got) != n * 2:
+        sys.stderr.write("hkdf helper wrote %r\n" % got)
+        raise SystemExit(1)
+    return got
+
+
+def diff_hkdf():
+    binary = os.environ.get("GSEC_HKDF_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_HKDF_BIN is not set\n")
+        return 1
+    ikm = "0b" * 22
+    ikm_sha1 = "0b" * 11
+    salt = "000102030405060708090a0b0c"
+    info = "f0f1f2f3f4f5f6f7f8f9"
+    cases = [
+        ("sha256", "SHA256", ikm, salt, info, 42),
+        ("sha256", "SHA256", ikm, "", "", 42),
+        ("sha1", "SHA1", ikm_sha1, salt, info, 42),
+        ("sha384", "SHA384", ikm, salt, info, 42),
+        ("sha512", "SHA512", ikm, salt, info, 42),
+    ]
+    for alg, digest, key, salt_hex, info_hex, n in cases:
+        want = openssl_hkdf(digest, key, salt_hex, info_hex, n)
+        got = library_hkdf(binary, alg, key, salt_hex, info_hex, n)
+        if not compare.hex_equal(got, want):
+            sys.stderr.write("hkdf %s is %s, openssl says %s\n" % (alg, got, want))
+            return 1
+        print("hkdf %s %s" % (alg, want))
     return 0
 
 

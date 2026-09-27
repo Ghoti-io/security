@@ -8,15 +8,16 @@ libraries those belong in; this one is the layer under them.
 ## What is implemented
 
 Phase 0, the machinery the algorithms are measured against, SHA-256, SHA-512,
-SHA-384, SHA-1, and HMAC over those four hashes. SHA-1 does not provide
-collision resistance; it is here for ZIP and for old certificate chains.
-No cipher is implemented yet.
+SHA-384, SHA-1, HMAC over those four hashes, and HKDF. SHA-1 does not
+provide collision resistance; it is here for ZIP and for old certificate
+chains. HKDF is not PBKDF2. No cipher is implemented yet.
 
 - `gsec_equal` compares two regions and returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
 - `gsec_random_bytes` reads the kernel generator. A failure wipes what was already written and returns `GSEC_ERR_IO`. There is no userspace generator behind that failure.
 - `gsec_sha256` hashes a buffer. `gsec_sha256_init`, `gsec_sha256_update`, and `gsec_sha256_final` hash a message in slices. Final wipes the context. `gsec_sha512`, `gsec_sha384`, and `gsec_sha1` are the same shape. SHA-384 is SHA-512's compression with a different initial value, not a truncation of a SHA-512 digest.
 - `gsec_hmac` is HMAC over one of those hashes. `gsec_hmac_verify` compares the MAC with `gsec_equal` and returns `GSEC_ERR_MISMATCH` when it differs.
+- `gsec_hkdf` is HKDF over one of those hashes: extract, then expand. A salt of length zero is HashLen zero bytes. An output longer than 255 digests is `GSEC_ERR_LIMIT`. This is the high-entropy derivation. It is not PBKDF2.
 - `gsec_selftest` runs the known-answer checks an embedder can call at startup. That is the calls above, including each hash of the empty message and of `abc`, and the HMAC-SHA-256 of RFC 4231 test case 1.
 - `gsec_poison` and `gsec_unpoison` mark secret bytes for the constant-time gate. In a normal build they do nothing.
 
@@ -73,7 +74,7 @@ the image is absent. `make docs` builds the manual.
 
 ## Status
 
-Phase 1 of the plan is built: SHA-256, SHA-512, SHA-384, SHA-1, and HMAC.
+Phase 1 is built, and HKDF from phase 2. PBKDF2 is not.
 `make test` runs the unit tests, the symbol, aliasing, stamp, secret,
 foundation, and constant-time gates. `make check-oracle` is separate, because
 it needs the container. It compares these hashes with the pinned OpenSSL.
