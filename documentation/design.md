@@ -7,7 +7,8 @@ hashes, and HKDF and PBKDF2 are implemented. MD5 does not provide collision
 resistance; the declaration says so, and HMAC does not take it. HKDF is the high-entropy derivation and
 PBKDF2 is the slow one; they are different functions. AES-128, AES-192, and
 AES-256 encrypt and decrypt one block; the substitution is table-free. CTR
-and GCM are the rest of that phase. No signature is implemented. The primitive
+increments the counter big-endian, as NIST specifies, or little-endian, as
+WinZip does. GCM is the rest of that phase. No signature is implemented. The primitive
 registry in `tools/oracle/primitives.txt` is the list of what may be
 declared. The phases below are the order the rest is built in.
 

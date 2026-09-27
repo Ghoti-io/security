@@ -515,6 +515,64 @@ def diff_aes():
                 "aes-%s decrypt is %s, openssl says %s\n" % (bits, got, back))
             return 1
         print("aes-%s decrypt %s" % (bits, back))
+    return diff_ctr()
+
+
+def openssl_aes_ctr(bits, key_hex, counter_hex, message):
+    command = [
+        "openssl", "enc", "-aes-%s-ctr" % bits, "-K", key_hex,
+        "-iv", counter_hex, "-nosalt"]
+    proc = subprocess.run(
+        oracle_env.command("openssl", command),
+        input=message, capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        raise SystemExit(1)
+    if len(proc.stdout) != len(message):
+        sys.stderr.write("openssl aes-ctr wrote %s bytes\n" % len(proc.stdout))
+        raise SystemExit(1)
+    return proc.stdout.hex()
+
+
+def library_aes_ctr(binary, bits, key_hex, counter_hex, message):
+    proc = subprocess.run(
+        [binary, bits, "be", key_hex, counter_hex],
+        input=message, capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        sys.stderr.write("aes-ctr helper exited %s\n" % proc.returncode)
+        raise SystemExit(1)
+    got = proc.stdout.decode("utf-8", "replace").strip()
+    if len(got) != len(message) * 2:
+        sys.stderr.write("aes-ctr helper wrote %r\n" % got)
+        raise SystemExit(1)
+    return got
+
+
+def diff_ctr():
+    binary = os.environ.get("GSEC_AES_CTR_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_AES_CTR_BIN is not set\n")
+        return 1
+    cases = [
+        ("128", "000102030405060708090a0b0c0d0e0f",
+         "00000000000000000000000000000001", b"hello ctr mode!!"),
+        ("128", "000102030405060708090a0b0c0d0e0f",
+         "00000000000000000000000000000001", b"a" * 20),
+        ("192", "000102030405060708090a0b0c0d0e0f1011121314151617",
+         "00000000000000000000000000000001", b"a" * 20),
+        ("256",
+         "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+         "00000000000000000000000000000000", b"ctr-256"),
+    ]
+    for bits, key_hex, counter_hex, message in cases:
+        want = openssl_aes_ctr(bits, key_hex, counter_hex, message)
+        got = library_aes_ctr(binary, bits, key_hex, counter_hex, message)
+        if not compare.hex_equal(got, want):
+            sys.stderr.write(
+                "aes-%s-ctr is %s, openssl says %s\n" % (bits, got, want))
+            return 1
+        print("aes-%s-ctr %s" % (bits, want))
     return 0
 
 

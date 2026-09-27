@@ -15,7 +15,8 @@
 # A new primitive is a new row, with a named caller in documentation/design.md,
 # before the function is declared. tools/check_foundation.py is what enforces
 # that. It is run on a planted gsec_aes_gcm first, and fails if that
-# plant is not reported while aes_gcm is still pending.
+# plant is not reported while aes_gcm is still pending. aes_ctr is
+# implemented; its functions are gsec_aes_ctr and gsec_aes_ctr_*.
 
 equal	implemented	self	tests/data/vectors/equal.vec
 wipe	implemented	self	-
@@ -31,7 +32,7 @@ pbkdf2	implemented	openssl	tests/data/vectors/pbkdf2.vec
 aes_encrypt	implemented	openssl	tests/data/vectors/aes.vec
 aes_decrypt	implemented	openssl	tests/data/vectors/aes.vec
 aes_gcm	pending	openssl	-
-aes_ctr	pending	openssl	-
+aes_ctr	implemented	openssl	tests/data/vectors/aes_ctr.vec
 chacha20_poly1305	pending	rfc	-
 x25519	pending	rfc	-
 ecdh_p256	pending	openssl	-

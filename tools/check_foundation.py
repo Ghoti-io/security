@@ -172,6 +172,8 @@ def main():
         "gsec_aes_encrypt", "gsec_aes_encrypt_init", "gsec_aes_encrypt_block",
         "gsec_aes_encrypt_wipe",
         "gsec_aes_decrypt", "gsec_aes_decrypt_block",
+        "gsec_aes_ctr", "gsec_aes_ctr_init", "gsec_aes_ctr_update",
+        "gsec_aes_ctr_wipe",
     }
     clean = classify(present, rows)
     if clean:

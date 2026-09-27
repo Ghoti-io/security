@@ -42,6 +42,7 @@
 
 /* Public types. GCU_* names are cutil's; cutil has already renamed them. */
 #define GSEC_Aes GHOTIIO_SECURITY(GSEC_Aes)
+#define GSEC_Aes_Ctr GHOTIIO_SECURITY(GSEC_Aes_Ctr)
 #define GSEC_Allocator GHOTIIO_SECURITY(GSEC_Allocator)
 #define GSEC_Hmac GHOTIIO_SECURITY(GSEC_Hmac)
 #define GSEC_Limits GHOTIIO_SECURITY(GSEC_Limits)
@@ -58,6 +59,10 @@
 #define gsec_aes_encrypt_block GHOTIIO_SECURITY(gsec_aes_encrypt_block)
 #define gsec_aes_encrypt_init GHOTIIO_SECURITY(gsec_aes_encrypt_init)
 #define gsec_aes_encrypt_wipe GHOTIIO_SECURITY(gsec_aes_encrypt_wipe)
+#define gsec_aes_ctr GHOTIIO_SECURITY(gsec_aes_ctr)
+#define gsec_aes_ctr_init GHOTIIO_SECURITY(gsec_aes_ctr_init)
+#define gsec_aes_ctr_update GHOTIIO_SECURITY(gsec_aes_ctr_update)
+#define gsec_aes_ctr_wipe GHOTIIO_SECURITY(gsec_aes_ctr_wipe)
 #define gsec_allocator_default GHOTIIO_SECURITY(gsec_allocator_default)
 #define gsec_equal GHOTIIO_SECURITY(gsec_equal)
 #define gsec_hmac GHOTIIO_SECURITY(gsec_hmac)

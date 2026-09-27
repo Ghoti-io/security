@@ -18,6 +18,7 @@
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/aes.h>
+#include <ghoti.io/security/aes_ctr.h>
 #include <ghoti.io/security/md5.h>
 #include <ghoti.io/security/sha1.h>
 #include <ghoti.io/security/sha256.h>
@@ -126,6 +127,22 @@ int main(void) {
     gsec_wipe(out, sizeof out);
     gsec_wipe(key, sizeof key);
     gsec_wipe(block, sizeof block);
+  }
+  {
+    unsigned char counter[GSEC_AES_BLOCK_LEN];
+    unsigned char out[32];
+    unsigned char key[GSEC_AES128_KEY_LEN];
+
+    memset(counter, 1, sizeof counter);
+    memset(key, 0x3c, sizeof key);
+    gsec_poison(key, sizeof key);
+    gsec_poison(secret, sizeof secret);
+    if (gsec_aes_ctr(key, sizeof key, counter, GSEC_AES_CTR_BE, secret, out,
+        sizeof secret) != GSEC_OK) {
+      return 16;
+    }
+    gsec_wipe(out, sizeof out);
+    gsec_wipe(key, sizeof key);
   }
   {
     unsigned char mac[GSEC_SHA256_DIGEST_LEN];

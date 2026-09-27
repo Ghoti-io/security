@@ -30,6 +30,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/aes.h>
+#include <ghoti.io/security/aes_ctr.h>
 #include <ghoti.io/security/hkdf.h>
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
@@ -391,6 +392,38 @@ GSEC_Result gsec_selftest(void) {
     }
     result = gsec_equal(back, pt, sizeof back);
     gsec_wipe(back, sizeof back);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  /* NIST CTR, big-endian counter, one block of "hello ctr mode!!". */
+  {
+    static const unsigned char key[GSEC_AES128_KEY_LEN] = {
+      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+      0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+    };
+    static const unsigned char counter[GSEC_AES_BLOCK_LEN] = {
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
+    };
+    static const unsigned char msg[16] = {
+      0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x63, 0x74,
+      0x72, 0x20, 0x6d, 0x6f, 0x64, 0x65, 0x21, 0x21
+    };
+    static const unsigned char want[16] = {
+      0x1b, 0x23, 0x7f, 0xf9, 0xfa, 0xe0, 0xd7, 0x6a,
+      0x3b, 0x5b, 0xd0, 0x8c, 0x01, 0x91, 0x0c, 0x2b
+    };
+    unsigned char got[16];
+
+    result = gsec_aes_ctr(key, sizeof key, counter, GSEC_AES_CTR_BE, msg, got,
+        sizeof msg);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(got, want, sizeof got);
+    gsec_wipe(got, sizeof got);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
     }

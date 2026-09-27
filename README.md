@@ -24,6 +24,7 @@ password, which is what WinZip AES uses. No cipher is implemented yet.
 - `gsec_hkdf` is HKDF over one of those hashes: extract, then expand. A salt of length zero is HashLen zero bytes. An output longer than 255 digests is `GSEC_ERR_LIMIT`. This is the high-entropy derivation.
 - `gsec_pbkdf2` is PBKDF2 over one of those hashes. The iteration count is the cost, and zero is `GSEC_ERR_INVALID`. This is the slow derivation for a password. It is a different function from `gsec_hkdf`.
 - `gsec_aes_encrypt` and `gsec_aes_decrypt` are one AES block at 128, 192, or 256 bits. The schedule from `gsec_aes_encrypt_init` serves both directions. A key byte is not a table index.
+- `gsec_aes_ctr` is that block cipher in CTR. `GSEC_AES_CTR_BE` is the NIST counter. `GSEC_AES_CTR_LE` is the WinZip counter.
 - `gsec_selftest` runs the known-answer checks an embedder can call at startup. That is the calls above, including each hash of the empty message and of `abc`, and the HMAC-SHA-256 of RFC 4231 test case 1.
 - `gsec_poison` and `gsec_unpoison` mark secret bytes for the constant-time gate. In a normal build they do nothing.
 
