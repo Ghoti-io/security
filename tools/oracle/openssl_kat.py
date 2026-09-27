@@ -1011,6 +1011,156 @@ def diff_ecdsa_p256():
         sys.stderr.write("ecdsa-p256 checked %s wycheproof cases\n" % checked)
         return 1
     print("ecdsa-p256 wycheproof %s" % checked)
+    return diff_rsa()
+
+
+HASH_NAME = {
+    "SHA-1": "sha1",
+    "SHA-256": "sha256",
+    "SHA-384": "sha384",
+    "SHA-512": "sha512",
+    "MD5": "md5",
+}
+
+PKCS1_FILES = (
+    ("rsa_signature_2048_sha256_test.json", 259),
+    ("rsa_signature_2048_sha384_test.json", 258),
+    ("rsa_signature_2048_sha512_test.json", 259),
+    ("rsa_signature_3072_sha256_test.json", 259),
+    ("rsa_signature_3072_sha384_test.json", 259),
+    ("rsa_signature_3072_sha512_test.json", 260),
+    ("rsa_signature_4096_sha256_test.json", 258),
+    ("rsa_signature_4096_sha512_test.json", 259),
+)
+
+PSS_FILES = (
+    ("rsa_pss_2048_sha256_mgf1_32_test.json", 108),
+    ("rsa_pss_2048_sha256_mgf1_0_test.json", 103),
+    ("rsa_pss_2048_sha384_mgf1_48_test.json", 141),
+    ("rsa_pss_2048_sha1_mgf1_20_test.json", 88),
+    ("rsa_pss_2048_sha256_mgf1sha1_20_test.json", 108),
+    ("rsa_pss_3072_sha256_mgf1_32_test.json", 108),
+    ("rsa_pss_4096_sha256_mgf1_32_test.json", 108),
+    ("rsa_pss_4096_sha512_mgf1_64_test.json", 179),
+)
+
+
+def library_rsa_pkcs1(binary, hash_name, n_hex, e_hex, msg_hex, sig_hex):
+    message = msg_hex if msg_hex else "-"
+    proc = subprocess.run(
+        [binary, "pkcs1", hash_name, n_hex, e_hex, message, sig_hex],
+        capture_output=True)
+    return proc.returncode
+
+
+def library_rsa_pss(binary, hash_name, mgf_name, salt, n_hex, e_hex, msg_hex,
+        sig_hex):
+    message = msg_hex if msg_hex else "-"
+    proc = subprocess.run(
+        [binary, "pss", hash_name, mgf_name, str(salt), n_hex, e_hex, message,
+         sig_hex],
+        capture_output=True)
+    return proc.returncode
+
+
+def load_wycheproof(name):
+    path = "/opt/wycheproof/testvectors_v1/" + name
+    proc = subprocess.run(
+        oracle_env.command("wycheproof", ["cat", path]), capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        return None
+    try:
+        return json.loads(proc.stdout.decode("utf-8"))
+    except json.JSONDecodeError as error:
+        sys.stderr.write("wycheproof %s: %s\n" % (name, error))
+        return None
+
+
+def diff_rsa():
+    binary = os.environ.get("GSEC_RSA_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_RSA_BIN is not set\n")
+        return 1
+    for name, minimum in PKCS1_FILES:
+        data = load_wycheproof(name)
+        if data is None:
+            return 1
+        checked = 0
+        for group in data["testGroups"]:
+            hash_name = HASH_NAME.get(group["sha"])
+            if hash_name is None:
+                sys.stderr.write("%s has hash %s\n" % (name, group["sha"]))
+                return 1
+            n_hex = group["publicKey"]["modulus"]
+            e_hex = group["publicKey"]["publicExponent"]
+            for case in group["tests"]:
+                checked += 1
+                code = library_rsa_pkcs1(
+                    binary, hash_name, n_hex, e_hex, case["msg"], case["sig"])
+                if case["result"] == "valid":
+                    if code != 0:
+                        sys.stderr.write(
+                            "rsa-pkcs1 %s tc %s exited %s\n"
+                            % (name, case["tcId"], code))
+                        return 1
+                    continue
+                if case["result"] == "invalid" or case["result"] == "acceptable":
+                    if code == 0:
+                        sys.stderr.write(
+                            "rsa-pkcs1 %s tc %s was accepted\n"
+                            % (name, case["tcId"]))
+                        return 1
+                    continue
+                sys.stderr.write(
+                    "rsa-pkcs1 %s tc %s has result %s\n"
+                    % (name, case["tcId"], case["result"]))
+                return 1
+        if checked < minimum:
+            sys.stderr.write("rsa-pkcs1 %s checked %s\n" % (name, checked))
+            return 1
+        print("rsa-pkcs1 %s %s" % (name, checked))
+    for name, minimum in PSS_FILES:
+        data = load_wycheproof(name)
+        if data is None:
+            return 1
+        checked = 0
+        for group in data["testGroups"]:
+            hash_name = HASH_NAME.get(group["sha"])
+            mgf_name = HASH_NAME.get(group["mgfSha"])
+            if hash_name is None or mgf_name is None:
+                sys.stderr.write("%s has hash %s mgf %s\n"
+                    % (name, group.get("sha"), group.get("mgfSha")))
+                return 1
+            n_hex = group["publicKey"]["modulus"]
+            e_hex = group["publicKey"]["publicExponent"]
+            salt = group["sLen"]
+            for case in group["tests"]:
+                checked += 1
+                code = library_rsa_pss(
+                    binary, hash_name, mgf_name, salt, n_hex, e_hex,
+                    case["msg"], case["sig"])
+                if case["result"] == "valid":
+                    if code != 0:
+                        sys.stderr.write(
+                            "rsa-pss %s tc %s exited %s\n"
+                            % (name, case["tcId"], code))
+                        return 1
+                    continue
+                if case["result"] == "invalid" or case["result"] == "acceptable":
+                    if code == 0:
+                        sys.stderr.write(
+                            "rsa-pss %s tc %s was accepted\n" % (name, case["tcId"]))
+                        return 1
+                    continue
+                sys.stderr.write(
+                    "rsa-pss %s tc %s has result %s\n"
+                    % (name, case["tcId"], case["result"]))
+                return 1
+        if checked < minimum:
+            sys.stderr.write("rsa-pss %s checked %s\n" % (name, checked))
+            return 1
+        print("rsa-pss %s %s" % (name, checked))
     return 0
 
 

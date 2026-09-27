@@ -689,6 +689,7 @@ $(eval $(call fuzz-rule,fuzz_x25519,x25519))
 $(eval $(call fuzz-rule,fuzz_ed25519,ed25519))
 $(eval $(call fuzz-rule,fuzz_ecdh_p256,ecdh_p256))
 $(eval $(call fuzz-rule,fuzz_ecdsa_p256,ecdsa_p256))
+$(eval $(call fuzz-rule,fuzz_rsa_verify,rsa_verify))
 $(eval $(call fuzz-rule,fuzz_equal,equal))
 $(eval $(call fuzz-rule,fuzz_hmac,hmac))
 $(eval $(call fuzz-rule,fuzz_hkdf,hkdf))
@@ -699,7 +700,7 @@ $(eval $(call fuzz-rule,fuzz_sha1,sha1))
 $(eval $(call fuzz-rule,fuzz_sha256,sha256))
 $(eval $(call fuzz-rule,fuzz_sha512,sha512))
 
-FUZZERS := aes aes_ctr aes_gcm chacha20_poly1305 x25519 ed25519 ecdh_p256 ecdsa_p256 equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512
+FUZZERS := aes aes_ctr aes_gcm chacha20_poly1305 x25519 ed25519 ecdh_p256 ecdsa_p256 rsa_verify equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512
 
 fuzz: $(addprefix fuzz-run-,$(FUZZERS)) ## Build and run every fuzzer
 
@@ -737,7 +738,8 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/x25519$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/ed25519$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/ecdh_p256$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/ecdsa_p256$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
+		$(APP_DIR)/examples/ecdsa_p256$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/rsa_verify$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
 	@GHOTI_ORACLE_REQUIRED=1 GSEC_SHA256_BIN="$(APP_DIR)/examples/sha256$(EXE_EXTENSION)" \
 		GSEC_HASH_BIN="$(APP_DIR)/examples/hash$(EXE_EXTENSION)" \
 		GSEC_HMAC_BIN="$(APP_DIR)/examples/hmac$(EXE_EXTENSION)" \
@@ -751,6 +753,7 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		GSEC_ED25519_BIN="$(APP_DIR)/examples/ed25519$(EXE_EXTENSION)" \
 		GSEC_ECDH_P256_BIN="$(APP_DIR)/examples/ecdh_p256$(EXE_EXTENSION)" \
 		GSEC_ECDSA_P256_BIN="$(APP_DIR)/examples/ecdsa_p256$(EXE_EXTENSION)" \
+		GSEC_RSA_BIN="$(APP_DIR)/examples/rsa_verify$(EXE_EXTENSION)" \
 		$(ORACLE_RUN) openssl,wycheproof -- python3 $(ORACLE)/openssl_kat.py
 
 ####################################################################

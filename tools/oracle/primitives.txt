@@ -38,8 +38,8 @@ ed25519	implemented	rfc	tests/data/vectors/ed25519.vec
 ecdh_p256	implemented	wycheproof	tests/data/vectors/ecdh_p256.vec
 ecdsa_p256	implemented	rfc	tests/data/vectors/ecdsa_p256.vec
 ecdsa_p384	pending	openssl	-
-rsa_pss	pending	openssl	-
-rsa_pkcs1_v15_verify	pending	openssl	-
+rsa_pss	implemented	wycheproof	tests/data/vectors/rsa_pss.vec
+rsa_pkcs1_v15_verify	implemented	wycheproof	tests/data/vectors/rsa_pkcs1.vec
 rsa_private	pending	openssl	-
 
 # Not now, and not by adding a row as implemented without the caller the

@@ -29,7 +29,10 @@ are rejected and the output is wiped. ECDSA P-256 takes a 32-byte scalar.
 The signature is 64 bytes, r then s. Signing hashes with SHA-256 and uses
 RFC 6979, and the s it emits is the low one. Verification accepts a high s.
 An r or s of zero, or one that is not strictly less than the group order,
-does not verify.
+does not verify. RSA verification takes a modulus of at most 4096 bits
+and an odd public exponent of at least 3. PKCS#1 v1.5 accepts only the DER
+DigestInfo. PSS takes a salt length and encodes one bit shorter than
+the modulus. MD5 and SHA-1 are there for old certificates.
 
 - `gsec_equal` compares two regions and returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
@@ -46,6 +49,7 @@ does not verify.
 - `gsec_ed25519_public` derives a public key from a 32-byte seed. `gsec_ed25519_sign` signs a message. `gsec_ed25519_verify` returns `GSEC_ERR_MISMATCH` for a bad signature, a non-canonical point, or an S that is not strictly less than the group order.
 - `gsec_ecdh_p256` multiplies a scalar by a peer point and writes the shared x coordinate. `gsec_ecdh_p256_public` multiplies it by the base point. A bad point and the point at infinity are `GSEC_ERR_INVALID`, and the output is wiped.
 - `gsec_ecdsa_p256_public` multiplies a scalar by the base point. `gsec_ecdsa_p256_sign` signs a message and emits the low s. `gsec_ecdsa_p256_verify` returns `GSEC_ERR_MISMATCH` for a bad signature, a bad point, or an r or s that is zero or not strictly less than the group order. A high s verifies.
+- `gsec_rsa_pkcs1_v15_verify` and `gsec_rsa_pss_verify` check a signature with the public exponent. There is no private-key operation. A modulus past 4096 bits is `GSEC_ERR_LIMIT`.
 - `gsec_selftest` runs the known-answer checks an embedder can call at startup. That is the calls above, including each hash of the empty message and of `abc`, and the HMAC-SHA-256 of RFC 4231 test case 1.
 - `gsec_poison` and `gsec_unpoison` mark secret bytes for the constant-time gate. In a normal build they do nothing.
 

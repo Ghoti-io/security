@@ -22,7 +22,12 @@ and the output is wiped. A shared x of zero is a result, not a failure.
 ECDSA P-256 hashes the message with SHA-256 and derives the nonce with
 RFC 6979. Signing emits the low s. Verification accepts a high s. An r or
 s of zero, or one that is not strictly less than the group order, does
-not verify. The primitive
+not verify. RSA verification is the public exponent only. PKCS#1 v1.5
+accepts the DER DigestInfo, including the NULL, and at least eight 0xff
+bytes. PSS takes the salt length from the caller and encodes one bit
+shorter than the modulus. MD5 and SHA-1 verify so an old certificate
+can be checked and then rejected for the algorithm.
+A modulus past 4096 bits is rejected. The primitive
 registry in `tools/oracle/primitives.txt` is the list of what may be
 declared. The phases below are the order the rest is built in.
 
@@ -161,7 +166,7 @@ Phase 9 may never be built.
 | 5 | X25519 is implemented | TLS 1.3 key agreement. The all-zero shared secret is rejected |
 | 6 | Ed25519 is implemented | RFC 8032. Verification rejects a non-canonical point and a non-canonical S |
 | 7 | P-256 ECDH and ECDSA are implemented | ECDH rejects a non-canonical coordinate, an off-curve point, and infinity. ECDSA signs with RFC 6979, emits the low s, and accepts a high s |
-| 8 | Bignum, RSA verify (PSS and PKCS#1 v1.5) | Verification only |
+| 8 | RSA-PSS and PKCS#1 v1.5 verification are implemented | Public exponent only. The DigestInfo is the DER encoding, including the NULL. A modulus past 4096 bits is rejected |
 | 9 | RSA private operations | Skippable |
 | 10 | P-384, if certificates need it | |
 | 11 | AES-CBC, if 7z needs it | |

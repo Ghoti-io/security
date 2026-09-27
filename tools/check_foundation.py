@@ -181,6 +181,7 @@ def main():
         "gsec_ecdh_p256", "gsec_ecdh_p256_public",
         "gsec_ecdsa_p256_public", "gsec_ecdsa_p256_sign",
         "gsec_ecdsa_p256_verify",
+        "gsec_rsa_pkcs1_v15_verify", "gsec_rsa_pss_verify",
     }
     clean = classify(present, rows)
     if clean:
@@ -233,6 +234,10 @@ def main():
         fail("CORPUS does not name ecdh_secp256r1_ecpoint_test.json")
     if "testvectors_v1/ecdsa_secp256r1_sha256_p1363_test.json" not in corpus:
         fail("CORPUS does not name ecdsa_secp256r1_sha256_p1363_test.json")
+    if "testvectors_v1/rsa_signature_2048_sha256_test.json" not in corpus:
+        fail("CORPUS does not name rsa_signature_2048_sha256_test.json")
+    if "testvectors_v1/rsa_pss_2048_sha256_mgf1_32_test.json" not in corpus:
+        fail("CORPUS does not name rsa_pss_2048_sha256_mgf1_32_test.json")
     digest = None
     for line in corpus.splitlines():
         if line.startswith("#") or not line.strip():

@@ -82,7 +82,11 @@ vector is one of those cases. A `valid` case must match the shared x. An
 the same shape: the committed vector is RFC 6979, and the oracle runs the
 pinned Wycheproof P1363 file. A `valid` case must be accepted. An
 `invalid` case, including an r or s of zero, must be rejected. Declaring
-`gsec_ecdsa_p384` while that row is still pending fails `make test`. HMAC is
+`gsec_ecdsa_p384` while that row is still pending fails `make test`. RSA
+verification is judged by the pinned Wycheproof files. A `valid` case must
+be accepted. An `invalid` case must be rejected, and so must an
+`acceptable` one: that is a BER DigestInfo or a missing NULL, and this
+library does not take it. HMAC is
 compared the same way: `examples/hmac.c` (`GSEC_HMAC_BIN`) against
 `openssl dgst -mac HMAC`. HKDF uses `examples/hkdf.c` (`GSEC_HKDF_BIN`)
 against `openssl kdf HKDF`. PBKDF2 uses `examples/pbkdf2.c`
