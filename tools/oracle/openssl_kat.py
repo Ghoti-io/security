@@ -354,6 +354,69 @@ def diff_hkdf():
             sys.stderr.write("hkdf %s is %s, openssl says %s\n" % (alg, got, want))
             return 1
         print("hkdf %s %s" % (alg, want))
+    return diff_pbkdf2()
+
+
+def openssl_pbkdf2(digest, password, salt, iterations, n):
+    command = [
+        "openssl", "kdf", "-keylen", str(n), "-digest", digest,
+        "-kdfopt", "hexpass:" + password]
+    if salt:
+        command.extend(["-kdfopt", "hexsalt:" + salt])
+    command.extend(["-kdfopt", "iter:" + str(iterations), "PBKDF2"])
+    proc = subprocess.run(
+        oracle_env.command("openssl", command), capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        raise SystemExit(1)
+    got = colon_hex(proc.stdout.decode("utf-8", "replace"))
+    if len(got) != n * 2:
+        sys.stderr.write("openssl pbkdf2 wrote %r\n" % got)
+        raise SystemExit(1)
+    return got
+
+
+def library_pbkdf2(binary, alg, password, salt, iterations, n):
+    proc = subprocess.run(
+        [binary, alg, password if password else "-", salt if salt else "-",
+         str(iterations), str(n)],
+        capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        sys.stderr.write("pbkdf2 helper exited %s\n" % proc.returncode)
+        raise SystemExit(1)
+    got = proc.stdout.decode("utf-8", "replace").strip()
+    if len(got) != n * 2:
+        sys.stderr.write("pbkdf2 helper wrote %r\n" % got)
+        raise SystemExit(1)
+    return got
+
+
+def diff_pbkdf2():
+    binary = os.environ.get("GSEC_PBKDF2_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_PBKDF2_BIN is not set\n")
+        return 1
+    password = "70617373776f7264"
+    salt = "73616c74"
+    cases = [
+        ("sha1", "SHA1", password, salt, 1, 20),
+        ("sha1", "SHA1", password, salt, 2, 20),
+        ("sha1", "SHA1", password, salt, 4096, 20),
+        ("sha1", "SHA1", "7061737300776f7264", "7361006c74", 4096, 16),
+        ("sha256", "SHA256", password, salt, 2, 32),
+        ("sha384", "SHA384", password, salt, 1, 48),
+        ("sha512", "SHA512", password, salt, 1, 64),
+    ]
+    for alg, digest, key, salt_hex, iterations, n in cases:
+        want = openssl_pbkdf2(digest, key, salt_hex, iterations, n)
+        got = library_pbkdf2(binary, alg, key, salt_hex, iterations, n)
+        if not compare.hex_equal(got, want):
+            sys.stderr.write(
+                "pbkdf2 %s c=%s is %s, openssl says %s\n"
+                % (alg, iterations, got, want))
+            return 1
+        print("pbkdf2 %s %s" % (alg, want))
     return 0
 
 

@@ -61,6 +61,7 @@
 #define gsec_hkdf_expand GHOTIIO_SECURITY(gsec_hkdf_expand)
 #define gsec_hkdf_extract GHOTIIO_SECURITY(gsec_hkdf_extract)
 #define gsec_limits_default GHOTIIO_SECURITY(gsec_limits_default)
+#define gsec_pbkdf2 GHOTIIO_SECURITY(gsec_pbkdf2)
 #define gsec_poison GHOTIIO_SECURITY(gsec_poison)
 #define gsec_random_bytes GHOTIIO_SECURITY(gsec_random_bytes)
 #define gsec_result_string GHOTIIO_SECURITY(gsec_result_string)

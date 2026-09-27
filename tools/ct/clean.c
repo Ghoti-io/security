@@ -15,6 +15,7 @@
 
 #include <ghoti.io/security/secret.h>
 #include <ghoti.io/security/hkdf.h>
+#include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/sha1.h>
 #include <ghoti.io/security/sha256.h>
@@ -122,6 +123,16 @@ int main(void) {
       return 12;
     }
     gsec_wipe(okm, sizeof okm);
+  }
+  {
+    unsigned char dk[16];
+
+    gsec_poison(secret, sizeof secret);
+    if (gsec_pbkdf2(GSEC_PBKDF2_SHA1, secret, sizeof secret, NULL, 0, 2, dk,
+        sizeof dk) != GSEC_OK) {
+      return 13;
+    }
+    gsec_wipe(dk, sizeof dk);
   }
   return 0;
 }

@@ -30,6 +30,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/hkdf.h>
+#include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/random.h>
 #include <ghoti.io/security/secret.h>
@@ -373,6 +374,30 @@ GSEC_Result gsec_selftest(void) {
       return result;
     }
     result = gsec_equal(got, okm, sizeof got);
+    gsec_wipe(got, sizeof got);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  /* RFC 6070, one iteration. PBKDF2 is not HKDF. */
+  {
+    static const unsigned char password[8] = {
+      0x70, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64
+    };
+    static const unsigned char salt[4] = {0x73, 0x61, 0x6c, 0x74};
+    static const unsigned char dk[20] = {
+      0x0c, 0x60, 0xc8, 0x0f, 0x96, 0x1f, 0x0e, 0x71, 0xf3, 0xa9,
+      0xb5, 0x24, 0xaf, 0x60, 0x12, 0x06, 0x2f, 0xe0, 0x37, 0xa6
+    };
+    unsigned char got[20];
+
+    result = gsec_pbkdf2(GSEC_PBKDF2_SHA1, password, sizeof password, salt,
+        sizeof salt, 1, got, sizeof got);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(got, dk, sizeof got);
     gsec_wipe(got, sizeof got);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;

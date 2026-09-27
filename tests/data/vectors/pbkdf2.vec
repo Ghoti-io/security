@@ -1,0 +1,69 @@
+# PBKDF2 known answers.
+# sha1-rfc6070-* are RFC 6070. The 16,777,216-iteration case is omitted:
+# it is the same function as c=4096 with a public count, and it does not
+# belong in make test. password and salt are hex so a NUL in the password
+# is representable. make check-oracle recomputes these with the pinned OpenSSL.
+primitive pbkdf2
+
+case sha1-rfc6070-1
+hash sha1
+password 70617373776f7264
+salt 73616c74
+iterations 1
+dk 0c60c80f961f0e71f3a9b524af6012062fe037a6
+
+case sha1-rfc6070-2
+hash sha1
+password 70617373776f7264
+salt 73616c74
+iterations 2
+dk ea6c014dc72d6f8ccd1ed92ace1d41f0d8de8957
+
+case sha1-rfc6070-4096
+hash sha1
+password 70617373776f7264
+salt 73616c74
+iterations 4096
+dk 4b007901b765489abead49d926f721d065a429c1
+
+case sha1-rfc6070-long
+hash sha1
+password 70617373776f726450415353574f524470617373776f7264
+salt 73616c7453414c5473616c7453414c5473616c7453414c5473616c7453414c5473616c74
+iterations 4096
+dk 3d2eec4fe41c849b80c8d83662c0e44a8b291a964cf2f07038
+
+case sha1-rfc6070-nul
+hash sha1
+password 7061737300776f7264
+salt 7361006c74
+iterations 4096
+dk 56fa6aa75548099dcc37d7f03425e0c3
+
+case sha256-1
+hash sha256
+password 70617373776f7264
+salt 73616c74
+iterations 1
+dk 120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b
+
+case sha256-2
+hash sha256
+password 70617373776f7264
+salt 73616c74
+iterations 2
+dk ae4d0c95af6b46d32d0adff928f06dd02a303f8ef3c251dfd6e2d85a95474c43
+
+case sha384-1
+hash sha384
+password 70617373776f7264
+salt 73616c74
+iterations 1
+dk c0e14f06e49e32d73f9f52ddf1d0c5c7191609233631dadd76a567db42b78676b38fc800cc53ddb642f5c74442e62be4
+
+case sha512-1
+hash sha512
+password 70617373776f7264
+salt 73616c74
+iterations 1
+dk 867f70cf1ade02cff3752599a3a53dc4af34c7a669815ae5d513554e1c8cf252c02d470a285a0501bad999bfe943c08f050235d7d68b1da55e63f73b60a57fce

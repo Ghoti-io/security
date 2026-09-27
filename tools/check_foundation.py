@@ -15,8 +15,8 @@ run that fails when two files that are supposed to name one pin have drifted,
 or when a primitive was declared without a row saying who judges it.
 
 The classifier is run on a planted declaration before it is trusted on the
-tree. A planted `gsec_pbkdf2` while pbkdf2 is still pending must be
-reported. If it is not, this program is not a gate. The plant moves to the
+tree. A planted `gsec_aes_encrypt` while aes_encrypt is still pending
+must be reported. If it is not, this program is not a gate. The plant moves to the
 next pending primitive when one is implemented.
 """
 
@@ -159,6 +159,7 @@ def main():
         "gsec_hmac", "gsec_hmac_init", "gsec_hmac_update",
         "gsec_hmac_final", "gsec_hmac_verify",
         "gsec_hkdf", "gsec_hkdf_extract", "gsec_hkdf_expand",
+        "gsec_pbkdf2",
         "gsec_sha1", "gsec_sha1_init", "gsec_sha1_update",
         "gsec_sha1_final",
         "gsec_sha256", "gsec_sha256_init", "gsec_sha256_update",
@@ -171,9 +172,9 @@ def main():
     clean = classify(present, rows)
     if clean:
         fail("the implemented set was rejected: %r" % clean)
-    planted = classify(present | {"gsec_pbkdf2"}, rows)
-    if not any("pbkdf2" in item and "pending" in item for item in planted):
-        fail("a planted gsec_pbkdf2 was not rejected: %r" % planted)
+    planted = classify(present | {"gsec_aes_encrypt"}, rows)
+    if not any("aes_encrypt" in item and "pending" in item for item in planted):
+        fail("a planted gsec_aes_encrypt was not rejected: %r" % planted)
 
     functions = declarations()
     missing = sorted(FOUNDATION - functions)
