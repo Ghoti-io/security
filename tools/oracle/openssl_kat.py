@@ -1325,6 +1325,58 @@ def diff_cbc():
             sys.stderr.write("aes-cbc %s decrypt is %s\n" % (bits, back))
             return 1
         print("aes-cbc %s %s" % (bits, want))
+    return diff_des()
+
+
+def openssl_des(mode, key_hex, iv_hex, message):
+    flag = {
+        "ecb": "-des-ecb",
+        "cbc": "-des-cbc",
+        "ede3": "-des-ede3",
+    }[mode]
+    command = [
+        "openssl", "enc", "-provider", "legacy", "-provider", "default",
+        flag, "-K", key_hex, "-nopad", "-nosalt"]
+    if iv_hex is not None:
+        command.extend(["-iv", iv_hex])
+    proc = subprocess.run(
+        oracle_env.command("openssl", command),
+        input=message, capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        raise SystemExit(1)
+    return proc.stdout.hex()
+
+
+def library_des(binary, mode, direction, key_hex, iv_hex, message_hex):
+    proc = subprocess.run(
+        [binary, mode, direction, key_hex, iv_hex, message_hex],
+        capture_output=True, text=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr)
+        sys.stderr.write("des helper exited %s\n" % proc.returncode)
+        raise SystemExit(1)
+    return proc.stdout.strip()
+
+
+def diff_des():
+    binary = os.environ["GSEC_DES_BIN"]
+    cases = [
+        ("ecb", "133457799bbcdff1", "-",
+         bytes.fromhex("0123456789abcdef")),
+        ("cbc", "133457799bbcdff1", "0000000000000000",
+         bytes.fromhex("0123456789abcdef" * 2)),
+        ("ede3", "0123456789abcdef5555555555555555fedcba9876543210", "-",
+         bytes.fromhex("0123456789abcdef")),
+    ]
+    for mode, key, iv, message in cases:
+        iv_arg = None if iv == "-" else iv
+        want = openssl_des(mode, key, iv_arg, message)
+        got = library_des(binary, mode, "encrypt", key, iv, message.hex())
+        if not compare.hex_equal(got, want):
+            sys.stderr.write("des %s is %s, openssl says %s\n" % (mode, got, want))
+            return 1
+        print("des %s %s" % (mode, want))
     return 0
 
 

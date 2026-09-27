@@ -46,6 +46,7 @@
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/core.h>
+#include <ghoti.io/security/des.h>
 #include <ghoti.io/security/ecdsa_p256.h>
 #include <ghoti.io/security/ecdh_p256.h>
 #include <ghoti.io/security/ed25519.h>

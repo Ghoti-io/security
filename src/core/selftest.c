@@ -30,6 +30,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/aes.h>
+#include <ghoti.io/security/des.h>
 #include <ghoti.io/security/aes_cbc.h>
 #include <ghoti.io/security/aes_ctr.h>
 #include <ghoti.io/security/aes_gcm.h>
@@ -902,6 +903,29 @@ GSEC_Result gsec_selftest(void) {
     unsigned char got[16];
 
     result = gsec_aes_cbc_encrypt(key, sizeof key, iv, pt, sizeof pt, got);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(got, ct, sizeof got);
+    gsec_wipe(got, sizeof got);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  {
+    static const unsigned char key[8] = {
+      0x13, 0x34, 0x57, 0x79, 0x9b, 0xbc, 0xdf, 0xf1
+    };
+    static const unsigned char pt[8] = {
+      0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef
+    };
+    static const unsigned char ct[8] = {
+      0x85, 0xe8, 0x13, 0x54, 0x0f, 0x0a, 0xb4, 0x05
+    };
+    unsigned char got[8];
+
+    result = gsec_des_encrypt(key, pt, got);
     if (result != GSEC_OK) {
       return result;
     }
