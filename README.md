@@ -32,7 +32,11 @@ An r or s of zero, or one that is not strictly less than the group order,
 does not verify. RSA verification takes a modulus of at most 4096 bits
 and an odd public exponent of at least 3. PKCS#1 v1.5 accepts only the DER
 DigestInfo. PSS takes a salt length and encodes one bit shorter than
-the modulus. MD5 and SHA-1 are there for old certificates.
+the modulus. MD5 and SHA-1 are there for old certificates. Signing
+takes the private exponent as well. The exponentiation does not branch on
+it, and each signature is blinded with a value from the kernel generator.
+The blinding does not change the signature bytes. The PSS salt is the
+caller's. A failure wipes the signature buffer.
 
 - `gsec_equal` compares two regions and returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
@@ -49,8 +53,9 @@ the modulus. MD5 and SHA-1 are there for old certificates.
 - `gsec_ed25519_public` derives a public key from a 32-byte seed. `gsec_ed25519_sign` signs a message. `gsec_ed25519_verify` returns `GSEC_ERR_MISMATCH` for a bad signature, a non-canonical point, or an S that is not strictly less than the group order.
 - `gsec_ecdh_p256` multiplies a scalar by a peer point and writes the shared x coordinate. `gsec_ecdh_p256_public` multiplies it by the base point. A bad point and the point at infinity are `GSEC_ERR_INVALID`, and the output is wiped.
 - `gsec_ecdsa_p256_public` multiplies a scalar by the base point. `gsec_ecdsa_p256_sign` signs a message and emits the low s. `gsec_ecdsa_p256_verify` returns `GSEC_ERR_MISMATCH` for a bad signature, a bad point, or an r or s that is zero or not strictly less than the group order. A high s verifies.
-- `gsec_rsa_pkcs1_v15_verify` and `gsec_rsa_pss_verify` check a signature with the public exponent. There is no private-key operation. A modulus past 4096 bits is `GSEC_ERR_LIMIT`.
-- `gsec_selftest` runs the known-answer checks an embedder can call at startup: equal, wipe, a short entropy call, each hash, HMAC, HKDF, PBKDF2, AES, CTR, GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH, and ECDSA P-256. RSA verification's known answer is the vector file.
+- `gsec_rsa_pkcs1_v15_verify` and `gsec_rsa_pss_verify` check a signature with the public exponent. A modulus past 4096 bits is `GSEC_ERR_LIMIT`.
+- `gsec_rsa_private_pkcs1_v15_sign` and `gsec_rsa_private_pss_sign` produce that signature. The private exponent is raised in constant time and the base is blinded. The PSS salt is the caller's. Eight unusable blinding values are `GSEC_ERR_INTERNAL`. The kernel generator failing is `GSEC_ERR_IO`.
+- `gsec_selftest` runs the known-answer checks an embedder can call at startup: equal, wipe, a short entropy call, each hash, HMAC, HKDF, PBKDF2, AES, CTR, GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH, ECDSA P-256, and a 512-bit RSA signature in both paddings. RSA verification's known answer is the vector file.
 - `gsec_poison` and `gsec_unpoison` mark secret bytes for the constant-time gate. In a normal build they do nothing.
 
 The primitive set, including what is pending and what is excluded, is

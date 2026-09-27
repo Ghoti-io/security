@@ -6,7 +6,9 @@ produces the published SHA-256 of `abc` and the Wycheproof file the pin
 names. It then judges every implemented primitive: the hashes, including
 MD5, HMAC, HKDF, PBKDF2, AES and AES-CTR, against OpenSSL in the image, and
 the AEAD algorithms, the curves, and RSA verification against the pinned
-Wycheproof files. A difference fails the target.
+Wycheproof files. RSA signing is judged by a 2048-bit key the image
+generates: this library signs, and OpenSSL in the image verifies. A
+difference fails the target.
 
 `make test` does not run a container. A checkout with no container runtime
 still builds and tests. The differential is a separate target, and that
@@ -87,7 +89,11 @@ pinned Wycheproof P1363 file. A `valid` case must be accepted. An
 verification is judged by the pinned Wycheproof files. A `valid` case must
 be accepted. An `invalid` case must be rejected, and so must an
 `acceptable` one: that is a BER DigestInfo or a missing NULL, and this
-library does not take it. HMAC is
+library does not take it. RSA signing generates a 2048-bit key in the
+image, signs the ASCII bytes of `sample` with this library, and asks
+OpenSSL to verify the PKCS#1 v1.5 signature and a PSS signature whose salt
+is 32 bytes. The known answers in `rsa_private.vec` are the unblinded
+private exponentiation, which blinding must not change. HMAC is
 compared the same way: `examples/hmac.c` (`GSEC_HMAC_BIN`) against
 `openssl dgst -mac HMAC`. HKDF uses `examples/hkdf.c` (`GSEC_HKDF_BIN`)
 against `openssl kdf HKDF`. PBKDF2 uses `examples/pbkdf2.c`
@@ -110,6 +116,6 @@ The parser rejects a truncated hex string, an odd number of digits, an
 uppercase digit, a boolean expectation, and a length that does not match
 the bytes. `equal`, the five hashes, `hmac`, `hkdf`, `pbkdf2`, `aes`,
 `aes_ctr`, `aes_gcm`, `chacha20_poly1305`, `x25519`, `ed25519`,
-`ecdh_p256`, `ecdsa_p256`, `rsa_pkcs1`, and `rsa_pss` each have a file. A
+`ecdh_p256`, `ecdsa_p256`, `rsa_pkcs1`, `rsa_pss`, and `rsa_private` each have a file. A
 later primitive adds a file in the same commit as the function, and names
 it on the registry row.

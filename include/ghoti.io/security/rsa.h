@@ -30,8 +30,15 @@
  * NULL, and at least eight 0xff padding bytes. PSS takes the salt length
  * as a parameter and encodes one bit shorter than the modulus, which is
  * what RFC 8017 specifies. MD5 and SHA-1 are accepted so an old
- * certificate can be checked and then rejected for the algorithm. There
- * is no private-key operation here.
+ * certificate can be checked and then rejected for the algorithm.
+ *
+ * Signing takes the private exponent as well as the public exponent. The
+ * exponentiation does not branch on the private exponent, and each
+ * signature is blinded with a fresh value from the kernel generator. The
+ * blinding does not change the signature bytes: they are still the
+ * encoded message raised to the private exponent. The PSS salt is the
+ * caller's, the same rule as every other nonce in this library. A
+ * modulus past 4096 bits is rejected.
  */
 
 #ifndef GHOTI_IO_GSEC_RSA_H
@@ -110,6 +117,68 @@ GSEC_API GSEC_Result gsec_rsa_pkcs1_v15_verify(uint32_t hash, const void * n,
 GSEC_API GSEC_Result gsec_rsa_pss_verify(uint32_t hash, uint32_t mgf_hash,
     const void * n, size_t n_len, const void * e, size_t e_len,
     const void * msg, size_t msg_len, const void * sig, size_t sig_len,
+    size_t salt_len);
+
+/**
+ * @brief Sign with RSASSA-PKCS1-v1_5.
+ *
+ * @param hash The message hash. The same ids as
+ *   ::gsec_rsa_pkcs1_v15_verify, including MD5 and SHA-1.
+ * @param n Modulus, big-endian. A leading 0x00 is ignored.
+ * @param n_len Length of @p n.
+ * @param e Public exponent, big-endian. It must be odd and at least 3.
+ *   Blinding raises the random factor to this exponent.
+ * @param e_len Length of @p e.
+ * @param d Private exponent, big-endian. A leading 0x00 is ignored. The
+ *   integer must be nonzero and strictly less than the modulus. Up to
+ *   eight leading zero bytes are accepted; a longer buffer is
+ *   ::GSEC_ERR_LIMIT.
+ * @param d_len Length of @p d.
+ * @param msg Message. NULL only when @p msg_len is 0. Hashed before
+ *   @p sig is written, so the two may alias.
+ * @param msg_len Message length in bytes.
+ * @param sig Signature buffer. Its length is the modulus length after a
+ *   leading zero is removed. On failure that buffer is wiped.
+ * @param sig_len Length of @p sig. Any other length is ::GSEC_ERR_INVALID.
+ * @return ::GSEC_OK, ::GSEC_ERR_INVALID, ::GSEC_ERR_LIMIT, ::GSEC_ERR_IO,
+ *   or ::GSEC_ERR_INTERNAL. ::GSEC_ERR_IO means the kernel generator
+ *   failed. ::GSEC_ERR_INTERNAL means eight blinding values were unusable.
+ */
+GSEC_API GSEC_Result gsec_rsa_private_pkcs1_v15_sign(uint32_t hash,
+    const void * n, size_t n_len, const void * e, size_t e_len,
+    const void * d, size_t d_len, const void * msg, size_t msg_len,
+    void * sig, size_t sig_len);
+
+/**
+ * @brief Sign with RSASSA-PSS.
+ *
+ * @p salt is the caller's nonce. An empty salt is @p salt_len 0, and
+ * @p salt may be NULL in that case. TLS uses @p mgf_hash equal to
+ * @p hash and a salt as long as the digest.
+ *
+ * @param hash The message hash. The same ids as
+ *   ::gsec_rsa_pkcs1_v15_verify.
+ * @param mgf_hash The MGF1 hash. The same set.
+ * @param n Modulus, big-endian. A leading 0x00 is ignored.
+ * @param n_len Length of @p n.
+ * @param e Public exponent, big-endian. Odd and at least 3.
+ * @param e_len Length of @p e.
+ * @param d Private exponent, big-endian. Same rules as
+ *   ::gsec_rsa_private_pkcs1_v15_sign.
+ * @param d_len Length of @p d.
+ * @param msg Message. NULL only when @p msg_len is 0.
+ * @param msg_len Message length in bytes.
+ * @param sig Signature buffer, wiped on failure.
+ * @param sig_len Length of @p sig, the stripped modulus length.
+ * @param salt Salt bytes. NULL only when @p salt_len is 0.
+ * @param salt_len Salt length in bytes.
+ * @return ::GSEC_OK, ::GSEC_ERR_INVALID, ::GSEC_ERR_LIMIT, ::GSEC_ERR_IO,
+ *   or ::GSEC_ERR_INTERNAL.
+ */
+GSEC_API GSEC_Result gsec_rsa_private_pss_sign(uint32_t hash,
+    uint32_t mgf_hash, const void * n, size_t n_len, const void * e,
+    size_t e_len, const void * d, size_t d_len, const void * msg,
+    size_t msg_len, void * sig, size_t sig_len, const void * salt,
     size_t salt_len);
 
 #ifdef __cplusplus

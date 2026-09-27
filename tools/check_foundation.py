@@ -182,6 +182,7 @@ def main():
         "gsec_ecdsa_p256_public", "gsec_ecdsa_p256_sign",
         "gsec_ecdsa_p256_verify",
         "gsec_rsa_pkcs1_v15_verify", "gsec_rsa_pss_verify",
+        "gsec_rsa_private_pkcs1_v15_sign", "gsec_rsa_private_pss_sign",
     }
     clean = classify(present, rows)
     if clean:

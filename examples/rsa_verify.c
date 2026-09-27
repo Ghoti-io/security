@@ -21,13 +21,16 @@
 /**
  * @file
  *
- * RSA verification on the command line.
+ * RSA verification and signing on the command line.
  *
  * `rsa_verify pkcs1 <hash> <hexn> <hexe> <hexmsg|-> <hexsig>` and
  * `rsa_verify pss <hash> <mgf> <salt> <hexn> <hexe> <hexmsg|-> <hexsig>`
- * exit 0 when the signature is accepted. hash and mgf are md5, sha1,
- * sha256, sha384, or sha512. A modulus or signature past 520 bytes, and
- * a message past 1 MiB, exit 1 and print nothing. Bad hex exits 2.
+ * exit 0 when the signature is accepted. Signing is
+ * `rsa_verify sign-pkcs1 <hash> <hexn> <hexe> <hexd> <hexmsg|->` and
+ * `rsa_verify sign-pss <hash> <mgf> <hexsalt|-> <hexn> <hexe> <hexd>
+ * <hexmsg|->`, and the signature is hex on stdout. hash and mgf are md5,
+ * sha1, sha256, sha384, or sha512. A modulus or signature past 520 bytes,
+ * and a message past 1 MiB, exit 1 and print nothing. Bad hex exits 2.
  */
 
 #include <ghoti.io/security/macros.h>
@@ -133,27 +136,122 @@ static int hash_id(const char * name, uint32_t * id) {
   return 1;
 }
 
+static void print_hex(const unsigned char * p, size_t n) {
+  size_t i;
+
+  for (i = 0; i < n; i++) {
+    printf("%02x", p[i]);
+  }
+  printf("\n");
+}
+
+static void drop_zeros(unsigned char * p, size_t * n) {
+  size_t i = 0;
+
+  while (i < *n && p[i] == 0) {
+    i++;
+  }
+  if (i == 0) {
+    return;
+  }
+  memmove(p, p + i, *n - i);
+  *n -= i;
+}
+
 int main(int argc, char ** argv) {
   unsigned char nbuf[520];
   unsigned char ebuf[520];
+  unsigned char dbuf[520];
   unsigned char sbuf[520];
+  unsigned char saltbuf[520];
   unsigned char * message = NULL;
   size_t nn = 0;
   size_t en = 0;
+  size_t dn = 0;
   size_t sn = 0;
   size_t mn = 0;
+  size_t saltn = 0;
   uint32_t hash = 0;
   uint32_t mgf = 0;
   unsigned long salt = 0;
   int rc;
   int pss;
+  int sign_pkcs;
+  int sign_pss;
   GSEC_Result result;
   char * end = NULL;
 
   if (argc < 2) {
     fprintf(stderr,
-        "usage: rsa_verify pkcs1 hash hexn hexe hexmsg|- hexsig | rsa_verify pss hash mgf salt hexn hexe hexmsg|- hexsig\n");
+        "usage: rsa_verify pkcs1|sign-pkcs1 ... | rsa_verify pss|sign-pss ...\n");
     return 2;
+  }
+  sign_pkcs = strcmp(argv[1], "sign-pkcs1") == 0;
+  sign_pss = strcmp(argv[1], "sign-pss") == 0;
+  if (sign_pkcs || sign_pss) {
+    if (sign_pss) {
+      if (argc != 9 || !hash_id(argv[2], &hash) || !hash_id(argv[3], &mgf)) {
+        return 2;
+      }
+      if (strcmp(argv[4], "-") != 0) {
+        rc = parse_hex(argv[4], saltbuf, sizeof saltbuf, &saltn);
+        if (rc != 0) {
+          return rc;
+        }
+      }
+      rc = parse_hex(argv[5], nbuf, sizeof nbuf, &nn);
+      if (rc != 0) {
+        return rc;
+      }
+      rc = parse_hex(argv[6], ebuf, sizeof ebuf, &en);
+      if (rc != 0) {
+        return rc;
+      }
+      rc = parse_hex(argv[7], dbuf, sizeof dbuf, &dn);
+      if (rc != 0) {
+        return rc;
+      }
+      rc = parse_message(argv[8], &message, &mn);
+    } else {
+      if (argc != 7 || !hash_id(argv[2], &hash)) {
+        return 2;
+      }
+      rc = parse_hex(argv[3], nbuf, sizeof nbuf, &nn);
+      if (rc != 0) {
+        return rc;
+      }
+      rc = parse_hex(argv[4], ebuf, sizeof ebuf, &en);
+      if (rc != 0) {
+        return rc;
+      }
+      rc = parse_hex(argv[5], dbuf, sizeof dbuf, &dn);
+      if (rc != 0) {
+        return rc;
+      }
+      rc = parse_message(argv[6], &message, &mn);
+    }
+    if (rc != 0) {
+      return rc;
+    }
+    drop_zeros(nbuf, &nn);
+    if (sign_pss) {
+      result = gsec_rsa_private_pss_sign(hash, mgf, nbuf, nn, ebuf, en, dbuf,
+          dn, message, mn, sbuf, nn, saltn == 0 ? NULL : saltbuf, saltn);
+    } else {
+      result = gsec_rsa_private_pkcs1_v15_sign(hash, nbuf, nn, ebuf, en, dbuf,
+          dn, message, mn, sbuf, nn);
+    }
+    if (result == GSEC_OK) {
+      print_hex(sbuf, nn);
+    }
+    gsec_wipe(nbuf, sizeof nbuf);
+    gsec_wipe(ebuf, sizeof ebuf);
+    gsec_wipe(dbuf, sizeof dbuf);
+    gsec_wipe(sbuf, sizeof sbuf);
+    gsec_wipe(saltbuf, sizeof saltbuf);
+    gsec_wipe(message, mn);
+    free(message);
+    return result == GSEC_OK ? 0 : 1;
   }
   pss = strcmp(argv[1], "pss") == 0;
   if (!pss && strcmp(argv[1], "pkcs1") != 0) {

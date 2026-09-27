@@ -26,7 +26,11 @@ not verify. RSA verification is the public exponent only. PKCS#1 v1.5
 accepts the DER DigestInfo, including the NULL, and at least eight 0xff
 bytes. PSS takes the salt length from the caller and encodes one bit
 shorter than the modulus. MD5 and SHA-1 verify so an old certificate
-can be checked and then rejected for the algorithm.
+can be checked and then rejected for the algorithm. Signing takes the
+private exponent as well. The exponentiation does not branch on it, and
+each signature is blinded with a value from the kernel generator. The
+blinding does not change the signature bytes. The PSS salt is the
+caller's.
 A modulus past 4096 bits is rejected. The primitive
 registry in `tools/oracle/primitives.txt` is the list of what may be
 declared. The phases below are the order the rest is built in.
@@ -74,7 +78,7 @@ phases that allocate.
 | `gsec_poison`, `gsec_unpoison` | Valgrind client requests when `GSEC_CT_TEST` is set, otherwise empty. They return void: marking is not a result the caller branches on. |
 | `gsec_random_bytes` | Fill `out` with `n` bytes from the kernel, or leave it wiped and return an error. `n` above `max_random_bytes` is `GSEC_ERR_LIMIT` and does not write. |
 | `gsec_sha256_init`, `gsec_sha256_update`, `gsec_sha256_final`, `gsec_sha256` | FIPS 180-4 SHA-256. The message length is public. Message bytes are not a branch condition and not a table index. Final wipes the context. A bit length that does not fit in 64 bits wipes it and returns `GSEC_ERR_LIMIT`. |
-| `gsec_selftest` | A known answer for each implemented primitive except RSA verification, whose known answer is the vector file. The entropy call folds the output with XOR and then wipes it, and branches on whether any byte was written, which is public. |
+| `gsec_selftest` | A known answer for each implemented primitive except RSA verification, whose known answer is the vector file. Signing's known answer is a 512-bit key. The entropy call folds the output with XOR and then wipes it, and branches on whether any byte was written, which is public. |
 | `gsec_sha512`, `gsec_sha384`, `gsec_sha1`, `gsec_md5` | The same shape as SHA-256. SHA-384 is SHA-512's compression with the FIPS 180-4 initial value. SHA-1 and MD5 do not provide collision resistance. MD5 is not a MAC. |
 | `gsec_hmac`, `gsec_hmac_verify` | HMAC over SHA-256, SHA-512, SHA-384, or SHA-1. A key longer than the block is hashed first. Verify returns `GSEC_ERR_MISMATCH` when a tag of the digest length differs, and `GSEC_ERR_INVALID` when the length is wrong. |
 | `gsec_hkdf` | HKDF: extract, then expand. A salt of length zero is HashLen zero bytes. An output longer than 255 digests is `GSEC_ERR_LIMIT`. |
@@ -87,7 +91,8 @@ phases that allocate.
 | `gsec_ed25519_public`, `gsec_ed25519_sign`, `gsec_ed25519_verify` | RFC 8032, pure, with no context string. Verification rejects a non-canonical point and an S that is not strictly less than the group order. |
 | `gsec_ecdh_p256`, `gsec_ecdh_p256_public` | A 32-byte scalar and a 64-byte point, x then y. A non-canonical coordinate, an off-curve point, and infinity are rejected and the output is wiped. A shared x of zero is a result. |
 | `gsec_ecdsa_p256_public`, `gsec_ecdsa_p256_sign`, `gsec_ecdsa_p256_verify` | SHA-256 of the message and an RFC 6979 nonce. The signature is 64 bytes, r then s. Signing emits the low s. Verification accepts a high s. An r or s of zero, or one that is not strictly less than the group order, is `GSEC_ERR_MISMATCH`. |
-| `gsec_rsa_pkcs1_v15_verify`, `gsec_rsa_pss_verify` | The public exponent only. PKCS#1 v1.5 accepts the DER DigestInfo, including the NULL, and at least eight 0xff bytes. PSS takes the salt length and encodes one bit shorter than the modulus. A modulus past 4096 bits is `GSEC_ERR_LIMIT`. There is no private-key operation. |
+| `gsec_rsa_pkcs1_v15_verify`, `gsec_rsa_pss_verify` | The public exponent. PKCS#1 v1.5 accepts the DER DigestInfo, including the NULL, and at least eight 0xff bytes. PSS takes the salt length and encodes one bit shorter than the modulus. A modulus past 4096 bits is `GSEC_ERR_LIMIT`. |
+| `gsec_rsa_private_pkcs1_v15_sign`, `gsec_rsa_private_pss_sign` | The same encodings, raised to the private exponent. The exponentiation does not branch on that exponent. The base is blinded with a value from the kernel generator, and the signature bytes are still the unblinded result. The PSS salt is the caller's. A failure wipes the signature. |
 | `gsec_allocator_default` | cutil's default allocator. |
 | `gsec_limits_default` | Fills the default caps. NULL is ignored. |
 | `gsec_result_string` | Static string, including for a value outside the enum. |
@@ -149,11 +154,6 @@ Recorded in `CONVENTIONS.md` section 13.
 | --- | --- |
 | `x509`, `pem`, `pkcs8`, `der` | Encoding and policy. They belong in `certificates`. |
 
-`rsa_private` stays `pending` and skippable. Verification has no secret.
-Private RSA needs blinding and a constant-time exponentiation, and it is
-unnecessary if client keys are Ed25519 or ECDSA. Flipping that row is the
-decision to implement it.
-
 `aes_cbc` stays `pending` for 7z, if 7z is ever wanted. It is not part of
 the TLS 1.3 set.
 
@@ -166,8 +166,8 @@ it is not one of those three. Declaring any of them before its row says
 ## 7. Phases
 
 Each phase's machinery is what the next one is tested with. Archive's set
-is complete at phase 3. Certificates need phase 8. TLS needs the rest.
-Phase 9 may never be built.
+is complete at phase 3. Certificates need phase 8. A TLS server that holds
+an RSA key, and a client certificate whose key is RSA, need phase 9.
 
 | Phase | What | Why it is here |
 | --- | --- | --- |
@@ -180,7 +180,7 @@ Phase 9 may never be built.
 | 6 | Ed25519 is implemented | RFC 8032. Verification rejects a non-canonical point and a non-canonical S |
 | 7 | P-256 ECDH and ECDSA are implemented | ECDH rejects a non-canonical coordinate, an off-curve point, and infinity. ECDSA signs with RFC 6979, emits the low s, and accepts a high s |
 | 8 | RSA-PSS and PKCS#1 v1.5 verification are implemented | Public exponent only. The DigestInfo is the DER encoding, including the NULL. A modulus past 4096 bits is rejected |
-| 9 | RSA private operations | Skippable |
+| 9 | RSA private signing is implemented | The exponentiation does not branch on the private exponent. The base is blinded. PKCS#1 v1.5 and PSS both sign. The PSS salt is the caller's. A modulus past 4096 bits is rejected |
 | 10 | P-384, if certificates need it | |
 | 11 | AES-CBC, if 7z needs it | |
 | 12 | DES and RC4 | Broken, and old formats still use them |

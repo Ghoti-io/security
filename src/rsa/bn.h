@@ -21,9 +21,10 @@
 /**
  * @file
  *
- * Fixed-capacity integers for RSA verification. The exponent is public,
- * so the square-and-multiply loop branches on it. The modulus is odd and
- * at most 4096 bits.
+ * Fixed-capacity integers for RSA. bn_modexp walks a public exponent and
+ * branches on its bits. bn_modexp_ct, bn_modinv_ct, bn_modmul, and
+ * bn_reduce_ct do not: a private exponent and a blinding factor go
+ * through those. The modulus is odd and at most 4096 bits.
  */
 
 #ifndef GHOTI_IO_GSEC_RSA_BN_H
@@ -47,5 +48,15 @@ void bn_to_be(unsigned char * out, size_t n, const bn * a);
 int bn_cmp(const bn * a, const bn * b);
 int bn_modexp(bn * out, const bn * base, const unsigned char * exp, size_t exp_len,
     const bn * mod);
+int bn_modexp_ct(bn * out, const bn * base, const bn * exp, const bn * mod);
+int bn_modinv_ct(bn * out, const bn * a, const bn * mod);
+int bn_modmul(bn * out, const bn * a, const bn * b, const bn * mod);
+void bn_reduce_ct(bn * r, const bn * mod);
+
+/* 1 when a is strictly below mod. Both are the modulus width. No branch. */
+uint32_t bn_below(const bn * a, const bn * mod);
+
+/* 1 when any limb is nonzero. No branch. */
+uint32_t bn_nonzero(const bn * a);
 
 #endif /* GHOTI_IO_GSEC_RSA_BN_H */

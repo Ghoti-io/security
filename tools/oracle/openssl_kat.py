@@ -24,8 +24,11 @@ built by `make check-oracle`.
 
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import compare
@@ -1161,7 +1164,115 @@ def diff_rsa():
             sys.stderr.write("rsa-pss %s checked %s\n" % (name, checked))
             return 1
         print("rsa-pss %s %s" % (name, checked))
-    return 0
+    return diff_rsa_sign()
+
+
+def rsa_text_block(text, label):
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith(label):
+            continue
+        rest = line.split(":", 1)[1].strip()
+        if "0x" in rest:
+            found = re.search(r"0x([0-9a-fA-F]+)", rest)
+            if found is None:
+                return None
+            hex_text = found.group(1)
+        else:
+            chunks = []
+            cursor = index + 1
+            while cursor < len(lines) and (lines[cursor].startswith(" ")
+                    or lines[cursor].startswith("\t")):
+                chunks.append(lines[cursor].strip().replace(":", ""))
+                cursor += 1
+            hex_text = "".join(chunks)
+        if len(hex_text) % 2:
+            hex_text = "0" + hex_text
+        if not hex_text:
+            return None
+        return hex_text
+    return None
+
+
+def diff_rsa_sign():
+    """Sign with this library and ask the pinned OpenSSL to verify.
+
+    A round trip through our own verifier would share a bug. The key is
+    generated in the image, so the signature is not one of the known answers.
+    """
+    binary = os.environ.get("GSEC_RSA_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_RSA_BIN is not set\n")
+        return 1
+    scratch = tempfile.mkdtemp(prefix="gsec-rsa-sign-")
+    try:
+        key = os.path.join(scratch, "key.pem")
+        msg_path = os.path.join(scratch, "msg")
+        sig_path = os.path.join(scratch, "sig")
+        with open(msg_path, "wb") as handle:
+            handle.write(b"sample")
+        made = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "genpkey", "-algorithm", "RSA",
+            "-pkeyopt", "rsa_keygen_bits:2048", "-out", key,
+        ], scratch=scratch), capture_output=True)
+        if made.returncode != 0:
+            sys.stderr.write(made.stderr.decode("utf-8", "replace"))
+            return 1
+        shown = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "pkey", "-in", key, "-noout", "-text",
+        ], scratch=scratch), capture_output=True)
+        if shown.returncode != 0:
+            sys.stderr.write(shown.stderr.decode("utf-8", "replace"))
+            return 1
+        text = shown.stdout.decode("utf-8", "replace")
+        modulus = rsa_text_block(text, "modulus")
+        public = rsa_text_block(text, "publicExponent")
+        private = rsa_text_block(text, "privateExponent")
+        if modulus is None or public is None or private is None:
+            sys.stderr.write("openssl did not print an RSA key\n")
+            return 1
+        message = "73616d706c65"
+        signed = subprocess.run(
+            [binary, "sign-pkcs1", "sha256", modulus, public, private, message],
+            capture_output=True, text=True)
+        if signed.returncode != 0 or not signed.stdout.strip():
+            sys.stderr.write("rsa sign-pkcs1 exited %s\n" % signed.returncode)
+            return 1
+        with open(sig_path, "wb") as handle:
+            handle.write(bytes.fromhex(signed.stdout.strip()))
+        checked = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "dgst", "-sha256", "-verify", key,
+            "-signature", sig_path, msg_path,
+        ], scratch=scratch), capture_output=True, text=True)
+        if checked.returncode != 0:
+            sys.stderr.write(checked.stderr)
+            sys.stderr.write("openssl rejected the PKCS#1 signature\n")
+            return 1
+        salt = "11" * 32
+        signed = subprocess.run(
+            [binary, "sign-pss", "sha256", "sha256", salt, modulus, public,
+             private, message],
+            capture_output=True, text=True)
+        if signed.returncode != 0 or not signed.stdout.strip():
+            sys.stderr.write("rsa sign-pss exited %s\n" % signed.returncode)
+            return 1
+        with open(sig_path, "wb") as handle:
+            handle.write(bytes.fromhex(signed.stdout.strip()))
+        checked = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "pkeyutl", "-verify", "-inkey", key, "-in", msg_path,
+            "-rawin", "-digest", "sha256", "-sigfile", sig_path,
+            "-pkeyopt", "rsa_padding_mode:pss",
+            "-pkeyopt", "rsa_pss_saltlen:32",
+        ], scratch=scratch), capture_output=True, text=True)
+        if checked.returncode != 0:
+            sys.stderr.write(checked.stderr)
+            sys.stderr.write("openssl rejected the PSS signature\n")
+            return 1
+        print("rsa-sign pkcs1 sha256")
+        print("rsa-sign pss sha256")
+        return 0
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
 
 
 if __name__ == "__main__":

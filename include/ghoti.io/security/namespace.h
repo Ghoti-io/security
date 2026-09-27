@@ -95,6 +95,8 @@
 #define gsec_random_bytes GHOTIIO_SECURITY(gsec_random_bytes)
 #define gsec_result_string GHOTIIO_SECURITY(gsec_result_string)
 #define gsec_rsa_pkcs1_v15_verify GHOTIIO_SECURITY(gsec_rsa_pkcs1_v15_verify)
+#define gsec_rsa_private_pkcs1_v15_sign GHOTIIO_SECURITY(gsec_rsa_private_pkcs1_v15_sign)
+#define gsec_rsa_private_pss_sign GHOTIIO_SECURITY(gsec_rsa_private_pss_sign)
 #define gsec_rsa_pss_verify GHOTIIO_SECURITY(gsec_rsa_pss_verify)
 #define gsec_selftest GHOTIIO_SECURITY(gsec_selftest)
 #define gsec_sha1 GHOTIIO_SECURITY(gsec_sha1)
