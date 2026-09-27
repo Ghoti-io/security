@@ -1412,6 +1412,44 @@ def diff_rc4():
         sys.stderr.write("rc4 is %s, openssl says %s\n" % (got, want))
         return 1
     print("rc4 %s" % want)
+    return diff_scrypt()
+
+
+def openssl_scrypt(password, salt, n, r, p, dk_len):
+    command = [
+        "openssl", "kdf", "-keylen", str(dk_len),
+        "-kdfopt", "pass:%s" % password,
+        "-kdfopt", "salt:%s" % salt,
+        "-kdfopt", "n:%s" % n,
+        "-kdfopt", "r:%s" % r,
+        "-kdfopt", "p:%s" % p,
+        "SCRYPT"]
+    proc = subprocess.run(
+        oracle_env.command("openssl", command), capture_output=True, text=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr)
+        raise SystemExit(1)
+    return proc.stdout.strip().replace(":", "").lower()
+
+
+def library_scrypt(binary, password_hex, salt_hex, n, r, p, dk_len):
+    proc = subprocess.run(
+        [binary, password_hex, salt_hex, str(n), str(r), str(p), str(dk_len)],
+        capture_output=True, text=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr)
+        raise SystemExit(1)
+    return proc.stdout.strip()
+
+
+def diff_scrypt():
+    binary = os.environ["GSEC_SCRYPT_BIN"]
+    want = openssl_scrypt("password", "NaCl", 1024, 8, 16, 64)
+    got = library_scrypt(binary, "70617373776f7264", "4e61436c", 1024, 8, 16, 64)
+    if not compare.hex_equal(got, want):
+        sys.stderr.write("scrypt is %s, openssl says %s\n" % (got, want))
+        return 1
+    print("scrypt %s" % want)
     return 0
 
 

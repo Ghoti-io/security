@@ -1,0 +1,18 @@
+# scrypt known answers. RFC 7914 section 7.
+primitive scrypt
+
+case empty
+password -
+salt -
+n 16
+r 1
+p 1
+dk 77d6576238657b203b19ca42c18a0497f16b4844e3074ae8dfdffa3fede21442fcd0069ded0948f8326a753a0fc81f17e8d3e0fb2e0d3628cf35e20c38d18906
+
+case nacl
+password 70617373776f7264
+salt 4e61436c
+n 1024
+r 8
+p 16
+dk fdbabe1c9d3472007856e7190d01e9fe7c6ad7cbc8237830e77376634b3731622eaf30d92e22a3886ff109279d9830dac727afb94a83ee6d8360cbdfa2cc0640

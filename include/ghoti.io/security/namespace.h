@@ -109,6 +109,7 @@
 #define gsec_rsa_private_pkcs1_v15_sign GHOTIIO_SECURITY(gsec_rsa_private_pkcs1_v15_sign)
 #define gsec_rsa_private_pss_sign GHOTIIO_SECURITY(gsec_rsa_private_pss_sign)
 #define gsec_rsa_pss_verify GHOTIIO_SECURITY(gsec_rsa_pss_verify)
+#define gsec_scrypt GHOTIIO_SECURITY(gsec_scrypt)
 #define gsec_selftest GHOTIIO_SECURITY(gsec_selftest)
 #define gsec_sha1 GHOTIIO_SECURITY(gsec_sha1)
 #define gsec_sha1_final GHOTIIO_SECURITY(gsec_sha1_final)

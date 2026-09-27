@@ -55,6 +55,7 @@
 #include <ghoti.io/security/random.h>
 #include <ghoti.io/security/rc4.h>
 #include <ghoti.io/security/rsa.h>
+#include <ghoti.io/security/scrypt.h>
 #include <ghoti.io/security/secret.h>
 #include <ghoti.io/security/selftest.h>
 #include <ghoti.io/security/sha1.h>

@@ -30,6 +30,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/aes.h>
+#include <ghoti.io/security/scrypt.h>
 #include <ghoti.io/security/rc4.h>
 #include <ghoti.io/security/des.h>
 #include <ghoti.io/security/aes_cbc.h>
@@ -949,6 +950,30 @@ GSEC_Result gsec_selftest(void) {
     }
     result = gsec_equal(got, ct, sizeof got);
     gsec_wipe(got, sizeof got);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  {
+    static const unsigned char dk_want[64] = {
+      0x77, 0xd6, 0x57, 0x62, 0x38, 0x65, 0x7b, 0x20,
+      0x3b, 0x19, 0xca, 0x42, 0xc1, 0x8a, 0x04, 0x97,
+      0xf1, 0x6b, 0x48, 0x44, 0xe3, 0x07, 0x4a, 0xe8,
+      0xdf, 0xdf, 0xfa, 0x3f, 0xed, 0xe2, 0x14, 0x42,
+      0xfc, 0xd0, 0x06, 0x9d, 0xed, 0x09, 0x48, 0xf8,
+      0x32, 0x6a, 0x75, 0x3a, 0x0f, 0xc8, 0x1f, 0x17,
+      0xe8, 0xd3, 0xe0, 0xfb, 0x2e, 0x0d, 0x36, 0x28,
+      0xcf, 0x35, 0xe2, 0x0c, 0x38, 0xd1, 0x89, 0x06
+    };
+    unsigned char dk[64];
+
+    result = gsec_scrypt(NULL, 0, NULL, 0, 16, 1, 1, dk, sizeof dk);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(dk, dk_want, sizeof dk);
+    gsec_wipe(dk, sizeof dk);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
     }

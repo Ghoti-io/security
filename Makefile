@@ -683,6 +683,7 @@ endef
 
 $(eval $(call fuzz-rule,fuzz_des,des))
 $(eval $(call fuzz-rule,fuzz_rc4,rc4))
+$(eval $(call fuzz-rule,fuzz_scrypt,scrypt))
 $(eval $(call fuzz-rule,fuzz_aes,aes))
 $(eval $(call fuzz-rule,fuzz_aes_cbc,aes_cbc))
 $(eval $(call fuzz-rule,fuzz_aes_ctr,aes_ctr))
@@ -704,7 +705,7 @@ $(eval $(call fuzz-rule,fuzz_sha1,sha1))
 $(eval $(call fuzz-rule,fuzz_sha256,sha256))
 $(eval $(call fuzz-rule,fuzz_sha512,sha512))
 
-FUZZERS := aes aes_cbc aes_ctr aes_gcm des rc4 chacha20_poly1305 x25519 ed25519 ecdh_p256 ecdsa_p256 rsa_verify rsa_sign equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512
+FUZZERS := aes aes_cbc aes_ctr aes_gcm des rc4 scrypt chacha20_poly1305 x25519 ed25519 ecdh_p256 ecdsa_p256 rsa_verify rsa_sign equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512
 
 fuzz: $(addprefix fuzz-run-,$(FUZZERS)) ## Build and run every fuzzer
 
@@ -739,6 +740,7 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/aes_cbc$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/des$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/rc4$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/scrypt$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/aes_ctr$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/aes_gcm$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/chacha20_poly1305$(EXE_EXTENSION) \
@@ -756,6 +758,7 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		GSEC_AES_CBC_BIN="$(APP_DIR)/examples/aes_cbc$(EXE_EXTENSION)" \
 		GSEC_DES_BIN="$(APP_DIR)/examples/des$(EXE_EXTENSION)" \
 		GSEC_RC4_BIN="$(APP_DIR)/examples/rc4$(EXE_EXTENSION)" \
+		GSEC_SCRYPT_BIN="$(APP_DIR)/examples/scrypt$(EXE_EXTENSION)" \
 		GSEC_AES_CTR_BIN="$(APP_DIR)/examples/aes_ctr$(EXE_EXTENSION)" \
 		GSEC_AES_GCM_BIN="$(APP_DIR)/examples/aes_gcm$(EXE_EXTENSION)" \
 		GSEC_CHACHA20_POLY1305_BIN="$(APP_DIR)/examples/chacha20_poly1305$(EXE_EXTENSION)" \
