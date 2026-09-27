@@ -30,6 +30,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/aes.h>
+#include <ghoti.io/security/bcrypt.h>
 #include <ghoti.io/security/scrypt.h>
 #include <ghoti.io/security/rc4.h>
 #include <ghoti.io/security/des.h>
@@ -974,6 +975,29 @@ GSEC_Result gsec_selftest(void) {
     }
     result = gsec_equal(dk, dk_want, sizeof dk);
     gsec_wipe(dk, sizeof dk);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  {
+    static const unsigned char salt[16] = {
+      0x10, 0x41, 0x04, 0x10, 0x41, 0x04, 0x10, 0x41,
+      0x04, 0x10, 0x41, 0x04, 0x10, 0x41, 0x04, 0x10
+    };
+    static const unsigned char want[24] = {
+      0xf7, 0x02, 0x36, 0x5c, 0x4d, 0x4a, 0xe1, 0xd5,
+      0x3d, 0x97, 0xcd, 0x28, 0xb0, 0xb9, 0x3f, 0x11,
+      0xf7, 0x9f, 0xce, 0x44, 0xd5, 0x60, 0xfd, 0xf1
+    };
+    unsigned char got[24];
+
+    result = gsec_bcrypt(NULL, 0, salt, sizeof salt, 5, got, sizeof got);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(got, want, sizeof got);
+    gsec_wipe(got, sizeof got);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
     }

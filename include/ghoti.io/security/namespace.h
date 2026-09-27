@@ -64,6 +64,7 @@
 #define gsec_aes_ctr_update GHOTIIO_SECURITY(gsec_aes_ctr_update)
 #define gsec_aes_ctr_wipe GHOTIIO_SECURITY(gsec_aes_ctr_wipe)
 #define gsec_aes_cbc_decrypt GHOTIIO_SECURITY(gsec_aes_cbc_decrypt)
+#define gsec_bcrypt GHOTIIO_SECURITY(gsec_bcrypt)
 #define gsec_aes_cbc_encrypt GHOTIIO_SECURITY(gsec_aes_cbc_encrypt)
 #define gsec_aes_gcm_decrypt GHOTIIO_SECURITY(gsec_aes_gcm_decrypt)
 #define gsec_aes_gcm_encrypt GHOTIIO_SECURITY(gsec_aes_gcm_encrypt)

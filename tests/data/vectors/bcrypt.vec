@@ -1,0 +1,21 @@
+# bcrypt known answers. OpenBSD test vectors. ASCII matches $2a$ and $2b$.
+# The high case is the $2b$ unsigned-byte rule.
+primitive bcrypt
+
+case stars
+password 552a552a
+salt 10410410410410410410410410410410
+cost 5
+hash 5c84350bdfbaa96ac16f615ae79f35cfdacd682d369f2389
+
+case empty
+password -
+salt 10410410410410410410410410410410
+cost 5
+hash f702365c4d4ae1d53d97cd28b0b93f11f79fce44d560fdf1
+
+case high
+password ffffa3
+salt 05030085d5ed4c176b2ac3cbee47291c
+cost 5
+hash 106ee09c971c43a19d8a25c595df91dff4f09b56543b980c

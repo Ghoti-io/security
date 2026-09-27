@@ -154,10 +154,9 @@ Recorded in `CONVENTIONS.md` section 13.
 | --- | --- |
 | `x509`, `pem`, `pkcs8`, `der` | Encoding and policy. They belong in `certificates`. |
 
-`argon2` and `bcrypt` are `pending`. They are password hashes for
-storage. PBKDF2 is the slow derivation a format names; it is not one of
-those hashes. Declaring either before its row says `implemented` fails
-the build.
+`argon2` is `pending`. It is a password hash for storage. PBKDF2 is
+the slow derivation a format names; it is not that hash. Declaring it
+before its row says `implemented` fails the build.
 
 ## 7. Phases
 
@@ -180,7 +179,7 @@ an RSA key, and a client certificate whose key is RSA, need phase 9.
 | 10 | P-384, if certificates need it | |
 | 11 | AES-CBC is implemented | No padding. The initialization vector is the caller's. The mode does not authenticate. A repeated vector under one key leaks prefix equality |
 | 12 | DES and RC4 are implemented | Both are broken. Old formats still name them. Neither is constant-time: DES indexes substitution boxes with key-dependent bits, and RC4 indexes its permutation with secret bytes |
-| 13 | scrypt is implemented. Argon2 and bcrypt remain | Password hashes for storage. Not PBKDF2. The salt is the caller's. The cost parameters are public |
+| 13 | scrypt and bcrypt are implemented. Argon2 remains | Password hashes for storage. Not PBKDF2. The salt is the caller's. The cost parameters are public. bcrypt is the $2b$ rule and is not constant-time |
 
 Nonces are the caller's. The GCM and ChaCha20-Poly1305 declarations say what a repeated nonce
 does. ECDSA signing uses RFC 6979 so the nonce is a
