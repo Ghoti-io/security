@@ -15,9 +15,8 @@ run that fails when two files that are supposed to name one pin have drifted,
 or when a primitive was declared without a row saying who judges it.
 
 The classifier is run on a planted declaration before it is trusted on the
-tree. A planted `gsec_ecdsa_p384` while ecdsa_p384 is still pending
-must be reported. If it is not, this program is not a gate. The plant moves to the
-next pending primitive when one is implemented.
+tree. A planted `gsec_x509` is excluded and must be reported. If it is
+not, this program is not a gate.
 """
 
 import hashlib
@@ -186,6 +185,8 @@ def main():
         "gsec_des_ede3_cbc_encrypt", "gsec_des_ede3_cbc_decrypt",
         "gsec_ecdsa_p256_public", "gsec_ecdsa_p256_sign",
         "gsec_ecdsa_p256_verify",
+        "gsec_ecdsa_p384_public", "gsec_ecdsa_p384_sign",
+        "gsec_ecdsa_p384_verify",
         "gsec_rc4",
         "gsec_scrypt",
         "gsec_argon2",
@@ -196,9 +197,9 @@ def main():
     clean = classify(present, rows)
     if clean:
         fail("the implemented set was rejected: %r" % clean)
-    planted = classify(present | {"gsec_ecdsa_p384"}, rows)
-    if not any("ecdsa_p384" in item and "pending" in item for item in planted):
-        fail("a planted gsec_ecdsa_p384 was not rejected: %r" % planted)
+    planted = classify(present | {"gsec_x509"}, rows)
+    if not any("x509" in item and "excluded" in item for item in planted):
+        fail("a planted gsec_x509 was not rejected: %r" % planted)
 
     functions = declarations()
     missing = sorted(FOUNDATION - functions)

@@ -37,14 +37,13 @@ x25519	implemented	rfc	tests/data/vectors/x25519.vec
 ed25519	implemented	rfc	tests/data/vectors/ed25519.vec
 ecdh_p256	implemented	wycheproof	tests/data/vectors/ecdh_p256.vec
 ecdsa_p256	implemented	rfc	tests/data/vectors/ecdsa_p256.vec
-ecdsa_p384	pending	openssl	-
+ecdsa_p384	implemented	openssl	tests/data/vectors/ecdsa_p384.vec
 rsa_pss	implemented	wycheproof	tests/data/vectors/rsa_pss.vec
 rsa_pkcs1_v15_verify	implemented	wycheproof	tests/data/vectors/rsa_pkcs1.vec
 rsa_private	implemented	openssl	tests/data/vectors/rsa_private.vec
 
 # Not now, and not by adding a row as implemented without the caller the
-# design names. ecdsa_p384 stays pending until certificates need it.
-# Declaring it without flipping this row still fails.
+# design names. x509, pem, pkcs8, and der stay excluded.
 aes_cbc	implemented	openssl	tests/data/vectors/aes_cbc.vec
 des	implemented	openssl	tests/data/vectors/des.vec
 rc4	implemented	openssl	tests/data/vectors/rc4.vec

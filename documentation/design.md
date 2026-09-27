@@ -172,7 +172,7 @@ an RSA key, and a client certificate whose key is RSA, need phase 9.
 | 7 | P-256 ECDH and ECDSA are implemented | ECDH rejects a non-canonical coordinate, an off-curve point, and infinity. ECDSA signs with RFC 6979, emits the low s, and accepts a high s |
 | 8 | RSA-PSS and PKCS#1 v1.5 verification are implemented | Public exponent only. The DigestInfo is the DER encoding, including the NULL. A modulus past 4096 bits is rejected |
 | 9 | RSA private signing is implemented | The exponentiation does not branch on the private exponent. The base is blinded. PKCS#1 v1.5 and PSS both sign. The PSS salt is the caller's. A modulus past 4096 bits is rejected |
-| 10 | P-384, if certificates need it | |
+| 10 | ECDSA P-384 is implemented | SHA-384 and RFC 6979. The signature is raw r then s. Signing emits the low s. Verification accepts a high s |
 | 11 | AES-CBC is implemented | No padding. The initialization vector is the caller's. The mode does not authenticate. A repeated vector under one key leaks prefix equality |
 | 12 | DES and RC4 are implemented | Both are broken. Old formats still name them. Neither is constant-time: DES indexes substitution boxes with key-dependent bits, and RC4 indexes its permutation with secret bytes |
 | 13 | scrypt, bcrypt, and Argon2 are implemented | Password hashes for storage. Not PBKDF2. The salt is the caller's. The cost parameters are public. bcrypt is the $2b$ rule. Argon2 is version 0x13, and BLAKE2b stays inside it |

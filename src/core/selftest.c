@@ -52,6 +52,7 @@
 #include <ghoti.io/security/sha384.h>
 #include <ghoti.io/security/sha512.h>
 #include <ghoti.io/security/ecdsa_p256.h>
+#include <ghoti.io/security/ecdsa_p384.h>
 #include <ghoti.io/security/ecdh_p256.h>
 #include <ghoti.io/security/ed25519.h>
 #include <ghoti.io/security/x25519.h>
@@ -1040,6 +1041,42 @@ GSEC_Result gsec_selftest(void) {
     }
     result = gsec_equal(tag, want, sizeof tag);
     gsec_wipe(tag, sizeof tag);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  {
+    unsigned char scalar[GSEC_ECDSA_P384_LEN];
+    unsigned char pub[GSEC_ECDSA_P384_PUBLIC_LEN];
+    static const unsigned char gx[48] = {
+      0xaa, 0x87, 0xca, 0x22, 0xbe, 0x8b, 0x05, 0x37, 0x8e, 0xb1, 0xc7, 0x1e,
+      0xf3, 0x20, 0xad, 0x74, 0x6e, 0x1d, 0x3b, 0x62, 0x8b, 0xa7, 0x9b, 0x98,
+      0x59, 0xf7, 0x41, 0xe0, 0x82, 0x54, 0x2a, 0x38, 0x55, 0x02, 0xf2, 0x5d,
+      0xbf, 0x55, 0x29, 0x6c, 0x3a, 0x54, 0x5e, 0x38, 0x72, 0x76, 0x0a, 0xb7
+    };
+    static const unsigned char gy[48] = {
+      0x36, 0x17, 0xde, 0x4a, 0x96, 0x26, 0x2c, 0x6f, 0x5d, 0x9e, 0x98, 0xbf,
+      0x92, 0x92, 0xdc, 0x29, 0xf8, 0xf4, 0x1d, 0xbd, 0x28, 0x9a, 0x14, 0x7c,
+      0xe9, 0xda, 0x31, 0x13, 0xb5, 0xf0, 0xb8, 0xc0, 0x0a, 0x60, 0xb1, 0xce,
+      0x1d, 0x7e, 0x81, 0x9d, 0x7a, 0x43, 0x1d, 0x7c, 0x90, 0xea, 0x0e, 0x5f
+    };
+    unsigned i;
+
+    for (i = 0; i < sizeof scalar; i++) {
+      scalar[i] = 0;
+    }
+    scalar[sizeof scalar - 1u] = 1;
+    result = gsec_ecdsa_p384_public(scalar, pub);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(pub, gx, sizeof gx);
+    if (result == GSEC_OK) {
+      result = gsec_equal(pub + sizeof gx, gy, sizeof gy);
+    }
+    gsec_wipe(scalar, sizeof scalar);
+    gsec_wipe(pub, sizeof pub);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
     }

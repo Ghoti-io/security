@@ -23,6 +23,7 @@
 #include <ghoti.io/security/aes_gcm.h>
 #include <ghoti.io/security/chacha20_poly1305.h>
 #include <ghoti.io/security/ecdsa_p256.h>
+#include <ghoti.io/security/ecdsa_p384.h>
 #include <ghoti.io/security/ecdh_p256.h>
 #include <ghoti.io/security/ed25519.h>
 #include <ghoti.io/security/rsa.h>
@@ -267,6 +268,19 @@ int main(void) {
     gsec_poison(scalar, sizeof scalar);
     if (gsec_ecdsa_p256_sign(scalar, message, sizeof message, sig) != GSEC_OK) {
       return 22;
+    }
+    gsec_wipe(sig, sizeof sig);
+    gsec_wipe(scalar, sizeof scalar);
+  }
+  {
+    unsigned char scalar[GSEC_ECDSA_P384_LEN];
+    unsigned char sig[GSEC_ECDSA_P384_SIG_LEN];
+    static const unsigned char message[1] = {0x72};
+
+    memset(scalar, 0x3c, sizeof scalar);
+    gsec_poison(scalar, sizeof scalar);
+    if (gsec_ecdsa_p384_sign(scalar, message, sizeof message, sig) != GSEC_OK) {
+      return 27;
     }
     gsec_wipe(sig, sizeof sig);
     gsec_wipe(scalar, sizeof scalar);
