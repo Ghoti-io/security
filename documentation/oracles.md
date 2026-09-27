@@ -4,7 +4,8 @@ The algorithms this library implements are judged by something that is
 not this library. `make check-oracle` first checks that the image still
 produces the published SHA-256 of `abc` and the Wycheproof file the pin
 names. It then hashes the same messages with this library and with
-`openssl dgst -sha256` in the image. A difference fails the target.
+`openssl dgst` in the image, for SHA-256, SHA-512, and SHA-384. A difference
+fails the target.
 
 `make test` does not run a container. A checkout with no container runtime
 still builds and tests. The differential is a separate target, and that
@@ -61,8 +62,10 @@ Those two checks judge the oracle. The messages after them judge
 lengths 55 through 65, a thousand `a` bytes, and the bytes 0 through 255.
 Each is hashed in one call and in chunks of 1 and of 64. The helper is
 `examples/sha256.c`, which `make check-oracle` builds and passes as
-`GSEC_SHA256_BIN`. `tools/oracle/primitives.txt` lists `sha256` as
-`implemented` with judge `openssl`. Declaring `gsec_sha512_init` while
+`GSEC_SHA256_BIN`. SHA-512 and SHA-384 use `examples/hash.c`
+(`GSEC_HASH_BIN`) the same way, with chunks of 1 and of 128, and with the
+padding lengths 111 through 129. `tools/oracle/primitives.txt` lists those
+rows as `implemented` with judge `openssl`. Declaring `gsec_sha1_init` while
 that row is still pending fails `make test`.
 
 A host-mode run (`GHOTI_ORACLE=host`) uses the `openssl` on `PATH` and still
@@ -80,6 +83,6 @@ hand-edited expected digest would not have.
 
 The parser rejects a truncated hex string, an odd number of digits, an
 uppercase digit, a boolean expectation, and a length that does not match
-the bytes. `equal` is the only primitive with a file today. A later
-primitive adds a file in the same commit as the function, and names it on
-the registry row.
+the bytes. `equal`, `sha256`, `sha512`, and `sha384` each have a file. A
+later primitive adds a file in the same commit as the function, and names
+it on the registry row.

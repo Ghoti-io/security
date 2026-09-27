@@ -15,6 +15,8 @@
 
 #include <ghoti.io/security/secret.h>
 #include <ghoti.io/security/sha256.h>
+#include <ghoti.io/security/sha384.h>
+#include <ghoti.io/security/sha512.h>
 
 #include <string.h>
 #include <valgrind/memcheck.h>
@@ -64,6 +66,24 @@ int main(void) {
     gsec_poison(secret, sizeof secret);
     if (gsec_sha256(secret, sizeof secret, digest) != GSEC_OK) {
       return 7;
+    }
+    gsec_wipe(digest, sizeof digest);
+  }
+  {
+    unsigned char digest[GSEC_SHA512_DIGEST_LEN];
+
+    gsec_poison(secret, sizeof secret);
+    if (gsec_sha512(secret, sizeof secret, digest) != GSEC_OK) {
+      return 8;
+    }
+    gsec_wipe(digest, sizeof digest);
+  }
+  {
+    unsigned char digest[GSEC_SHA384_DIGEST_LEN];
+
+    gsec_poison(secret, sizeof secret);
+    if (gsec_sha384(secret, sizeof secret, digest) != GSEC_OK) {
+      return 9;
     }
     gsec_wipe(digest, sizeof digest);
   }

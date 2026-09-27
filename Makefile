@@ -684,8 +684,9 @@ endef
 $(eval $(call fuzz-rule,fuzz_equal,equal))
 $(eval $(call fuzz-rule,fuzz_wipe,wipe))
 $(eval $(call fuzz-rule,fuzz_sha256,sha256))
+$(eval $(call fuzz-rule,fuzz_sha512,sha512))
 
-FUZZERS := equal wipe sha256
+FUZZERS := equal wipe sha256 sha512
 
 fuzz: $(addprefix fuzz-run-,$(FUZZERS)) ## Build and run every fuzzer
 
@@ -711,8 +712,10 @@ oracle-build: ## Build the pinned openssl and Wycheproof image
 oracle-version: ## Print which reference would answer, and fail if none would
 	@GHOTI_ORACLE_REQUIRED=1 $(ORACLE_RUN) openssl,wycheproof -- true
 
-check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
+check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/hash$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
 	@GHOTI_ORACLE_REQUIRED=1 GSEC_SHA256_BIN="$(APP_DIR)/examples/sha256$(EXE_EXTENSION)" \
+		GSEC_HASH_BIN="$(APP_DIR)/examples/hash$(EXE_EXTENSION)" \
 		$(ORACLE_RUN) openssl,wycheproof -- python3 $(ORACLE)/openssl_kat.py
 
 ####################################################################

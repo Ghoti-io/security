@@ -33,6 +33,8 @@
 #include <ghoti.io/security/secret.h>
 #include <ghoti.io/security/selftest.h>
 #include <ghoti.io/security/sha256.h>
+#include <ghoti.io/security/sha384.h>
+#include <ghoti.io/security/sha512.h>
 
 GSEC_Result gsec_selftest(void) {
   static const unsigned char left[4] = {0x00, 0x01, 0x02, 0x03};
@@ -138,6 +140,115 @@ GSEC_Result gsec_selftest(void) {
     }
     result = gsec_equal(dig, abc_dig, sizeof dig);
     gsec_wipe(dig, sizeof dig);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  /* RFC 6234 sections 8.3 and 8.4. Same two messages, both widths. */
+  {
+    static const unsigned char sha512_empty[GSEC_SHA512_DIGEST_LEN] = {
+      0xcf, 0x83, 0xe1, 0x35, 0x7e, 0xef, 0xb8, 0xbd,
+      0xf1, 0x54, 0x28, 0x50, 0xd6, 0x6d, 0x80, 0x07,
+      0xd6, 0x20, 0xe4, 0x05, 0x0b, 0x57, 0x15, 0xdc,
+      0x83, 0xf4, 0xa9, 0x21, 0xd3, 0x6c, 0xe9, 0xce,
+      0x47, 0xd0, 0xd1, 0x3c, 0x5d, 0x85, 0xf2, 0xb0,
+      0xff, 0x83, 0x18, 0xd2, 0x87, 0x7e, 0xec, 0x2f,
+      0x63, 0xb9, 0x31, 0xbd, 0x47, 0x41, 0x7a, 0x81,
+      0xa5, 0x38, 0x32, 0x7a, 0xf9, 0x27, 0xda, 0x3e
+    };
+    static const unsigned char sha512_abc[GSEC_SHA512_DIGEST_LEN] = {
+      0xdd, 0xaf, 0x35, 0xa1, 0x93, 0x61, 0x7a, 0xba,
+      0xcc, 0x41, 0x73, 0x49, 0xae, 0x20, 0x41, 0x31,
+      0x12, 0xe6, 0xfa, 0x4e, 0x89, 0xa9, 0x7e, 0xa2,
+      0x0a, 0x9e, 0xee, 0xe6, 0x4b, 0x55, 0xd3, 0x9a,
+      0x21, 0x92, 0x99, 0x2a, 0x27, 0x4f, 0xc1, 0xa8,
+      0x36, 0xba, 0x3c, 0x23, 0xa3, 0xfe, 0xeb, 0xbd,
+      0x45, 0x4d, 0x44, 0x23, 0x64, 0x3c, 0xe8, 0x0e,
+      0x2a, 0x9a, 0xc9, 0x4f, 0xa5, 0x4c, 0xa4, 0x9f
+    };
+    static const unsigned char sha384_empty[GSEC_SHA384_DIGEST_LEN] = {
+      0x38, 0xb0, 0x60, 0xa7, 0x51, 0xac, 0x96, 0x38,
+      0x4c, 0xd9, 0x32, 0x7e, 0xb1, 0xb1, 0xe3, 0x6a,
+      0x21, 0xfd, 0xb7, 0x11, 0x14, 0xbe, 0x07, 0x43,
+      0x4c, 0x0c, 0xc7, 0xbf, 0x63, 0xf6, 0xe1, 0xda,
+      0x27, 0x4e, 0xde, 0xbf, 0xe7, 0x6f, 0x65, 0xfb,
+      0xd5, 0x1a, 0xd2, 0xf1, 0x48, 0x98, 0xb9, 0x5b
+    };
+    static const unsigned char sha384_abc[GSEC_SHA384_DIGEST_LEN] = {
+      0xcb, 0x00, 0x75, 0x3f, 0x45, 0xa3, 0x5e, 0x8b,
+      0xb5, 0xa0, 0x3d, 0x69, 0x9a, 0xc6, 0x50, 0x07,
+      0x27, 0x2c, 0x32, 0xab, 0x0e, 0xde, 0xd1, 0x63,
+      0x1a, 0x8b, 0x60, 0x5a, 0x43, 0xff, 0x5b, 0xed,
+      0x80, 0x86, 0x07, 0x2b, 0xa1, 0xe7, 0xcc, 0x23,
+      0x58, 0xba, 0xec, 0xa1, 0x34, 0xc8, 0x25, 0xa7
+    };
+    static const unsigned char abc_msg[3] = {0x61, 0x62, 0x63};
+    unsigned char dig512[GSEC_SHA512_DIGEST_LEN];
+    unsigned char dig384[GSEC_SHA384_DIGEST_LEN];
+    GSEC_Sha512 ctx512;
+    GSEC_Sha384 ctx384;
+
+    result = gsec_sha512(NULL, 0, dig512);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(dig512, sha512_empty, sizeof dig512);
+    gsec_wipe(dig512, sizeof dig512);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+
+    result = gsec_sha512_init(&ctx512);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    for (i = 0; i < sizeof abc_msg; i++) {
+      result = gsec_sha512_update(&ctx512, abc_msg + i, 1);
+      if (result != GSEC_OK) {
+        gsec_wipe(&ctx512, sizeof ctx512);
+        return result;
+      }
+    }
+    result = gsec_sha512_final(&ctx512, dig512);
+    if (result != GSEC_OK) {
+      gsec_wipe(&ctx512, sizeof ctx512);
+      return result;
+    }
+    result = gsec_equal(dig512, sha512_abc, sizeof dig512);
+    gsec_wipe(dig512, sizeof dig512);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+
+    result = gsec_sha384(NULL, 0, dig384);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(dig384, sha384_empty, sizeof dig384);
+    gsec_wipe(dig384, sizeof dig384);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+
+    result = gsec_sha384_init(&ctx384);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    for (i = 0; i < sizeof abc_msg; i++) {
+      result = gsec_sha384_update(&ctx384, abc_msg + i, 1);
+      if (result != GSEC_OK) {
+        gsec_wipe(&ctx384, sizeof ctx384);
+        return result;
+      }
+    }
+    result = gsec_sha384_final(&ctx384, dig384);
+    if (result != GSEC_OK) {
+      gsec_wipe(&ctx384, sizeof ctx384);
+      return result;
+    }
+    result = gsec_equal(dig384, sha384_abc, sizeof dig384);
+    gsec_wipe(dig384, sizeof dig384);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
     }

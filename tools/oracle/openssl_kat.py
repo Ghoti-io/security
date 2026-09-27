@@ -141,6 +141,64 @@ def diff_library():
                     "%s %s is %s, openssl says %s\n" % (name, how, got, want))
                 return 1
         print("sha256 %s %s" % (name, want))
+    return diff_wide()
+
+
+def openssl_wide(flag, data):
+    proc = subprocess.run(
+        oracle_env.command("openssl", ["openssl", "dgst", flag]),
+        input=data, capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        raise SystemExit(1)
+    return last_field(proc.stdout.decode("utf-8", "replace"))
+
+
+def library_wide(binary, alg, data, chunk, hexlen):
+    command = [binary, alg] if chunk is None else [binary, alg, "--chunk", str(chunk)]
+    proc = subprocess.run(command, input=data, capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        sys.stderr.write("%s helper exited %s\n" % (alg, proc.returncode))
+        raise SystemExit(1)
+    got = proc.stdout.decode("utf-8", "replace").strip()
+    if len(got) != hexlen:
+        sys.stderr.write("%s helper wrote %r\n" % (alg, got))
+        raise SystemExit(1)
+    return got
+
+
+def diff_wide():
+    binary = os.environ.get("GSEC_HASH_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_HASH_BIN is not set\n")
+        return 1
+    messages = [
+        ("empty", b""),
+        ("abc", b"abc"),
+        ("two-block",
+         b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+        ("pad-111", b"a" * 111),
+        ("pad-112", b"a" * 112),
+        ("pad-127", b"a" * 127),
+        ("pad-128", b"a" * 128),
+        ("pad-129", b"a" * 129),
+        ("thousand", b"a" * 1000),
+        ("bytes", bytes(range(256))),
+    ]
+    algs = (("sha512", "-sha512", 128), ("sha384", "-sha384", 96))
+    for alg, flag, hexlen in algs:
+        for name, data in messages:
+            want = openssl_wide(flag, data)
+            for chunk in (None, 1, 128):
+                got = library_wide(binary, alg, data, chunk, hexlen)
+                if not compare.hex_equal(got, want):
+                    how = "oneshot" if chunk is None else "chunk %s" % chunk
+                    sys.stderr.write(
+                        "%s %s %s is %s, openssl says %s\n"
+                        % (alg, name, how, got, want))
+                    return 1
+            print("%s %s %s" % (alg, name, want))
     return 0
 
 

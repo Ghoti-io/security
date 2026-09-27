@@ -7,14 +7,14 @@ libraries those belong in; this one is the layer under them.
 
 ## What is implemented
 
-Phase 0, the machinery the algorithms are measured against, and SHA-256.
-No other hash, and no cipher, is implemented yet.
+Phase 0, the machinery the algorithms are measured against, SHA-256, SHA-512,
+and SHA-384. No other hash, and no MAC or cipher, is implemented yet.
 
 - `gsec_equal` compares two regions and returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
 - `gsec_random_bytes` reads the kernel generator. A failure wipes what was already written and returns `GSEC_ERR_IO`. There is no userspace generator behind that failure.
-- `gsec_sha256` hashes a buffer. `gsec_sha256_init`, `gsec_sha256_update`, and `gsec_sha256_final` hash a message in slices. Final wipes the context.
-- `gsec_selftest` runs the known-answer checks an embedder can call at startup. That is the calls above, including the SHA-256 of the empty message and of `abc`.
+- `gsec_sha256` hashes a buffer. `gsec_sha256_init`, `gsec_sha256_update`, and `gsec_sha256_final` hash a message in slices. Final wipes the context. `gsec_sha512` and `gsec_sha384` are the same shape. SHA-384 is SHA-512's compression with a different initial value, not a truncation of a SHA-512 digest.
+- `gsec_selftest` runs the known-answer checks an embedder can call at startup. That is the calls above, including each hash of the empty message and of `abc`.
 - `gsec_poison` and `gsec_unpoison` mark secret bytes for the constant-time gate. In a normal build they do nothing.
 
 The primitive set, including what is pending and what is excluded, is
@@ -70,10 +70,10 @@ the image is absent. `make docs` builds the manual.
 
 ## Status
 
-Phase 0 of the plan is built, and SHA-256 is the first primitive. `make
-test` runs the unit tests, the symbol, aliasing, stamp, secret, foundation,
-and constant-time gates. `make check-oracle` is separate, because it needs
-the container. It compares this library's SHA-256 with the pinned OpenSSL.
+Phase 0 of the plan is built. SHA-256, SHA-512, and SHA-384 are implemented.
+`make test` runs the unit tests, the symbol, aliasing, stamp, secret,
+foundation, and constant-time gates. `make check-oracle` is separate, because
+it needs the container. It compares these hashes with the pinned OpenSSL.
 
 ## License
 
