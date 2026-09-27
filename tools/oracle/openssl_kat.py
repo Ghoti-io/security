@@ -1377,6 +1377,41 @@ def diff_des():
             sys.stderr.write("des %s is %s, openssl says %s\n" % (mode, got, want))
             return 1
         print("des %s %s" % (mode, want))
+    return diff_rc4()
+
+
+def openssl_rc4(key_hex, message):
+    command = [
+        "openssl", "enc", "-provider", "legacy", "-provider", "default",
+        "-rc4", "-K", key_hex, "-nopad", "-nosalt"]
+    proc = subprocess.run(
+        oracle_env.command("openssl", command),
+        input=message, capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        raise SystemExit(1)
+    return proc.stdout.hex()
+
+
+def library_rc4(binary, key_hex, message_hex):
+    proc = subprocess.run(
+        [binary, key_hex, message_hex], capture_output=True, text=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr)
+        raise SystemExit(1)
+    return proc.stdout.strip()
+
+
+def diff_rc4():
+    binary = os.environ["GSEC_RC4_BIN"]
+    message = bytes.fromhex("61" * 16)
+    key = "0102030405060708090a0b0c0d0e0f10"
+    want = openssl_rc4(key, message)
+    got = library_rc4(binary, key, message.hex())
+    if not compare.hex_equal(got, want):
+        sys.stderr.write("rc4 is %s, openssl says %s\n" % (got, want))
+        return 1
+    print("rc4 %s" % want)
     return 0
 
 

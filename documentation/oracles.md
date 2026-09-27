@@ -115,7 +115,7 @@ hand-edited expected digest would not have.
 The parser rejects a truncated hex string, an odd number of digits, an
 uppercase digit, a boolean expectation, and a length that does not match
 the bytes. `equal`, the five hashes, `hmac`, `hkdf`, `pbkdf2`, `aes`,
-`aes_ctr`, `aes_cbc`, `des`, `aes_gcm`, `chacha20_poly1305`, `x25519`, `ed25519`,
+`aes_ctr`, `aes_cbc`, `des`, `rc4`, `aes_gcm`, `chacha20_poly1305`, `x25519`, `ed25519`,
 `ecdh_p256`, `ecdsa_p256`, `rsa_pkcs1`, `rsa_pss`, and `rsa_private` each have a file. A
 later primitive adds a file in the same commit as the function, and names
 it on the registry row.

@@ -53,6 +53,7 @@
 #include <ghoti.io/security/macros.h>
 #include <ghoti.io/security/md5.h>
 #include <ghoti.io/security/random.h>
+#include <ghoti.io/security/rc4.h>
 #include <ghoti.io/security/rsa.h>
 #include <ghoti.io/security/secret.h>
 #include <ghoti.io/security/selftest.h>

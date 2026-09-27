@@ -103,6 +103,7 @@
 #define gsec_pbkdf2 GHOTIIO_SECURITY(gsec_pbkdf2)
 #define gsec_poison GHOTIIO_SECURITY(gsec_poison)
 #define gsec_random_bytes GHOTIIO_SECURITY(gsec_random_bytes)
+#define gsec_rc4 GHOTIIO_SECURITY(gsec_rc4)
 #define gsec_result_string GHOTIIO_SECURITY(gsec_result_string)
 #define gsec_rsa_pkcs1_v15_verify GHOTIIO_SECURITY(gsec_rsa_pkcs1_v15_verify)
 #define gsec_rsa_private_pkcs1_v15_sign GHOTIIO_SECURITY(gsec_rsa_private_pkcs1_v15_sign)

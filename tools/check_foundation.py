@@ -186,6 +186,7 @@ def main():
         "gsec_des_ede3_cbc_encrypt", "gsec_des_ede3_cbc_decrypt",
         "gsec_ecdsa_p256_public", "gsec_ecdsa_p256_sign",
         "gsec_ecdsa_p256_verify",
+        "gsec_rc4",
         "gsec_rsa_pkcs1_v15_verify", "gsec_rsa_pss_verify",
         "gsec_rsa_private_pkcs1_v15_sign", "gsec_rsa_private_pss_sign",
     }

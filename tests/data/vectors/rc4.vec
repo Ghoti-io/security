@@ -1,0 +1,14 @@
+# RC4 known answer. No drop. Key 0102030405, plaintext "hello".
+# OpenSSL's enc command zero-pads a short -K, so the oracle uses a
+# 16-byte key and this file keeps the unpadded one.
+primitive rc4
+
+case hello
+key 0102030405
+pt 68656c6c6f
+ct da5c0f699f
+
+case key-plaintext
+key 4b6579
+pt 506c61696e74657874
+ct bbf316e8d940af0ad3

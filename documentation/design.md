@@ -154,11 +154,10 @@ Recorded in `CONVENTIONS.md` section 13.
 | --- | --- |
 | `x509`, `pem`, `pkcs8`, `der` | Encoding and policy. They belong in `certificates`. |
 
-`rc4`, `argon2`, `scrypt`, and `bcrypt` are `pending`. RC4 is broken, and old
-formats still use it. Argon2, scrypt, and bcrypt are password hashes for
-storage. PBKDF2 is the slow derivation a format names; it is not one of
-those three. Declaring any of them before its row says `implemented`
-fails the build.
+`argon2`, `scrypt`, and `bcrypt` are `pending`. Argon2, scrypt, and bcrypt
+are password hashes for storage. PBKDF2 is the slow derivation a format
+names; it is not one of those three. Declaring any of them before its
+row says `implemented` fails the build.
 
 ## 7. Phases
 
@@ -180,7 +179,7 @@ an RSA key, and a client certificate whose key is RSA, need phase 9.
 | 9 | RSA private signing is implemented | The exponentiation does not branch on the private exponent. The base is blinded. PKCS#1 v1.5 and PSS both sign. The PSS salt is the caller's. A modulus past 4096 bits is rejected |
 | 10 | P-384, if certificates need it | |
 | 11 | AES-CBC is implemented | No padding. The initialization vector is the caller's. The mode does not authenticate. A repeated vector under one key leaks prefix equality |
-| 12 | DES is implemented. RC4 remains | DES is broken. Old formats still name it. The substitution boxes are indexed by key-dependent bits, so it is not in the constant-time gate |
+| 12 | DES and RC4 are implemented | Both are broken. Old formats still name them. Neither is constant-time: DES indexes substitution boxes with key-dependent bits, and RC4 indexes its permutation with secret bytes |
 | 13 | Argon2, scrypt, and bcrypt | Password hashes for storage. Not PBKDF2 |
 
 Nonces are the caller's. The GCM and ChaCha20-Poly1305 declarations say what a repeated nonce
