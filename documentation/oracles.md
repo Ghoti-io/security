@@ -3,9 +3,10 @@
 The algorithms this library implements are judged by something that is
 not this library. `make check-oracle` first checks that the image still
 produces the published SHA-256 of `abc` and the Wycheproof file the pin
-names. It then hashes the same messages with this library and with
-`openssl dgst` in the image, for SHA-256, SHA-512, SHA-384, and SHA-1. A
-difference fails the target.
+names. It then judges every implemented primitive: the hashes, including
+MD5, HMAC, HKDF, PBKDF2, AES and AES-CTR, against OpenSSL in the image, and
+the AEAD algorithms, the curves, and RSA verification against the pinned
+Wycheproof files. A difference fails the target.
 
 `make test` does not run a container. A checkout with no container runtime
 still builds and tests. The differential is a separate target, and that
@@ -55,7 +56,7 @@ probe that exits non-zero is a failure. The probe is
 `tools/oracle/openssl_kat.py`:
 
 - SHA-256 of `abc` is `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`.
-- `sha256sum` of the pinned `aes_gcm_test.json`, `chacha20_poly1305_test.json`, `x25519_test.json`, and `ed25519_test.json` match `CORPUS`.
+- `sha256sum` of each file named in `CORPUS` matches the digest on that line.
 
 Those two checks judge the oracle. The messages after them judge
 `gsec_sha256`: empty, `abc`, the RFC 6234 two-block string, the padding
@@ -107,6 +108,8 @@ hand-edited expected digest would not have.
 
 The parser rejects a truncated hex string, an odd number of digits, an
 uppercase digit, a boolean expectation, and a length that does not match
-the bytes. `equal`, `sha256`, `sha512`, `sha384`, `sha1`, and `md5` each have a file. A
+the bytes. `equal`, the five hashes, `hmac`, `hkdf`, `pbkdf2`, `aes`,
+`aes_ctr`, `aes_gcm`, `chacha20_poly1305`, `x25519`, `ed25519`,
+`ecdh_p256`, `ecdsa_p256`, `rsa_pkcs1`, and `rsa_pss` each have a file. A
 later primitive adds a file in the same commit as the function, and names
 it on the registry row.

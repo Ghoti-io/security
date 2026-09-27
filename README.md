@@ -50,7 +50,7 @@ the modulus. MD5 and SHA-1 are there for old certificates.
 - `gsec_ecdh_p256` multiplies a scalar by a peer point and writes the shared x coordinate. `gsec_ecdh_p256_public` multiplies it by the base point. A bad point and the point at infinity are `GSEC_ERR_INVALID`, and the output is wiped.
 - `gsec_ecdsa_p256_public` multiplies a scalar by the base point. `gsec_ecdsa_p256_sign` signs a message and emits the low s. `gsec_ecdsa_p256_verify` returns `GSEC_ERR_MISMATCH` for a bad signature, a bad point, or an r or s that is zero or not strictly less than the group order. A high s verifies.
 - `gsec_rsa_pkcs1_v15_verify` and `gsec_rsa_pss_verify` check a signature with the public exponent. There is no private-key operation. A modulus past 4096 bits is `GSEC_ERR_LIMIT`.
-- `gsec_selftest` runs the known-answer checks an embedder can call at startup. That is the calls above, including each hash of the empty message and of `abc`, and the HMAC-SHA-256 of RFC 4231 test case 1.
+- `gsec_selftest` runs the known-answer checks an embedder can call at startup: equal, wipe, a short entropy call, each hash, HMAC, HKDF, PBKDF2, AES, CTR, GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH, and ECDSA P-256. RSA verification's known answer is the vector file.
 - `gsec_poison` and `gsec_unpoison` mark secret bytes for the constant-time gate. In a normal build they do nothing.
 
 The primitive set, including what is pending and what is excluded, is
@@ -98,18 +98,21 @@ program that links `ghoti.io-security-0` links this too.
 
 ## Documentation
 
-[documentation/design.md](documentation/design.md) is the design: what phase 0
-implements, the gates, and what the later phases are.
+[documentation/design.md](documentation/design.md) is the design of what
+has shipped, the gates, and the phases that have not.
 [documentation/oracles.md](documentation/oracles.md) is the pinned OpenSSL and
 Wycheproof image. `make test` does not need it. `make check-oracle` fails if
 the image is absent. `make docs` builds the manual.
 
 ## Status
 
-Phase 2 of the plan is built: HKDF and PBKDF2, on the phase 1 hashes.
-`make test` runs the unit tests, the symbol, aliasing, stamp, secret,
-foundation, and constant-time gates. `make check-oracle` is separate, because
-it needs the container. It compares these hashes with the pinned OpenSSL.
+Phases 0 through 8 are built: the gate, the hashes, HMAC, HKDF, PBKDF2,
+AES, CTR, GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH, ECDSA P-256,
+and RSA verification. `make test` runs the unit tests, the symbol, aliasing,
+stamp, secret, foundation, and constant-time gates. `make check-oracle` is
+separate, because it needs the container. It compares the implemented
+primitives with pinned OpenSSL 3.5.7 and with the Wycheproof files named in
+[documentation/oracles.md](documentation/oracles.md).
 
 ## License
 

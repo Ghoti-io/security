@@ -74,7 +74,20 @@ phases that allocate.
 | `gsec_poison`, `gsec_unpoison` | Valgrind client requests when `GSEC_CT_TEST` is set, otherwise empty. They return void: marking is not a result the caller branches on. |
 | `gsec_random_bytes` | Fill `out` with `n` bytes from the kernel, or leave it wiped and return an error. `n` above `max_random_bytes` is `GSEC_ERR_LIMIT` and does not write. |
 | `gsec_sha256_init`, `gsec_sha256_update`, `gsec_sha256_final`, `gsec_sha256` | FIPS 180-4 SHA-256. The message length is public. Message bytes are not a branch condition and not a table index. Final wipes the context. A bit length that does not fit in 64 bits wipes it and returns `GSEC_ERR_LIMIT`. |
-| `gsec_selftest` | Runs equal, wipe, a short entropy call, and the RFC 6234 SHA-256 of the empty message and of `abc`. The entropy call folds the output with XOR and then wipes it, and branches on whether any byte was written, which is public. |
+| `gsec_selftest` | A known answer for each implemented primitive except RSA verification, whose known answer is the vector file. The entropy call folds the output with XOR and then wipes it, and branches on whether any byte was written, which is public. |
+| `gsec_sha512`, `gsec_sha384`, `gsec_sha1`, `gsec_md5` | The same shape as SHA-256. SHA-384 is SHA-512's compression with the FIPS 180-4 initial value. SHA-1 and MD5 do not provide collision resistance. MD5 is not a MAC. |
+| `gsec_hmac`, `gsec_hmac_verify` | HMAC over SHA-256, SHA-512, SHA-384, or SHA-1. A key longer than the block is hashed first. Verify returns `GSEC_ERR_MISMATCH` when a tag of the digest length differs, and `GSEC_ERR_INVALID` when the length is wrong. |
+| `gsec_hkdf` | HKDF: extract, then expand. A salt of length zero is HashLen zero bytes. An output longer than 255 digests is `GSEC_ERR_LIMIT`. |
+| `gsec_pbkdf2` | PBKDF2. Zero iterations are `GSEC_ERR_INVALID`. A different function from `gsec_hkdf`. |
+| `gsec_aes_encrypt`, `gsec_aes_decrypt` | One AES block at 128, 192, or 256 bits. The schedule from encrypt init serves both directions. A key byte is not a table index. |
+| `gsec_aes_ctr` | That block cipher in CTR. `GSEC_AES_CTR_BE` is the NIST counter. `GSEC_AES_CTR_LE` is the WinZip counter. |
+| `gsec_aes_gcm_encrypt`, `gsec_aes_gcm_decrypt` | AES-GCM, one shot. Decrypt wipes the plaintext when the tag does not match. Nonce reuse under one key destroys authentication. |
+| `gsec_chacha20_poly1305_encrypt`, `gsec_chacha20_poly1305_decrypt` | AEAD_CHACHA20_POLY1305. The key is 32 bytes, the nonce 12, the tag 16. Decrypt wipes the plaintext when the tag does not match. |
+| `gsec_x25519`, `gsec_x25519_public` | RFC 7748. The scalar is clamped inside the function. The all-zero shared secret is rejected and the output is wiped. |
+| `gsec_ed25519_public`, `gsec_ed25519_sign`, `gsec_ed25519_verify` | RFC 8032, pure, with no context string. Verification rejects a non-canonical point and an S that is not strictly less than the group order. |
+| `gsec_ecdh_p256`, `gsec_ecdh_p256_public` | A 32-byte scalar and a 64-byte point, x then y. A non-canonical coordinate, an off-curve point, and infinity are rejected and the output is wiped. A shared x of zero is a result. |
+| `gsec_ecdsa_p256_public`, `gsec_ecdsa_p256_sign`, `gsec_ecdsa_p256_verify` | SHA-256 of the message and an RFC 6979 nonce. The signature is 64 bytes, r then s. Signing emits the low s. Verification accepts a high s. An r or s of zero, or one that is not strictly less than the group order, is `GSEC_ERR_MISMATCH`. |
+| `gsec_rsa_pkcs1_v15_verify`, `gsec_rsa_pss_verify` | The public exponent only. PKCS#1 v1.5 accepts the DER DigestInfo, including the NULL, and at least eight 0xff bytes. PSS takes the salt length and encodes one bit shorter than the modulus. A modulus past 4096 bits is `GSEC_ERR_LIMIT`. There is no private-key operation. |
 | `gsec_allocator_default` | cutil's default allocator. |
 | `gsec_limits_default` | Fills the default caps. NULL is ignored. |
 | `gsec_result_string` | Static string, including for a value outside the enum. |
@@ -105,20 +118,20 @@ in the Makefile, and the check list is `notes/suite/WINDOWS-TODO.md`.
 Known-answer files under `tests/data/vectors/` are scored by the unit tests
 with no container. `MANIFEST` is their SHA-256. The parser fails closed on
 truncation, odd hex, uppercase digits, a boolean expectation, and a length
-that does not match the bytes. `equal.vec` and `sha256.vec` are the files.
+that does not match the bytes. Each implemented primitive with an outside
+judge has a file, named on its registry row.
 
 The container is OpenSSL 3.5.7 and Wycheproof at one commit, built here and
 pinned by the base digest, the apt version, and that commit.
-`make check-oracle` requires the image. It checks the oracle against NIST's
-SHA-256(`abc`) and against the hash of `aes_gcm_test.json` and
-`chacha20_poly1305_test.json`, then hashes the
-same messages with this library and with `openssl dgst -sha256` in the
-image. A digest that differs fails the target.
+`make check-oracle` requires the image. What it compares, and which
+Wycheproof file judges which primitive, is [oracles.md](oracles.md). A
+difference fails the target.
 
-Fuzz targets `fuzz_equal`, `fuzz_wipe`, and `fuzz_sha256` are libFuzzer
-with ASan and UBSan. `fuzz_wipe` traps if a byte of the wiped region is
-not zero. `fuzz_sha256` traps if a one-shot digest and a streaming digest
-of the same bytes differ.
+The fuzz targets under `tests/fuzz/` are libFuzzer with ASan and UBSan,
+one for each implemented algorithm, plus equal and wipe. `fuzz_wipe`
+traps if a byte of the wiped region is not zero. `fuzz_sha256` traps if a
+one-shot digest and a streaming digest of the same bytes differ. `make test`
+does not run the fuzzers.
 
 ## 5. Departures from the suite conventions
 
