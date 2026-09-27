@@ -230,6 +230,38 @@ def diff_sha1():
                     "sha1 %s %s is %s, openssl says %s\n" % (name, how, got, want))
                 return 1
         print("sha1 %s %s" % (name, want))
+    return diff_md5()
+
+
+def diff_md5():
+    binary = os.environ.get("GSEC_HASH_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_HASH_BIN is not set\n")
+        return 1
+    messages = [
+        ("empty", b""),
+        ("abc", b"abc"),
+        ("message-digest", b"message digest"),
+        ("eighty",
+         b"12345678901234567890123456789012345678901234567890123456789012345678901234567890"),
+        ("pad-55", b"a" * 55),
+        ("pad-56", b"a" * 56),
+        ("pad-63", b"a" * 63),
+        ("pad-64", b"a" * 64),
+        ("pad-65", b"a" * 65),
+        ("thousand", b"a" * 1000),
+        ("bytes", bytes(range(256))),
+    ]
+    for name, data in messages:
+        want = openssl_wide("-md5", data)
+        for chunk in (None, 1, 64):
+            got = library_wide(binary, "md5", data, chunk, 32)
+            if not compare.hex_equal(got, want):
+                how = "oneshot" if chunk is None else "chunk %s" % chunk
+                sys.stderr.write(
+                    "md5 %s %s is %s, openssl says %s\n" % (name, how, got, want))
+                return 1
+        print("md5 %s %s" % (name, want))
     return diff_hmac()
 
 

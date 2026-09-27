@@ -17,6 +17,7 @@
 #include <ghoti.io/security/hkdf.h>
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
+#include <ghoti.io/security/md5.h>
 #include <ghoti.io/security/sha1.h>
 #include <ghoti.io/security/sha256.h>
 #include <ghoti.io/security/sha384.h>
@@ -97,6 +98,15 @@ int main(void) {
     gsec_poison(secret, sizeof secret);
     if (gsec_sha1(secret, sizeof secret, digest) != GSEC_OK) {
       return 10;
+    }
+    gsec_wipe(digest, sizeof digest);
+  }
+  {
+    unsigned char digest[GSEC_MD5_DIGEST_LEN];
+
+    gsec_poison(secret, sizeof secret);
+    if (gsec_md5(secret, sizeof secret, digest) != GSEC_OK) {
+      return 14;
     }
     gsec_wipe(digest, sizeof digest);
   }

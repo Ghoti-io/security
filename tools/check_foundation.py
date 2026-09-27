@@ -160,6 +160,7 @@ def main():
         "gsec_hmac_final", "gsec_hmac_verify",
         "gsec_hkdf", "gsec_hkdf_extract", "gsec_hkdf_expand",
         "gsec_pbkdf2",
+        "gsec_md5", "gsec_md5_init", "gsec_md5_update", "gsec_md5_final",
         "gsec_sha1", "gsec_sha1_init", "gsec_sha1_update",
         "gsec_sha1_final",
         "gsec_sha256", "gsec_sha256_init", "gsec_sha256_update",

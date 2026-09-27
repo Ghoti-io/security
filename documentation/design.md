@@ -2,8 +2,9 @@
 
 Phase 0 is implemented (2026-09-26): the skeleton, the constant-time gate,
 the vector corpus, constant-time compare, and the entropy and explicit-zero
-calls. SHA-256, SHA-512, SHA-384, SHA-1, HMAC over those hashes, and
-HKDF and PBKDF2 are implemented. HKDF is the high-entropy derivation and
+calls. SHA-256, SHA-512, SHA-384, SHA-1, MD5, HMAC over the SHA
+hashes, and HKDF and PBKDF2 are implemented. MD5 does not provide collision
+resistance; the declaration says so, and HMAC does not take it. HKDF is the high-entropy derivation and
 PBKDF2 is the slow one; they are different functions. No cipher or
 signature is implemented. The primitive
 registry in `tools/oracle/primitives.txt` is the list of what may be
@@ -111,7 +112,7 @@ Recorded in `CONVENTIONS.md` section 13.
 
 | Id | Why it is absent |
 | --- | --- |
-| `md5`, `des`, `rc4` | Broken primitives. A caller that must read an old file format does that in the format library, with the weakness named, and not by this library offering the primitive as ordinary API. |
+| `des`, `rc4` | Broken primitives with no caller. A format that needed MD5 is different: the digest is `gsec_md5`, and the header says it is not a signature, a MAC, or a password hash. |
 | `argon2`, `scrypt`, `bcrypt` | Password hashing is a policy and a memory-hard construction. Not a primitive this set needs for TLS or for the archive formats the plan names. |
 | `x509`, `pem`, `pkcs8`, `der` | Encoding and policy. They belong in `certificates`. |
 

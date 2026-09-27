@@ -686,11 +686,12 @@ $(eval $(call fuzz-rule,fuzz_hmac,hmac))
 $(eval $(call fuzz-rule,fuzz_hkdf,hkdf))
 $(eval $(call fuzz-rule,fuzz_pbkdf2,pbkdf2))
 $(eval $(call fuzz-rule,fuzz_wipe,wipe))
+$(eval $(call fuzz-rule,fuzz_md5,md5))
 $(eval $(call fuzz-rule,fuzz_sha1,sha1))
 $(eval $(call fuzz-rule,fuzz_sha256,sha256))
 $(eval $(call fuzz-rule,fuzz_sha512,sha512))
 
-FUZZERS := equal wipe hkdf hmac pbkdf2 sha1 sha256 sha512
+FUZZERS := equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512
 
 fuzz: $(addprefix fuzz-run-,$(FUZZERS)) ## Build and run every fuzzer
 

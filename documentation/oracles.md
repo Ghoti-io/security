@@ -88,6 +88,6 @@ hand-edited expected digest would not have.
 
 The parser rejects a truncated hex string, an odd number of digits, an
 uppercase digit, a boolean expectation, and a length that does not match
-the bytes. `equal`, `sha256`, `sha512`, `sha384`, and `sha1` each have a file. A
+the bytes. `equal`, `sha256`, `sha512`, `sha384`, `sha1`, and `md5` each have a file. A
 later primitive adds a file in the same commit as the function, and names
 it on the registry row.

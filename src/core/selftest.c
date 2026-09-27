@@ -32,6 +32,7 @@
 #include <ghoti.io/security/hkdf.h>
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
+#include <ghoti.io/security/md5.h>
 #include <ghoti.io/security/random.h>
 #include <ghoti.io/security/secret.h>
 #include <ghoti.io/security/selftest.h>
@@ -302,6 +303,54 @@ GSEC_Result gsec_selftest(void) {
       return result;
     }
     result = gsec_equal(dig, sha1_abc, sizeof dig);
+    gsec_wipe(dig, sizeof dig);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  /* RFC 1321. MD5 is not collision resistant; the known answer is still
+   * the check that this implementation is the function the caller asked for. */
+  {
+    static const unsigned char md5_empty[GSEC_MD5_DIGEST_LEN] = {
+      0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04,
+      0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8, 0x42, 0x7e
+    };
+    static const unsigned char md5_abc[GSEC_MD5_DIGEST_LEN] = {
+      0x90, 0x01, 0x50, 0x98, 0x3c, 0xd2, 0x4f, 0xb0,
+      0xd6, 0x96, 0x3f, 0x7d, 0x28, 0xe1, 0x7f, 0x72
+    };
+    static const unsigned char abc_msg[3] = {0x61, 0x62, 0x63};
+    unsigned char dig[GSEC_MD5_DIGEST_LEN];
+    GSEC_Md5 ctx;
+
+    result = gsec_md5(NULL, 0, dig);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(dig, md5_empty, sizeof dig);
+    gsec_wipe(dig, sizeof dig);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+
+    result = gsec_md5_init(&ctx);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    for (i = 0; i < sizeof abc_msg; i++) {
+      result = gsec_md5_update(&ctx, abc_msg + i, 1);
+      if (result != GSEC_OK) {
+        gsec_wipe(&ctx, sizeof ctx);
+        return result;
+      }
+    }
+    result = gsec_md5_final(&ctx, dig);
+    if (result != GSEC_OK) {
+      gsec_wipe(&ctx, sizeof ctx);
+      return result;
+    }
+    result = gsec_equal(dig, md5_abc, sizeof dig);
     gsec_wipe(dig, sizeof dig);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;

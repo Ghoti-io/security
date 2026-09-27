@@ -8,15 +8,18 @@ libraries those belong in; this one is the layer under them.
 ## What is implemented
 
 Phase 0, the machinery the algorithms are measured against, SHA-256, SHA-512,
-SHA-384, SHA-1, HMAC over those four hashes, HKDF, and PBKDF2. SHA-1 does
+SHA-384, SHA-1, MD5, HMAC over the four SHA hashes, HKDF, and PBKDF2. SHA-1 does
 not provide collision resistance; it is here for ZIP and for old certificate
-chains. HKDF is the high-entropy derivation. PBKDF2 is the slow one, for a
+chains. MD5 does not either. It is here because an ICC profile identifier is
+an MD5, and because an old certificate signed with it still has to be hashed
+so the algorithm can be rejected for that reason. HMAC does not take MD5.
+HKDF is the high-entropy derivation. PBKDF2 is the slow one, for a
 password, which is what WinZip AES uses. No cipher is implemented yet.
 
 - `gsec_equal` compares two regions and returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
 - `gsec_random_bytes` reads the kernel generator. A failure wipes what was already written and returns `GSEC_ERR_IO`. There is no userspace generator behind that failure.
-- `gsec_sha256` hashes a buffer. `gsec_sha256_init`, `gsec_sha256_update`, and `gsec_sha256_final` hash a message in slices. Final wipes the context. `gsec_sha512`, `gsec_sha384`, and `gsec_sha1` are the same shape. SHA-384 is SHA-512's compression with a different initial value, not a truncation of a SHA-512 digest.
+- `gsec_sha256` hashes a buffer. `gsec_sha256_init`, `gsec_sha256_update`, and `gsec_sha256_final` hash a message in slices. Final wipes the context. `gsec_sha512`, `gsec_sha384`, `gsec_sha1`, and `gsec_md5` are the same shape. SHA-384 is SHA-512's compression with a different initial value, not a truncation of a SHA-512 digest. MD5 is little-endian and is not a MAC.
 - `gsec_hmac` is HMAC over one of those hashes. `gsec_hmac_verify` compares the MAC with `gsec_equal` and returns `GSEC_ERR_MISMATCH` when it differs.
 - `gsec_hkdf` is HKDF over one of those hashes: extract, then expand. A salt of length zero is HashLen zero bytes. An output longer than 255 digests is `GSEC_ERR_LIMIT`. This is the high-entropy derivation.
 - `gsec_pbkdf2` is PBKDF2 over one of those hashes. The iteration count is the cost, and zero is `GSEC_ERR_INVALID`. This is the slow derivation for a password. It is a different function from `gsec_hkdf`.
