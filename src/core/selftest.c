@@ -30,6 +30,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/aes.h>
+#include <ghoti.io/security/argon2.h>
 #include <ghoti.io/security/bcrypt.h>
 #include <ghoti.io/security/scrypt.h>
 #include <ghoti.io/security/rc4.h>
@@ -998,6 +999,47 @@ GSEC_Result gsec_selftest(void) {
     }
     result = gsec_equal(got, want, sizeof got);
     gsec_wipe(got, sizeof got);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  {
+    unsigned char password[32];
+    unsigned char salt[16];
+    unsigned char secret[8];
+    unsigned char ad[12];
+    unsigned char tag[32];
+    static const unsigned char want[32] = {
+      0x0d, 0x64, 0x0d, 0xf5, 0x8d, 0x78, 0x76, 0x6c,
+      0x08, 0xc0, 0x37, 0xa3, 0x4a, 0x8b, 0x53, 0xc9,
+      0xd0, 0x1e, 0xf0, 0x45, 0x2d, 0x75, 0xb6, 0x5e,
+      0xb5, 0x25, 0x20, 0xe9, 0x6b, 0x01, 0xe6, 0x59
+    };
+    unsigned i;
+
+    for (i = 0; i < sizeof password; i++) {
+      password[i] = 0x01;
+    }
+    for (i = 0; i < sizeof salt; i++) {
+      salt[i] = 0x02;
+    }
+    for (i = 0; i < sizeof secret; i++) {
+      secret[i] = 0x03;
+    }
+    for (i = 0; i < sizeof ad; i++) {
+      ad[i] = 0x04;
+    }
+    result = gsec_argon2(GSEC_ARGON2_ID, password, sizeof password, salt,
+        sizeof salt, secret, sizeof secret, ad, sizeof ad, 32, 3, 4, tag,
+        sizeof tag);
+    gsec_wipe(password, sizeof password);
+    gsec_wipe(secret, sizeof secret);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(tag, want, sizeof tag);
+    gsec_wipe(tag, sizeof tag);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
     }

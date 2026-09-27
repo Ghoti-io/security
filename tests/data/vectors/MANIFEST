@@ -23,3 +23,4 @@ b10f74c30e0f5c3ebd6ff8818c0f651ab888c2e15c5c2a072922a1ff7eeec25b  tests/data/vec
 a770a8918c5a5fb4bd95290c371563bf34759f813d3e21e4ed0fcc1992fb526d  tests/data/vectors/rc4.vec
 229b3dc299bf47841e8226cd7d3d759754d2d55e85fe8ac385e8c9c18d43d5a1  tests/data/vectors/scrypt.vec
 d28afa699a3edcd7f12ee265321973821e61ba285d2942ceee6d2b8d2892baa1  tests/data/vectors/bcrypt.vec
+d22cc5d8fcde8e5a60ce1fa1f7ffda3045b839f4581aebfcb0aa05499312af94  tests/data/vectors/argon2.vec

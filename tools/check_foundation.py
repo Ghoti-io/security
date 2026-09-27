@@ -188,6 +188,7 @@ def main():
         "gsec_ecdsa_p256_verify",
         "gsec_rc4",
         "gsec_scrypt",
+        "gsec_argon2",
         "gsec_bcrypt",
         "gsec_rsa_pkcs1_v15_verify", "gsec_rsa_pss_verify",
         "gsec_rsa_private_pkcs1_v15_sign", "gsec_rsa_private_pss_sign",
