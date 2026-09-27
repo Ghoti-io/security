@@ -65,6 +65,8 @@
 #define gsec_aes_ctr_wipe GHOTIIO_SECURITY(gsec_aes_ctr_wipe)
 #define gsec_aes_gcm_decrypt GHOTIIO_SECURITY(gsec_aes_gcm_decrypt)
 #define gsec_aes_gcm_encrypt GHOTIIO_SECURITY(gsec_aes_gcm_encrypt)
+#define gsec_chacha20_poly1305_decrypt GHOTIIO_SECURITY(gsec_chacha20_poly1305_decrypt)
+#define gsec_chacha20_poly1305_encrypt GHOTIIO_SECURITY(gsec_chacha20_poly1305_encrypt)
 #define gsec_allocator_default GHOTIIO_SECURITY(gsec_allocator_default)
 #define gsec_equal GHOTIIO_SECURITY(gsec_equal)
 #define gsec_hmac GHOTIIO_SECURITY(gsec_hmac)

@@ -31,9 +31,10 @@ import oracle_env
 HERE = os.path.dirname(os.path.abspath(__file__))
 SHA256_ABC = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 WYCHEPROOF_FILE = "/opt/wycheproof/testvectors_v1/aes_gcm_test.json"
+WYCHEPROOF_CHACHA = "/opt/wycheproof/testvectors_v1/chacha20_poly1305_test.json"
 
 
-def corpus_digest():
+def corpus_digest(filename):
     path = os.path.join(HERE, "containers", "CORPUS")
     with open(path, "r", encoding="utf-8") as handle:
         for line in handle:
@@ -41,9 +42,9 @@ def corpus_digest():
             if not line or line.startswith("#"):
                 continue
             digest, name = line.split()
-            if name == "testvectors_v1/aes_gcm_test.json":
+            if name == filename:
                 return digest
-    raise SystemExit("CORPUS has no digest for aes_gcm_test.json")
+    raise SystemExit("CORPUS has no digest for %s" % filename)
 
 
 def last_field(text):
@@ -81,12 +82,31 @@ def main():
         sys.stderr.write("sha256sum produced no digest\n")
         return 1
     got = fields[0]
-    want = corpus_digest()
+    want = corpus_digest("testvectors_v1/aes_gcm_test.json")
     if not compare.hex_equal(got, want):
         sys.stderr.write(
             "wycheproof aes_gcm_test.json is %s, CORPUS says %s\n" % (got, want))
         return 1
     print("wycheproof aes_gcm_test.json %s" % got)
+
+    wy = subprocess.run(
+        oracle_env.command("wycheproof", ["sha256sum", WYCHEPROOF_CHACHA]),
+        capture_output=True)
+    if wy.returncode != 0:
+        sys.stderr.write(wy.stderr.decode("utf-8", "replace"))
+        return 1
+    fields = wy.stdout.decode("utf-8", "replace").split()
+    if not fields:
+        sys.stderr.write("sha256sum produced no digest\n")
+        return 1
+    got = fields[0]
+    want = corpus_digest("testvectors_v1/chacha20_poly1305_test.json")
+    if not compare.hex_equal(got, want):
+        sys.stderr.write(
+            "wycheproof chacha20_poly1305_test.json is %s, CORPUS says %s\n"
+            % (got, want))
+        return 1
+    print("wycheproof chacha20_poly1305_test.json %s" % got)
     return diff_library()
 
 
@@ -651,6 +671,79 @@ def diff_gcm():
         sys.stderr.write("aes-gcm checked %s wycheproof cases\n" % checked)
         return 1
     print("aes-gcm wycheproof %s" % checked)
+    return diff_chacha()
+
+
+def library_chacha(binary, direction, key_hex, nonce_hex, aad_hex, tag_hex,
+        message):
+    argv = [binary, direction, key_hex, nonce_hex, aad_hex]
+    if direction == "decrypt":
+        argv.append(tag_hex if tag_hex else "-")
+    proc = subprocess.run(argv, input=message, capture_output=True)
+    text = proc.stdout.decode("utf-8", "replace")
+    return proc.returncode, text
+
+
+def diff_chacha():
+    binary = os.environ.get("GSEC_CHACHA20_POLY1305_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_CHACHA20_POLY1305_BIN is not set\n")
+        return 1
+    proc = subprocess.run(
+        oracle_env.command("wycheproof", ["cat", WYCHEPROOF_CHACHA]),
+        capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        return 1
+    try:
+        data = json.loads(proc.stdout.decode("utf-8"))
+    except json.JSONDecodeError as error:
+        sys.stderr.write("wycheproof chacha20_poly1305_test.json: %s\n" % error)
+        return 1
+    checked = 0
+    for group in data["testGroups"]:
+        for case in group["tests"]:
+            aad = case["aad"] if case["aad"] else "-"
+            nonce = case["iv"] if case["iv"] else "-"
+            message = bytes.fromhex(case["msg"]) if case["msg"] else b""
+            checked += 1
+            if case["result"] != "valid":
+                code, _text = library_chacha(
+                    binary, "decrypt", case["key"], nonce, aad, case["tag"],
+                    bytes.fromhex(case["ct"]) if case["ct"] else b"")
+                if code == 0:
+                    sys.stderr.write(
+                        "chacha20-poly1305 tc %s was accepted\n" % case["tcId"])
+                    return 1
+                continue
+            code, text = library_chacha(
+                binary, "encrypt", case["key"], nonce, aad, "", message)
+            lines = text.splitlines()
+            if code != 0 or len(lines) != 2:
+                sys.stderr.write(
+                    "chacha20-poly1305 tc %s encrypt exited %s\n"
+                    % (case["tcId"], code))
+                return 1
+            if not same_hex(lines[0], case["ct"]) or not compare.hex_equal(
+                    lines[1], case["tag"]):
+                sys.stderr.write(
+                    "chacha20-poly1305 tc %s encrypt is %s %s, wycheproof says %s %s\n"
+                    % (case["tcId"], lines[0], lines[1], case["ct"], case["tag"]))
+                return 1
+            cipher = bytes.fromhex(case["ct"]) if case["ct"] else b""
+            code, text = library_chacha(
+                binary, "decrypt", case["key"], nonce, aad, case["tag"],
+                cipher)
+            if code != 0 or not same_hex(text.strip(), case["msg"]):
+                sys.stderr.write(
+                    "chacha20-poly1305 tc %s decrypt exited %s\n"
+                    % (case["tcId"], code))
+                return 1
+    if checked < 320:
+        sys.stderr.write(
+            "chacha20-poly1305 checked %s wycheproof cases\n" % checked)
+        return 1
+    print("chacha20-poly1305 wycheproof %s" % checked)
     return 0
 
 

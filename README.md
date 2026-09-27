@@ -14,7 +14,10 @@ chains. MD5 does not either. It is here because an ICC profile identifier is
 an MD5, and because an old certificate signed with it still has to be hashed
 so the algorithm can be rejected for that reason. HMAC does not take MD5.
 HKDF is the high-entropy derivation. PBKDF2 is the slow one, for a
-password, which is what WinZip AES uses. No cipher is implemented yet.
+password, which is what WinZip AES uses. AES-128, AES-192, and AES-256,
+CTR, GCM, and ChaCha20-Poly1305 are implemented. ChaCha20-Poly1305 takes a
+32-byte key, a 12-byte nonce, and a 16-byte tag. Decrypt wipes the plaintext
+when the tag does not match. Nonce reuse under one key destroys authentication.
 
 - `gsec_equal` compares two regions and returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
@@ -26,6 +29,7 @@ password, which is what WinZip AES uses. No cipher is implemented yet.
 - `gsec_aes_encrypt` and `gsec_aes_decrypt` are one AES block at 128, 192, or 256 bits. The schedule from `gsec_aes_encrypt_init` serves both directions. A key byte is not a table index.
 - `gsec_aes_ctr` is that block cipher in CTR. `GSEC_AES_CTR_BE` is the NIST counter. `GSEC_AES_CTR_LE` is the WinZip counter.
 - `gsec_aes_gcm_encrypt` and `gsec_aes_gcm_decrypt` are AES-GCM. Decrypt wipes the plaintext when the tag does not match. Nonce reuse under one key destroys authentication.
+- `gsec_chacha20_poly1305_encrypt` and `gsec_chacha20_poly1305_decrypt` are AEAD_CHACHA20_POLY1305. The key, nonce, and tag lengths are fixed. Decrypt wipes the plaintext when the tag does not match. Nonce reuse under one key destroys authentication.
 - `gsec_selftest` runs the known-answer checks an embedder can call at startup. That is the calls above, including each hash of the empty message and of `abc`, and the HMAC-SHA-256 of RFC 4231 test case 1.
 - `gsec_poison` and `gsec_unpoison` mark secret bytes for the constant-time gate. In a normal build they do nothing.
 

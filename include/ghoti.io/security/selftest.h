@@ -44,8 +44,8 @@ extern "C" {
  * SHA-256, SHA-512, SHA-384, SHA-1, and MD5 of the empty message and of `abc`,
  * HMAC-SHA-256 of RFC 4231 test case 1, HKDF-SHA-256 of RFC 5869
  * test case 1, PBKDF2-HMAC-SHA-1 of RFC 6070 with one iteration, and
- * the FIPS 197 AES-128 block, one AES-128-CTR block, and the
- * all-zero AES-128-GCM tag.
+ * the FIPS 197 AES-128 block, one AES-128-CTR block, the
+ * all-zero AES-128-GCM tag, and the RFC 8439 ChaCha20-Poly1305 vector.
  * Later primitives add their vectors here in the same commit that adds the
  * primitive.
  *

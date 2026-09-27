@@ -20,6 +20,7 @@
 #include <ghoti.io/security/aes.h>
 #include <ghoti.io/security/aes_ctr.h>
 #include <ghoti.io/security/aes_gcm.h>
+#include <ghoti.io/security/chacha20_poly1305.h>
 #include <ghoti.io/security/md5.h>
 #include <ghoti.io/security/sha1.h>
 #include <ghoti.io/security/sha256.h>
@@ -159,6 +160,24 @@ int main(void) {
         sizeof secret, secret, sizeof secret, out, tag, sizeof tag) !=
         GSEC_OK) {
       return 17;
+    }
+    gsec_wipe(out, sizeof out);
+    gsec_wipe(tag, sizeof tag);
+    gsec_wipe(key, sizeof key);
+  }
+  {
+    unsigned char nonce[GSEC_CHACHA20_NONCE_LEN];
+    unsigned char tag[GSEC_POLY1305_TAG_LEN];
+    unsigned char out[8];
+    unsigned char key[GSEC_CHACHA20_KEY_LEN];
+
+    memset(nonce, 2, sizeof nonce);
+    memset(key, 0x3c, sizeof key);
+    gsec_poison(key, sizeof key);
+    gsec_poison(secret, sizeof secret);
+    if (gsec_chacha20_poly1305_encrypt(key, nonce, secret, sizeof secret,
+        secret, sizeof secret, out, tag) != GSEC_OK) {
+      return 18;
     }
     gsec_wipe(out, sizeof out);
     gsec_wipe(tag, sizeof tag);

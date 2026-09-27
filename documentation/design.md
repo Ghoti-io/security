@@ -8,8 +8,9 @@ resistance; the declaration says so, and HMAC does not take it. HKDF is the high
 PBKDF2 is the slow one; they are different functions. AES-128, AES-192, and
 AES-256 encrypt and decrypt one block; the substitution is table-free. CTR
 increments the counter big-endian, as NIST specifies, or little-endian, as
-WinZip does. GCM is one shot. A tag that does not match wipes the plaintext.
-Nonce reuse under one key destroys authentication, and the declaration says so. No signature is implemented. The primitive
+WinZip does. GCM is one shot. ChaCha20-Poly1305 is one shot, with a fixed
+32-byte key, 12-byte nonce, and 16-byte tag. A tag that does not match wipes the plaintext.
+Nonce reuse under one key destroys authentication, and both declarations say so. No signature is implemented. The primitive
 registry in `tools/oracle/primitives.txt` is the list of what may be
 declared. The phases below are the order the rest is built in.
 
@@ -32,7 +33,7 @@ package is `ghoti.io-security-0`, the include path
 | Entropy comes from the kernel | `gsec_random_bytes` calls `getrandom` without `GRND_NONBLOCK` on Linux, `getentropy` on macOS, and `BCryptGenRandom` on Windows. A short read is retried. Any other failure wipes the output and returns `GSEC_ERR_IO`. |
 | A wiped buffer stays wiped | `gsec_wipe` writes through a `volatile` pointer. The compiler is not trusted to keep a `memset` of a dead buffer. |
 | Nothing in the library prints a secret | `gsec_result_string` returns one of a fixed table of static strings. There is no `_dump` for a key, a scalar, or a derived secret. |
-| A function that does not exist yet cannot be declared quietly | `check-foundation` reads the registry and the headers. `implemented` must have a declaration. `pending` and `excluded` must not. The check plants `gsec_chacha20_poly1305` and requires that plant to be rejected while `chacha20_poly1305` is pending. |
+| A function that does not exist yet cannot be declared quietly | `check-foundation` reads the registry and the headers. `implemented` must have a declaration. `pending` and `excluded` must not. The check plants `gsec_x25519` and requires that plant to be rejected while `x25519` is pending. |
 | An outside judge, once the function exists | An `implemented` row whose judge is not `self` requires a vector file hashed in `tests/data/vectors/MANIFEST`. The container image is how that judge is run. See [oracles.md](oracles.md). |
 
 `GSEC_Limits` has one field, `max_random_bytes`, default 1 MiB, because that
@@ -92,7 +93,8 @@ that does not match the bytes. `equal.vec` and `sha256.vec` are the files.
 The container is OpenSSL 3.5.7 and Wycheproof at one commit, built here and
 pinned by the base digest, the apt version, and that commit.
 `make check-oracle` requires the image. It checks the oracle against NIST's
-SHA-256(`abc`) and against the hash of `aes_gcm_test.json`, then hashes the
+SHA-256(`abc`) and against the hash of `aes_gcm_test.json` and
+`chacha20_poly1305_test.json`, then hashes the
 same messages with this library and with `openssl dgst -sha256` in the
 image. A digest that differs fails the target.
 
@@ -139,7 +141,7 @@ Phase 9 may never be built.
 | 1 | SHA-256, SHA-512, SHA-384, SHA-1, and HMAC are implemented | The first algorithms, and they exercise the corpus, the oracle, and `gsec_equal` |
 | 2 | HKDF and PBKDF2 are implemented | Small once HMAC exists. HKDF is the high-entropy derivation; PBKDF2 is the slow one, and calling one in place of the other is a different function |
 | 3 | AES-128/192/256, CTR, and GCM are implemented | Completes the archive set |
-| 4 | ChaCha20-Poly1305 | No bignum |
+| 4 | ChaCha20-Poly1305 is implemented | TLS 1.3. No bignum |
 | 5 | Field arithmetic mod 2^255-19, X25519 | A specialised field |
 | 6 | Ed25519 | Needs SHA-512 and that field |
 | 7 | P-256: field, point arithmetic, ECDH, ECDSA with RFC 6979 | The first hard one |
@@ -148,7 +150,7 @@ Phase 9 may never be built.
 | 10 | P-384, if certificates need it | |
 | 11 | AES-CBC, if 7z needs it | |
 
-Nonces are the caller's. The GCM declaration says what a repeated nonce
+Nonces are the caller's. The GCM and ChaCha20-Poly1305 declarations say what a repeated nonce
 does. ECDSA signing uses RFC 6979 so the nonce is a
 function of the key and the message. Verification accepts the encodings the
 world produces, including a high `s`; signing emits the strict form.
