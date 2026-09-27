@@ -43,12 +43,11 @@ rsa_pkcs1_v15_verify	implemented	wycheproof	tests/data/vectors/rsa_pkcs1.vec
 rsa_private	implemented	openssl	tests/data/vectors/rsa_private.vec
 
 # Not now, and not by adding a row as implemented without the caller the
-# design names. aes_cbc is 7z, if 7z is ever wanted. des and rc4 are broken,
-# and old formats still use them. argon2, scrypt, and bcrypt are password
-# hashes for storage; PBKDF2 is not one of them. Each stays pending so
-# declaring it without flipping this row still fails, and flipping it is
-# the decision.
-aes_cbc	pending	openssl	-
+# design names. des and rc4 are broken, and old formats still use them.
+# argon2, scrypt, and bcrypt are password hashes for storage; PBKDF2 is
+# not one of them. Each stays pending so declaring it without flipping
+# this row still fails, and flipping it is the decision.
+aes_cbc	implemented	openssl	tests/data/vectors/aes_cbc.vec
 des	pending	openssl	-
 rc4	pending	openssl	-
 argon2	pending	none	-

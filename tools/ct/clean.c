@@ -18,6 +18,7 @@
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/aes.h>
+#include <ghoti.io/security/aes_cbc.h>
 #include <ghoti.io/security/aes_ctr.h>
 #include <ghoti.io/security/aes_gcm.h>
 #include <ghoti.io/security/chacha20_poly1305.h>
@@ -149,6 +150,25 @@ int main(void) {
       return 16;
     }
     gsec_wipe(out, sizeof out);
+    gsec_wipe(key, sizeof key);
+  }
+  {
+    unsigned char plain[GSEC_AES_BLOCK_LEN];
+    unsigned char iv[GSEC_AES_BLOCK_LEN];
+    unsigned char out[GSEC_AES_BLOCK_LEN];
+    unsigned char key[GSEC_AES128_KEY_LEN];
+
+    memset(plain, 0xa5, sizeof plain);
+    memset(iv, 1, sizeof iv);
+    memset(key, 0x3c, sizeof key);
+    gsec_poison(key, sizeof key);
+    gsec_poison(plain, sizeof plain);
+    if (gsec_aes_cbc_encrypt(key, sizeof key, iv, plain, sizeof plain, out) !=
+        GSEC_OK) {
+      return 25;
+    }
+    gsec_wipe(out, sizeof out);
+    gsec_wipe(plain, sizeof plain);
     gsec_wipe(key, sizeof key);
   }
   {

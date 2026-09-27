@@ -30,6 +30,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/aes.h>
+#include <ghoti.io/security/aes_cbc.h>
 #include <ghoti.io/security/aes_ctr.h>
 #include <ghoti.io/security/aes_gcm.h>
 #include <ghoti.io/security/chacha20_poly1305.h>
@@ -876,6 +877,36 @@ GSEC_Result gsec_selftest(void) {
     }
     result = gsec_equal(sig, pss_sig, sizeof sig);
     gsec_wipe(sig, sizeof sig);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  {
+    static const unsigned char key[16] = {
+      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+      0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+    };
+    static const unsigned char iv[16] = {
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
+    };
+    static const unsigned char pt[16] = {
+      0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x63, 0x62,
+      0x63, 0x20, 0x6d, 0x6f, 0x64, 0x65, 0x21, 0x21
+    };
+    static const unsigned char ct[16] = {
+      0x28, 0x51, 0xa3, 0xf5, 0x64, 0x5c, 0x0f, 0x3d,
+      0xcd, 0x9a, 0x46, 0xb0, 0x65, 0x48, 0x18, 0x97
+    };
+    unsigned char got[16];
+
+    result = gsec_aes_cbc_encrypt(key, sizeof key, iv, pt, sizeof pt, got);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(got, ct, sizeof got);
+    gsec_wipe(got, sizeof got);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
     }

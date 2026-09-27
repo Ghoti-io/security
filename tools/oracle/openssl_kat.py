@@ -1270,9 +1270,62 @@ def diff_rsa_sign():
             return 1
         print("rsa-sign pkcs1 sha256")
         print("rsa-sign pss sha256")
-        return 0
+        return diff_cbc()
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
+
+
+def openssl_aes_cbc(bits, key_hex, iv_hex, message, decrypt):
+    command = [
+        "openssl", "enc", "-aes-%s-cbc" % bits, "-K", key_hex, "-iv", iv_hex,
+        "-nopad", "-nosalt"]
+    if decrypt:
+        command.append("-d")
+    proc = subprocess.run(
+        oracle_env.command("openssl", command),
+        input=message, capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        raise SystemExit(1)
+    return proc.stdout.hex()
+
+
+def library_aes_cbc(binary, direction, bits, key_hex, iv_hex, message_hex):
+    proc = subprocess.run(
+        [binary, direction, bits, key_hex, iv_hex, message_hex],
+        capture_output=True, text=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr)
+        sys.stderr.write("aes-cbc helper exited %s\n" % proc.returncode)
+        raise SystemExit(1)
+    return proc.stdout.strip()
+
+
+def diff_cbc():
+    binary = os.environ["GSEC_AES_CBC_BIN"]
+    cases = [
+        ("128", "000102030405060708090a0b0c0d0e0f",
+         "00000000000000000000000000000001",
+         bytes.fromhex("68656c6c6f20636263206d6f64652121")),
+        ("256",
+         "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+         "0f0e0d0c0b0a09080706050403020100",
+         bytes.fromhex("61" * 32)),
+        ("128", "00" * 16, "00" * 16, b""),
+    ]
+    for bits, key, iv, message in cases:
+        want = openssl_aes_cbc(bits, key, iv, message, False)
+        got = library_aes_cbc(binary, "encrypt", bits, key, iv, message.hex())
+        if not compare.hex_equal(got, want):
+            sys.stderr.write("aes-cbc %s encrypt is %s, openssl says %s\n"
+                % (bits, got, want))
+            return 1
+        back = library_aes_cbc(binary, "decrypt", bits, key, iv, got)
+        if not compare.hex_equal(back, message.hex()):
+            sys.stderr.write("aes-cbc %s decrypt is %s\n" % (bits, back))
+            return 1
+        print("aes-cbc %s %s" % (bits, want))
+    return 0
 
 
 if __name__ == "__main__":

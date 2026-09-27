@@ -174,6 +174,7 @@ def main():
         "gsec_aes_decrypt", "gsec_aes_decrypt_block",
         "gsec_aes_ctr", "gsec_aes_ctr_init", "gsec_aes_ctr_update",
         "gsec_aes_ctr_wipe",
+        "gsec_aes_cbc_encrypt", "gsec_aes_cbc_decrypt",
         "gsec_aes_gcm_encrypt", "gsec_aes_gcm_decrypt",
         "gsec_chacha20_poly1305_encrypt", "gsec_chacha20_poly1305_decrypt",
         "gsec_x25519", "gsec_x25519_public",

@@ -15,7 +15,9 @@ an MD5, and because an old certificate signed with it still has to be hashed
 so the algorithm can be rejected for that reason. HMAC does not take MD5.
 HKDF is the high-entropy derivation. PBKDF2 is the slow one, for a
 password, which is what WinZip AES uses. AES-128, AES-192, and AES-256,
-CTR, GCM, and ChaCha20-Poly1305 are implemented. ChaCha20-Poly1305 takes a
+CTR, CBC, GCM, and ChaCha20-Poly1305 are implemented. CBC does not
+authenticate, the length is a multiple of the block, and the
+initialization vector is the caller's. ChaCha20-Poly1305 takes a
 32-byte key, a 12-byte nonce, and a 16-byte tag. Decrypt wipes the plaintext
 when the tag does not match. Nonce reuse under one key destroys authentication.
 X25519 takes a 32-byte scalar and a 32-byte u-coordinate. The scalar is

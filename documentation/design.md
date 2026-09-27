@@ -154,9 +154,6 @@ Recorded in `CONVENTIONS.md` section 13.
 | --- | --- |
 | `x509`, `pem`, `pkcs8`, `der` | Encoding and policy. They belong in `certificates`. |
 
-`aes_cbc` stays `pending` for 7z, if 7z is ever wanted. It is not part of
-the TLS 1.3 set.
-
 `des`, `rc4`, `argon2`, `scrypt`, and `bcrypt` are `pending`. DES and RC4
 are broken, and old formats still use them. Argon2, scrypt, and bcrypt are
 password hashes for storage. PBKDF2 is the slow derivation a format names;
@@ -182,7 +179,7 @@ an RSA key, and a client certificate whose key is RSA, need phase 9.
 | 8 | RSA-PSS and PKCS#1 v1.5 verification are implemented | Public exponent only. The DigestInfo is the DER encoding, including the NULL. A modulus past 4096 bits is rejected |
 | 9 | RSA private signing is implemented | The exponentiation does not branch on the private exponent. The base is blinded. PKCS#1 v1.5 and PSS both sign. The PSS salt is the caller's. A modulus past 4096 bits is rejected |
 | 10 | P-384, if certificates need it | |
-| 11 | AES-CBC, if 7z needs it | |
+| 11 | AES-CBC is implemented | No padding. The initialization vector is the caller's. The mode does not authenticate. A repeated vector under one key leaks prefix equality |
 | 12 | DES and RC4 | Broken, and old formats still use them |
 | 13 | Argon2, scrypt, and bcrypt | Password hashes for storage. Not PBKDF2 |
 
