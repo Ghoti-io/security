@@ -14,8 +14,8 @@
 #
 # A new primitive is a new row, with a named caller in documentation/design.md,
 # before the function is declared. tools/check_foundation.py is what enforces
-# that. It is run on a planted gsec_ecdsa_p384 first, and fails if that
-# plant is not reported while ecdsa_p384 is still pending.
+# that. It is run on a planted gsec_x509 first, and fails if that plant is
+# not reported as excluded.
 
 equal	implemented	self	tests/data/vectors/equal.vec
 wipe	implemented	self	-

@@ -14,7 +14,8 @@ SHA-256 of the three bytes 61 62 63 is the NIST known answer
 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad.
 Wycheproof's aes_gcm_test.json, chacha20_poly1305_test.json,
 x25519_test.json, ed25519_test.json, ecdh_secp256r1_ecpoint_test.json, and
-ecdsa_secp256r1_sha256_p1363_test.json at the pinned commit have the
+ecdsa_secp256r1_sha256_p1363_test.json, and
+ecdsa_secp384r1_sha384_p1363_test.json at the pinned commit have the
 digests in containers/CORPUS.
 Those checks judge the oracle. The messages after
 them are hashed by this library and by `openssl dgst -sha256` in the
@@ -42,6 +43,7 @@ WYCHEPROOF_X25519 = "/opt/wycheproof/testvectors_v1/x25519_test.json"
 WYCHEPROOF_ED25519 = "/opt/wycheproof/testvectors_v1/ed25519_test.json"
 WYCHEPROOF_ECDH_P256 = "/opt/wycheproof/testvectors_v1/ecdh_secp256r1_ecpoint_test.json"
 WYCHEPROOF_ECDSA_P256 = "/opt/wycheproof/testvectors_v1/ecdsa_secp256r1_sha256_p1363_test.json"
+WYCHEPROOF_ECDSA_P384 = "/opt/wycheproof/testvectors_v1/ecdsa_secp384r1_sha384_p1363_test.json"
 
 
 def corpus_digest(filename):
@@ -172,6 +174,25 @@ def main():
             % (got, want))
         return 1
     print("wycheproof ecdh_secp256r1_ecpoint_test.json %s" % got)
+
+    wy = subprocess.run(
+        oracle_env.command("wycheproof", ["sha256sum", WYCHEPROOF_ECDSA_P384]),
+        capture_output=True)
+    if wy.returncode != 0:
+        sys.stderr.write(wy.stderr.decode("utf-8", "replace"))
+        return 1
+    fields = wy.stdout.decode("utf-8", "replace").split()
+    if not fields:
+        sys.stderr.write("sha256sum produced no digest\n")
+        return 1
+    got = fields[0]
+    want = corpus_digest("testvectors_v1/ecdsa_secp384r1_sha384_p1363_test.json")
+    if not compare.hex_equal(got, want):
+        sys.stderr.write(
+            "wycheproof ecdsa_secp384r1_sha384_p1363_test.json is %s, CORPUS says %s\n"
+            % (got, want))
+        return 1
+    print("wycheproof ecdsa_secp384r1_sha384_p1363_test.json %s" % got)
     return diff_library()
 
 
@@ -1014,6 +1035,61 @@ def diff_ecdsa_p256():
         sys.stderr.write("ecdsa-p256 checked %s wycheproof cases\n" % checked)
         return 1
     print("ecdsa-p256 wycheproof %s" % checked)
+    return diff_ecdsa_p384()
+
+
+def library_ecdsa_p384(binary, pub_hex, msg_hex, sig_hex):
+    message = msg_hex if msg_hex else "-"
+    proc = subprocess.run(
+        [binary, "verify", pub_hex, message, sig_hex], capture_output=True)
+    return proc.returncode
+
+
+def diff_ecdsa_p384():
+    binary = os.environ.get("GSEC_ECDSA_P384_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_ECDSA_P384_BIN is not set\n")
+        return 1
+    proc = subprocess.run(
+        oracle_env.command("wycheproof", ["cat", WYCHEPROOF_ECDSA_P384]),
+        capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        return 1
+    try:
+        data = json.loads(proc.stdout.decode("utf-8"))
+    except json.JSONDecodeError as error:
+        sys.stderr.write(
+            "wycheproof ecdsa_secp384r1_sha384_p1363_test.json: %s\n" % error)
+        return 1
+    checked = 0
+    for group in data["testGroups"]:
+        if group.get("sha") != "SHA-384":
+            sys.stderr.write("ecdsa-p384 group hash is %s\n" % group.get("sha"))
+            return 1
+        pub = group["publicKey"]["uncompressed"]
+        for case in group["tests"]:
+            checked += 1
+            code = library_ecdsa_p384(binary, pub, case["msg"], case["sig"])
+            if case["result"] == "valid":
+                if code != 0:
+                    sys.stderr.write(
+                        "ecdsa-p384 tc %s exited %s\n" % (case["tcId"], code))
+                    return 1
+                continue
+            if case["result"] == "invalid":
+                if code == 0:
+                    sys.stderr.write(
+                        "ecdsa-p384 tc %s was accepted\n" % case["tcId"])
+                    return 1
+                continue
+            sys.stderr.write(
+                "ecdsa-p384 tc %s has result %s\n" % (case["tcId"], case["result"]))
+            return 1
+    if checked < 280:
+        sys.stderr.write("ecdsa-p384 checked %s wycheproof cases\n" % checked)
+        return 1
+    print("ecdsa-p384 wycheproof %s" % checked)
     return diff_rsa()
 
 
@@ -1316,15 +1392,25 @@ def diff_cbc():
     for bits, key, iv, message in cases:
         want = openssl_aes_cbc(bits, key, iv, message, False)
         got = library_aes_cbc(binary, "encrypt", bits, key, iv, message.hex())
-        if not compare.hex_equal(got, want):
+        # A zero-length message is a zero-length ciphertext. hex_equal
+        # refuses two empty strings, which is the right refusal for a tag.
+        if message == b"":
+            encrypt_ok = got == "" and want == ""
+        else:
+            encrypt_ok = compare.hex_equal(got, want)
+        if not encrypt_ok:
             sys.stderr.write("aes-cbc %s encrypt is %s, openssl says %s\n"
                 % (bits, got, want))
             return 1
         back = library_aes_cbc(binary, "decrypt", bits, key, iv, got)
-        if not compare.hex_equal(back, message.hex()):
+        if message == b"":
+            decrypt_ok = back == ""
+        else:
+            decrypt_ok = compare.hex_equal(back, message.hex())
+        if not decrypt_ok:
             sys.stderr.write("aes-cbc %s decrypt is %s\n" % (bits, back))
             return 1
-        print("aes-cbc %s %s" % (bits, want))
+        print("aes-cbc %s %s" % (bits, want if want else "(empty)"))
     return diff_des()
 
 

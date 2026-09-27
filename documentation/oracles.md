@@ -3,10 +3,12 @@
 The algorithms this library implements are judged by something that is
 not this library. `make check-oracle` first checks that the image still
 produces the published SHA-256 of `abc` and the Wycheproof file the pin
-names. It then judges every implemented primitive: the hashes, including
-MD5, HMAC, HKDF, PBKDF2, AES and AES-CTR, against OpenSSL in the image, and
-the AEAD algorithms, the curves, and RSA verification against the pinned
-Wycheproof files. RSA signing is judged by a 2048-bit key the image
+names. It then judges every implemented primitive that has an outside
+judge: the hashes, including MD5, HMAC, HKDF, PBKDF2, AES, AES-CTR, AES-CBC,
+DES, RC4, and scrypt, against OpenSSL in the image, and the AEAD algorithms,
+the curves, ECDSA P-384, and RSA verification against the pinned Wycheproof
+files. bcrypt and Argon2 have judge `none`. RSA signing is judged by a
+2048-bit key the image
 generates: this library signs, and OpenSSL in the image verifies. A
 difference fails the target.
 
@@ -84,8 +86,10 @@ vector is one of those cases. A `valid` case must match the shared x. An
 `invalid` case, and a compressed point, must be rejected. ECDSA P-256 is
 the same shape: the committed vector is RFC 6979, and the oracle runs the
 pinned Wycheproof P1363 file. A `valid` case must be accepted. An
-`invalid` case, including an r or s of zero, must be rejected. Declaring
-`gsec_ecdsa_p384` while that row is still pending fails `make test`. RSA
+`invalid` case, including an r or s of zero, must be rejected. ECDSA
+P-384 is the same shape against
+`ecdsa_secp384r1_sha384_p1363_test.json`: a `valid` case must be accepted,
+and an `invalid` case must be rejected. RSA
 verification is judged by the pinned Wycheproof files. A `valid` case must
 be accepted. An `invalid` case must be rejected, and so must an
 `acceptable` one: that is a BER DigestInfo or a missing NULL, and this

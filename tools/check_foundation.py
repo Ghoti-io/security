@@ -245,6 +245,8 @@ def main():
         fail("CORPUS does not name ecdh_secp256r1_ecpoint_test.json")
     if "testvectors_v1/ecdsa_secp256r1_sha256_p1363_test.json" not in corpus:
         fail("CORPUS does not name ecdsa_secp256r1_sha256_p1363_test.json")
+    if "testvectors_v1/ecdsa_secp384r1_sha384_p1363_test.json" not in corpus:
+        fail("CORPUS does not name ecdsa_secp384r1_sha384_p1363_test.json")
     if "testvectors_v1/rsa_signature_2048_sha256_test.json" not in corpus:
         fail("CORPUS does not name rsa_signature_2048_sha256_test.json")
     if "testvectors_v1/rsa_pss_2048_sha256_mgf1_32_test.json" not in corpus:

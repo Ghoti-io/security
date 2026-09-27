@@ -751,6 +751,7 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/ed25519$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/ecdh_p256$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/ecdsa_p256$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/ecdsa_p384$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/rsa_verify$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
 	@GHOTI_ORACLE_REQUIRED=1 GSEC_SHA256_BIN="$(APP_DIR)/examples/sha256$(EXE_EXTENSION)" \
 		GSEC_HASH_BIN="$(APP_DIR)/examples/hash$(EXE_EXTENSION)" \
@@ -769,6 +770,7 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		GSEC_ED25519_BIN="$(APP_DIR)/examples/ed25519$(EXE_EXTENSION)" \
 		GSEC_ECDH_P256_BIN="$(APP_DIR)/examples/ecdh_p256$(EXE_EXTENSION)" \
 		GSEC_ECDSA_P256_BIN="$(APP_DIR)/examples/ecdsa_p256$(EXE_EXTENSION)" \
+		GSEC_ECDSA_P384_BIN="$(APP_DIR)/examples/ecdsa_p384$(EXE_EXTENSION)" \
 		GSEC_RSA_BIN="$(APP_DIR)/examples/rsa_verify$(EXE_EXTENSION)" \
 		$(ORACLE_RUN) openssl,wycheproof -- python3 $(ORACLE)/openssl_kat.py
 
