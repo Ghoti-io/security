@@ -21,6 +21,7 @@
 #include <ghoti.io/security/aes_ctr.h>
 #include <ghoti.io/security/aes_gcm.h>
 #include <ghoti.io/security/chacha20_poly1305.h>
+#include <ghoti.io/security/ecdsa_p256.h>
 #include <ghoti.io/security/ecdh_p256.h>
 #include <ghoti.io/security/ed25519.h>
 #include <ghoti.io/security/x25519.h>
@@ -234,6 +235,19 @@ int main(void) {
       return 21;
     }
     gsec_wipe(out, sizeof out);
+    gsec_wipe(scalar, sizeof scalar);
+  }
+  {
+    unsigned char scalar[GSEC_ECDSA_P256_LEN];
+    unsigned char sig[GSEC_ECDSA_P256_SIG_LEN];
+    static const unsigned char message[1] = {0x72};
+
+    memset(scalar, 0x3c, sizeof scalar);
+    gsec_poison(scalar, sizeof scalar);
+    if (gsec_ecdsa_p256_sign(scalar, message, sizeof message, sig) != GSEC_OK) {
+      return 22;
+    }
+    gsec_wipe(sig, sizeof sig);
     gsec_wipe(scalar, sizeof scalar);
   }
   {

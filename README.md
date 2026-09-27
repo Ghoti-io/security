@@ -25,7 +25,11 @@ bytes. Verification rejects a point that is not canonical and an S that is
 not strictly less than the group order. P-256 ECDH takes a 32-byte scalar
 and a 64-byte public key, x then y. A coordinate that is not strictly less
 than the prime, a point that is not on the curve, and the point at infinity
-are rejected and the output is wiped.
+are rejected and the output is wiped. ECDSA P-256 takes a 32-byte scalar.
+The signature is 64 bytes, r then s. Signing hashes with SHA-256 and uses
+RFC 6979, and the s it emits is the low one. Verification accepts a high s.
+An r or s of zero, or one that is not strictly less than the group order,
+does not verify.
 
 - `gsec_equal` compares two regions and returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
@@ -41,6 +45,7 @@ are rejected and the output is wiped.
 - `gsec_x25519` multiplies a scalar by a peer u-coordinate. `gsec_x25519_public` multiplies it by the base point. Both lengths are fixed at 32 bytes. The all-zero shared secret is rejected and the output is wiped.
 - `gsec_ed25519_public` derives a public key from a 32-byte seed. `gsec_ed25519_sign` signs a message. `gsec_ed25519_verify` returns `GSEC_ERR_MISMATCH` for a bad signature, a non-canonical point, or an S that is not strictly less than the group order.
 - `gsec_ecdh_p256` multiplies a scalar by a peer point and writes the shared x coordinate. `gsec_ecdh_p256_public` multiplies it by the base point. A bad point and the point at infinity are `GSEC_ERR_INVALID`, and the output is wiped.
+- `gsec_ecdsa_p256_public` multiplies a scalar by the base point. `gsec_ecdsa_p256_sign` signs a message and emits the low s. `gsec_ecdsa_p256_verify` returns `GSEC_ERR_MISMATCH` for a bad signature, a bad point, or an r or s that is zero or not strictly less than the group order. A high s verifies.
 - `gsec_selftest` runs the known-answer checks an embedder can call at startup. That is the calls above, including each hash of the empty message and of `abc`, and the HMAC-SHA-256 of RFC 4231 test case 1.
 - `gsec_poison` and `gsec_unpoison` mark secret bytes for the constant-time gate. In a normal build they do nothing.
 

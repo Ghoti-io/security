@@ -40,6 +40,11 @@ typedef struct {
 } p256_point;
 
 int p256_point_decode(p256_point * p, const unsigned char xy[64]);
+void p256_point_base(p256_point * p);
+void p256_point_add(p256_point * o, const p256_point * a, const p256_point * b);
+void p256_scalarmult_proj(p256_point * out, const unsigned char scalar[32],
+    const p256_point * base);
+int p256_point_affine(fe_p256 * x_out, fe_p256 * y_out, const p256_point * p);
 int p256_scalarmult(fe_p256 * x_out, fe_p256 * y_out,
     const unsigned char scalar[32], const p256_point * base);
 int p256_scalarmult_base(fe_p256 * x_out, fe_p256 * y_out,

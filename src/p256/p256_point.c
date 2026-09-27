@@ -184,13 +184,26 @@ static int affine(fe_p256 * x_out, fe_p256 * y_out, const p256_point * p) {
   return 1;
 }
 
-int p256_scalarmult(fe_p256 * x_out, fe_p256 * y_out,
-    const unsigned char scalar[32], const p256_point * base) {
+void p256_point_base(p256_point * p) {
+  p->x = BASE_X;
+  p->y = BASE_Y;
+  fe_p256_set_u32(&p->z, 1);
+}
+
+void p256_point_add(p256_point * o, const p256_point * a, const p256_point * b) {
+  point_add(o, a, b);
+}
+
+int p256_point_affine(fe_p256 * x_out, fe_p256 * y_out, const p256_point * p) {
+  return affine(x_out, y_out, p);
+}
+
+void p256_scalarmult_proj(p256_point * out, const unsigned char scalar[32],
+    const p256_point * base) {
   p256_point r;
   p256_point q;
   p256_point sum;
   int i;
-  int ok;
 
   point_set_identity(&r);
   q = *base;
@@ -201,10 +214,20 @@ int p256_scalarmult(fe_p256 * x_out, fe_p256 * y_out,
     point_cmov(&r, &sum, bit);
     point_add(&q, &q, &q);
   }
-  ok = affine(x_out, y_out, &r);
+  *out = r;
   gsec_wipe(&r, sizeof r);
   gsec_wipe(&q, sizeof q);
   gsec_wipe(&sum, sizeof sum);
+}
+
+int p256_scalarmult(fe_p256 * x_out, fe_p256 * y_out,
+    const unsigned char scalar[32], const p256_point * base) {
+  p256_point r;
+  int ok;
+
+  p256_scalarmult_proj(&r, scalar, base);
+  ok = affine(x_out, y_out, &r);
+  gsec_wipe(&r, sizeof r);
   return ok;
 }
 
@@ -212,8 +235,6 @@ int p256_scalarmult_base(fe_p256 * x_out, fe_p256 * y_out,
     const unsigned char scalar[32]) {
   p256_point base;
 
-  base.x = BASE_X;
-  base.y = BASE_Y;
-  fe_p256_set_u32(&base.z, 1);
+  p256_point_base(&base);
   return p256_scalarmult(x_out, y_out, scalar, &base);
 }
