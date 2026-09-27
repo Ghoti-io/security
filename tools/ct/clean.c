@@ -14,6 +14,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/secret.h>
+#include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/sha1.h>
 #include <ghoti.io/security/sha256.h>
 #include <ghoti.io/security/sha384.h>
@@ -96,6 +97,20 @@ int main(void) {
       return 10;
     }
     gsec_wipe(digest, sizeof digest);
+  }
+  {
+    unsigned char mac[GSEC_SHA256_DIGEST_LEN];
+    unsigned char key[8];
+
+    memset(key, 0x3c, sizeof key);
+    gsec_poison(key, sizeof key);
+    gsec_poison(secret, sizeof secret);
+    if (gsec_hmac(GSEC_HMAC_SHA256, key, sizeof key, secret, sizeof secret,
+        mac) != GSEC_OK) {
+      return 11;
+    }
+    gsec_wipe(mac, sizeof mac);
+    gsec_wipe(key, sizeof key);
   }
   return 0;
 }

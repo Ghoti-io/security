@@ -682,12 +682,13 @@ fuzz-run-$2: $$(FUZZ_APP_DIR)/$1 ## Run the $2 fuzzer for $$(FUZZ_TIME) seconds
 endef
 
 $(eval $(call fuzz-rule,fuzz_equal,equal))
+$(eval $(call fuzz-rule,fuzz_hmac,hmac))
 $(eval $(call fuzz-rule,fuzz_wipe,wipe))
 $(eval $(call fuzz-rule,fuzz_sha1,sha1))
 $(eval $(call fuzz-rule,fuzz_sha256,sha256))
 $(eval $(call fuzz-rule,fuzz_sha512,sha512))
 
-FUZZERS := equal wipe sha1 sha256 sha512
+FUZZERS := equal wipe hmac sha1 sha256 sha512
 
 fuzz: $(addprefix fuzz-run-,$(FUZZERS)) ## Build and run every fuzzer
 
@@ -714,9 +715,11 @@ oracle-version: ## Print which reference would answer, and fail if none would
 	@GHOTI_ORACLE_REQUIRED=1 $(ORACLE_RUN) openssl,wycheproof -- true
 
 check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/hash$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
+		$(APP_DIR)/examples/hash$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/hmac$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
 	@GHOTI_ORACLE_REQUIRED=1 GSEC_SHA256_BIN="$(APP_DIR)/examples/sha256$(EXE_EXTENSION)" \
 		GSEC_HASH_BIN="$(APP_DIR)/examples/hash$(EXE_EXTENSION)" \
+		GSEC_HMAC_BIN="$(APP_DIR)/examples/hmac$(EXE_EXTENSION)" \
 		$(ORACLE_RUN) openssl,wycheproof -- python3 $(ORACLE)/openssl_kat.py
 
 ####################################################################

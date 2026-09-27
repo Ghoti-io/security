@@ -42,6 +42,7 @@
 
 /* Public types. GCU_* names are cutil's; cutil has already renamed them. */
 #define GSEC_Allocator GHOTIIO_SECURITY(GSEC_Allocator)
+#define GSEC_Hmac GHOTIIO_SECURITY(GSEC_Hmac)
 #define GSEC_Limits GHOTIIO_SECURITY(GSEC_Limits)
 #define GSEC_Result GHOTIIO_SECURITY(GSEC_Result)
 #define GSEC_Sha1 GHOTIIO_SECURITY(GSEC_Sha1)
@@ -51,6 +52,11 @@
 
 #define gsec_allocator_default GHOTIIO_SECURITY(gsec_allocator_default)
 #define gsec_equal GHOTIIO_SECURITY(gsec_equal)
+#define gsec_hmac GHOTIIO_SECURITY(gsec_hmac)
+#define gsec_hmac_final GHOTIIO_SECURITY(gsec_hmac_final)
+#define gsec_hmac_init GHOTIIO_SECURITY(gsec_hmac_init)
+#define gsec_hmac_update GHOTIIO_SECURITY(gsec_hmac_update)
+#define gsec_hmac_verify GHOTIIO_SECURITY(gsec_hmac_verify)
 #define gsec_limits_default GHOTIIO_SECURITY(gsec_limits_default)
 #define gsec_poison GHOTIIO_SECURITY(gsec_poison)
 #define gsec_random_bytes GHOTIIO_SECURITY(gsec_random_bytes)

@@ -29,6 +29,7 @@
 
 #include <ghoti.io/security/macros.h>
 
+#include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/random.h>
 #include <ghoti.io/security/secret.h>
 #include <ghoti.io/security/selftest.h>
@@ -302,6 +303,45 @@ GSEC_Result gsec_selftest(void) {
     gsec_wipe(dig, sizeof dig);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  /* RFC 4231 test case 1, and a MAC that differs in the last byte. */
+  {
+    static const unsigned char key[20] = {
+      0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
+      0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b
+    };
+    static const unsigned char msg[8] = {
+      0x48, 0x69, 0x20, 0x54, 0x68, 0x65, 0x72, 0x65
+    };
+    static const unsigned char mac[GSEC_SHA256_DIGEST_LEN] = {
+      0xb0, 0x34, 0x4c, 0x61, 0xd8, 0xdb, 0x38, 0x53,
+      0x5c, 0xa8, 0xaf, 0xce, 0xaf, 0x0b, 0xf1, 0x2b,
+      0x88, 0x1d, 0xc2, 0x00, 0xc9, 0x83, 0x3d, 0xa7,
+      0x26, 0xe9, 0x37, 0x6c, 0x2e, 0x32, 0xcf, 0xf7
+    };
+    unsigned char got[GSEC_SHA256_DIGEST_LEN];
+    unsigned char bad[GSEC_SHA256_DIGEST_LEN];
+
+    result = gsec_hmac(GSEC_HMAC_SHA256, key, sizeof key, msg, sizeof msg, got);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(got, mac, sizeof got);
+    gsec_wipe(got, sizeof got);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+    for (i = 0; i < sizeof bad; i++) {
+      bad[i] = mac[i];
+    }
+    bad[sizeof bad - 1] = (unsigned char)(bad[sizeof bad - 1] ^ 0x01u);
+    result = gsec_hmac_verify(GSEC_HMAC_SHA256, key, sizeof key, msg,
+        sizeof msg, bad, sizeof bad);
+    gsec_wipe(bad, sizeof bad);
+    if (result != GSEC_ERR_MISMATCH) {
+      return result == GSEC_OK ? GSEC_ERR_INTERNAL : result;
     }
   }
   return GSEC_OK;

@@ -230,6 +230,64 @@ def diff_sha1():
                     "sha1 %s %s is %s, openssl says %s\n" % (name, how, got, want))
                 return 1
         print("sha1 %s %s" % (name, want))
+    return diff_hmac()
+
+
+def openssl_hmac(flag, key_hex, data):
+    proc = subprocess.run(
+        oracle_env.command("openssl", [
+            "openssl", "dgst", flag, "-mac", "HMAC",
+            "-macopt", "hexkey:" + key_hex]),
+        input=data, capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        raise SystemExit(1)
+    return last_field(proc.stdout.decode("utf-8", "replace"))
+
+
+def library_hmac(binary, alg, key_hex, data, chunk, hexlen):
+    command = [binary, alg, key_hex] if chunk is None else [
+        binary, alg, key_hex, "--chunk", str(chunk)]
+    proc = subprocess.run(command, input=data, capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        sys.stderr.write("hmac helper exited %s\n" % proc.returncode)
+        raise SystemExit(1)
+    got = proc.stdout.decode("utf-8", "replace").strip()
+    if len(got) != hexlen:
+        sys.stderr.write("hmac helper wrote %r\n" % got)
+        raise SystemExit(1)
+    return got
+
+
+def diff_hmac():
+    binary = os.environ.get("GSEC_HMAC_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_HMAC_BIN is not set\n")
+        return 1
+    hi = "0b" * 20
+    long_key = "aa" * 131
+    cases = [
+        ("sha1", "-sha1", 40, hi, b"Hi There"),
+        ("sha256", "-sha256", 64, hi, b"Hi There"),
+        ("sha384", "-sha384", 96, hi, b"Hi There"),
+        ("sha512", "-sha512", 128, hi, b"Hi There"),
+        ("sha256", "-sha256", 64, long_key,
+         b"Test Using Larger Than Block-Size Key - Hash Key First"),
+        ("sha512", "-sha512", 128, long_key,
+         b"Test Using Larger Than Block-Size Key - Hash Key First"),
+        ("sha256", "-sha256", 64, "6b6579", b""),
+    ]
+    for alg, flag, hexlen, key, data in cases:
+        want = openssl_hmac(flag, key, data)
+        for chunk in (None, 1):
+            got = library_hmac(binary, alg, key, data, chunk, hexlen)
+            if not compare.hex_equal(got, want):
+                how = "oneshot" if chunk is None else "chunk 1"
+                sys.stderr.write(
+                    "hmac %s %s is %s, openssl says %s\n" % (alg, how, got, want))
+                return 1
+        print("hmac %s %s" % (alg, want))
     return 0
 
 
