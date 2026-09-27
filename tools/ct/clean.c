@@ -14,6 +14,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/secret.h>
+#include <ghoti.io/security/sha256.h>
 
 #include <string.h>
 #include <valgrind/memcheck.h>
@@ -52,6 +53,19 @@ int main(void) {
     if (secret[i] != 0) {
       return 6;
     }
+  }
+
+  /* The message is secret. A branch or a table index on one of its bytes
+   * inside SHA-256 is the leak this run exists to report. The digest is a
+   * function of that message, so it is wiped rather than inspected. */
+  {
+    unsigned char digest[GSEC_SHA256_DIGEST_LEN];
+
+    gsec_poison(secret, sizeof secret);
+    if (gsec_sha256(secret, sizeof secret, digest) != GSEC_OK) {
+      return 7;
+    }
+    gsec_wipe(digest, sizeof digest);
   }
   return 0;
 }

@@ -1,10 +1,10 @@
 # Oracles
 
-The algorithms this library will implement are judged by something that is
-not this library. Phase 0 has no algorithm an outside implementation can
-disagree with, so the oracle that exists today is the pin itself: a build
-that cannot produce the published SHA-256 of `abc`, or the Wycheproof file
-the pin names, is a failed oracle, and `make check-oracle` says so.
+The algorithms this library implements are judged by something that is
+not this library. `make check-oracle` first checks that the image still
+produces the published SHA-256 of `abc` and the Wycheproof file the pin
+names. It then hashes the same messages with this library and with
+`openssl dgst -sha256` in the image. A difference fails the target.
 
 `make test` does not run a container. A checkout with no container runtime
 still builds and tests. The differential is a separate target, and that
@@ -56,13 +56,14 @@ probe that exits non-zero is a failure. The probe is
 - SHA-256 of `abc` is `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`.
 - `sha256sum` of the pinned `aes_gcm_test.json` matches `CORPUS`.
 
-Those two checks judge the oracle. They do not judge `gsec_sha256`, because
-that function is not implemented. `tools/oracle/primitives.txt` lists
-`sha256` as `pending` with judge `openssl`. Declaring `gsec_sha256_init`
-while that row is pending fails `make test` through `check-foundation`.
-Flipping the row to `implemented` without a vector file the manifest
-hashes also fails. The day the function exists, the same image is what
-compares it, and this page gains the differential that comparison is.
+Those two checks judge the oracle. The messages after them judge
+`gsec_sha256`: empty, `abc`, the RFC 6234 two-block string, the padding
+lengths 55 through 65, a thousand `a` bytes, and the bytes 0 through 255.
+Each is hashed in one call and in chunks of 1 and of 64. The helper is
+`examples/sha256.c`, which `make check-oracle` builds and passes as
+`GSEC_SHA256_BIN`. `tools/oracle/primitives.txt` lists `sha256` as
+`implemented` with judge `openssl`. Declaring `gsec_sha512_init` while
+that row is still pending fails `make test`.
 
 A host-mode run (`GHOTI_ORACLE=host`) uses the `openssl` on `PATH` and still
 requires the version string. It is a way to run the probe without a

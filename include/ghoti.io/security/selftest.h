@@ -40,9 +40,9 @@ extern "C" {
 /**
  * @brief Run the built-in known answers.
  *
- * Covers comparison, wiping, and one read from the kernel generator. Later
- * primitives add their vectors here in the same commit that adds the
- * primitive.
+ * Covers comparison, wiping, one read from the kernel generator, and the
+ * SHA-256 of the empty message and of `abc`. Later primitives add their
+ * vectors here in the same commit that adds the primitive.
  *
  * @return ::GSEC_OK, or the status of the first check that failed.
  */

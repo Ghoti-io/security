@@ -32,6 +32,7 @@
 #include <ghoti.io/security/random.h>
 #include <ghoti.io/security/secret.h>
 #include <ghoti.io/security/selftest.h>
+#include <ghoti.io/security/sha256.h>
 
 GSEC_Result gsec_selftest(void) {
   static const unsigned char left[4] = {0x00, 0x01, 0x02, 0x03};
@@ -90,6 +91,56 @@ GSEC_Result gsec_selftest(void) {
   }
   if (changed == 0) {
     return GSEC_ERR_INTERNAL;
+  }
+
+  /* RFC 6234 section 8.1. Empty, and "abc" absorbed one byte at a time,
+   * which is the padding boundary the one-shot call does not exercise. */
+  {
+    static const unsigned char empty_dig[GSEC_SHA256_DIGEST_LEN] = {
+      0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14, 0x9a, 0xfb, 0xf4, 0xc8,
+      0x99, 0x6f, 0xb9, 0x24, 0x27, 0xae, 0x41, 0xe4, 0x64, 0x9b, 0x93, 0x4c,
+      0xa4, 0x95, 0x99, 0x1b, 0x78, 0x52, 0xb8, 0x55
+    };
+    static const unsigned char abc_dig[GSEC_SHA256_DIGEST_LEN] = {
+      0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde,
+      0x5d, 0xae, 0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+      0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad
+    };
+    static const unsigned char abc_msg[3] = {0x61, 0x62, 0x63};
+    unsigned char dig[GSEC_SHA256_DIGEST_LEN];
+    GSEC_Sha256 ctx;
+
+    result = gsec_sha256(NULL, 0, dig);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(dig, empty_dig, sizeof dig);
+    gsec_wipe(dig, sizeof dig);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+
+    result = gsec_sha256_init(&ctx);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    for (i = 0; i < sizeof abc_msg; i++) {
+      result = gsec_sha256_update(&ctx, abc_msg + i, 1);
+      if (result != GSEC_OK) {
+        gsec_wipe(&ctx, sizeof ctx);
+        return result;
+      }
+    }
+    result = gsec_sha256_final(&ctx, dig);
+    if (result != GSEC_OK) {
+      gsec_wipe(&ctx, sizeof ctx);
+      return result;
+    }
+    result = gsec_equal(dig, abc_dig, sizeof dig);
+    gsec_wipe(dig, sizeof dig);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
   }
   return GSEC_OK;
 }

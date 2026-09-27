@@ -2,7 +2,8 @@
 
 Phase 0 is implemented (2026-09-26): the skeleton, the constant-time gate,
 the vector corpus, constant-time compare, and the entropy and explicit-zero
-calls. No hash, MAC, cipher, or signature is implemented. The primitive
+calls. SHA-256 is implemented. No other hash, and no MAC, cipher, or
+signature, is implemented. The primitive
 registry in `tools/oracle/primitives.txt` is the list of what may be
 declared. The phases below are the order the rest is built in.
 
@@ -25,7 +26,7 @@ package is `ghoti.io-security-0`, the include path
 | Entropy comes from the kernel | `gsec_random_bytes` calls `getrandom` without `GRND_NONBLOCK` on Linux, `getentropy` on macOS, and `BCryptGenRandom` on Windows. A short read is retried. Any other failure wipes the output and returns `GSEC_ERR_IO`. |
 | A wiped buffer stays wiped | `gsec_wipe` writes through a `volatile` pointer. The compiler is not trusted to keep a `memset` of a dead buffer. |
 | Nothing in the library prints a secret | `gsec_result_string` returns one of a fixed table of static strings. There is no `_dump` for a key, a scalar, or a derived secret. |
-| A function that does not exist yet cannot be declared quietly | `check-foundation` reads the registry and the headers. `implemented` must have a declaration. `pending` and `excluded` must not. The check plants `gsec_sha256_init` and requires that plant to be rejected while `sha256` is pending. |
+| A function that does not exist yet cannot be declared quietly | `check-foundation` reads the registry and the headers. `implemented` must have a declaration. `pending` and `excluded` must not. The check plants `gsec_sha512_init` and requires that plant to be rejected while `sha512` is pending. |
 | An outside judge, once the function exists | An `implemented` row whose judge is not `self` requires a vector file hashed in `tests/data/vectors/MANIFEST`. The container image is how that judge is run. See [oracles.md](oracles.md). |
 
 `GSEC_Limits` has one field, `max_random_bytes`, default 1 MiB, because that
@@ -48,7 +49,8 @@ phases that allocate.
 | `gsec_wipe` | Overwrite `n` bytes. Returns a result so a null pointer with a positive length is `GSEC_ERR_INVALID` rather than a crash. |
 | `gsec_poison`, `gsec_unpoison` | Valgrind client requests when `GSEC_CT_TEST` is set, otherwise empty. They return void: marking is not a result the caller branches on. |
 | `gsec_random_bytes` | Fill `out` with `n` bytes from the kernel, or leave it wiped and return an error. `n` above `max_random_bytes` is `GSEC_ERR_LIMIT` and does not write. |
-| `gsec_selftest` | Runs equal, wipe, and a short entropy call. The entropy call folds the output with XOR and then wipes it, and branches on whether any byte was written, which is public. |
+| `gsec_sha256_init`, `gsec_sha256_update`, `gsec_sha256_final`, `gsec_sha256` | FIPS 180-4 SHA-256. The message length is public. Message bytes are not a branch condition and not a table index. Final wipes the context. A bit length that does not fit in 64 bits wipes it and returns `GSEC_ERR_LIMIT`. |
+| `gsec_selftest` | Runs equal, wipe, a short entropy call, and the RFC 6234 SHA-256 of the empty message and of `abc`. The entropy call folds the output with XOR and then wipes it, and branches on whether any byte was written, which is public. |
 | `gsec_allocator_default` | cutil's default allocator. |
 | `gsec_limits_default` | Fills the default caps. NULL is ignored. |
 | `gsec_result_string` | Static string, including for a value outside the enum. |
@@ -79,19 +81,19 @@ in the Makefile, and the check list is `notes/suite/WINDOWS-TODO.md`.
 Known-answer files under `tests/data/vectors/` are scored by the unit tests
 with no container. `MANIFEST` is their SHA-256. The parser fails closed on
 truncation, odd hex, uppercase digits, a boolean expectation, and a length
-that does not match the bytes. `equal.vec` is the only file.
+that does not match the bytes. `equal.vec` and `sha256.vec` are the files.
 
 The container is OpenSSL 3.5.7 and Wycheproof at one commit, built here and
 pinned by the base digest, the apt version, and that commit.
-`make check-oracle` requires the image and checks the oracle against NIST's
-SHA-256(`abc`) and against the hash of `aes_gcm_test.json`. It does not yet
-compare a function of this library, because none of the judged primitives
-is implemented. The image, the pin, and the fail-closed target exist first
-so the first algorithm does not arrive with a "we will add the oracle
-later".
+`make check-oracle` requires the image. It checks the oracle against NIST's
+SHA-256(`abc`) and against the hash of `aes_gcm_test.json`, then hashes the
+same messages with this library and with `openssl dgst -sha256` in the
+image. A digest that differs fails the target.
 
-Fuzz targets `fuzz_equal` and `fuzz_wipe` are libFuzzer with ASan and
-UBSan. `fuzz_wipe` traps if a byte of the wiped region is not zero.
+Fuzz targets `fuzz_equal`, `fuzz_wipe`, and `fuzz_sha256` are libFuzzer
+with ASan and UBSan. `fuzz_wipe` traps if a byte of the wiped region is
+not zero. `fuzz_sha256` traps if a one-shot digest and a streaming digest
+of the same bytes differ.
 
 ## 5. Departures from the suite conventions
 
@@ -128,7 +130,7 @@ Phase 9 may never be built.
 | Phase | What | Why it is here |
 | --- | --- | --- |
 | 0 | This tree | The gate exists before the thing it gates |
-| 1 | SHA-256, SHA-512, SHA-384, SHA-1, HMAC | The first algorithms, and they exercise the corpus, the oracle, and `gsec_equal` |
+| 1 | SHA-256 is implemented. SHA-512, SHA-384, SHA-1, HMAC are not | The first algorithms, and they exercise the corpus, the oracle, and `gsec_equal` |
 | 2 | HKDF, PBKDF2 | Small once HMAC exists |
 | 3 | AES-128/192/256, CTR, GCM | Completes the archive set |
 | 4 | ChaCha20-Poly1305 | No bignum |

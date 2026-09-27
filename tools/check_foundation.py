@@ -15,8 +15,9 @@ run that fails when two files that are supposed to name one pin have drifted,
 or when a primitive was declared without a row saying who judges it.
 
 The classifier is run on a planted declaration before it is trusted on the
-tree. A planted `gsec_sha256_init` while sha256 is still pending must be
-reported. If it is not, this program is not a gate.
+tree. A planted `gsec_sha512_init` while sha512 is still pending must be
+reported. If it is not, this program is not a gate. The plant moves to the
+next pending primitive when one is implemented.
 """
 
 import hashlib
@@ -153,13 +154,17 @@ def main():
     # The implemented set alone must be clean. Adding one pending primitive
     # must be reported. A classifier that only runs on the tree cannot tell
     # those apart: both look like whatever the headers happen to say.
-    present = {"gsec_equal", "gsec_wipe", "gsec_random_bytes"}
+    present = {
+        "gsec_equal", "gsec_wipe", "gsec_random_bytes",
+        "gsec_sha256", "gsec_sha256_init", "gsec_sha256_update",
+        "gsec_sha256_final",
+    }
     clean = classify(present, rows)
     if clean:
         fail("the implemented set was rejected: %r" % clean)
-    planted = classify(present | {"gsec_sha256_init"}, rows)
-    if not any("sha256" in item and "pending" in item for item in planted):
-        fail("a planted gsec_sha256_init was not rejected: %r" % planted)
+    planted = classify(present | {"gsec_sha512_init"}, rows)
+    if not any("sha512" in item and "pending" in item for item in planted):
+        fail("a planted gsec_sha512_init was not rejected: %r" % planted)
 
     functions = declarations()
     missing = sorted(FOUNDATION - functions)
@@ -184,7 +189,7 @@ def main():
 
     text = CONTAINERFILE.read_text(encoding="utf-8")
     for needle in (DEBIAN_DIGEST, OPENSSL_APT, WYCHEPROOF, "LANG=C.UTF-8",
-            "debian-security"):
+            "trixie-security"):
         if needle not in text:
             fail("Containerfile does not pin %s" % needle)
     images = IMAGES.read_text(encoding="utf-8")

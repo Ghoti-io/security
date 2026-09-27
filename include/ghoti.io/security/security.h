@@ -23,10 +23,10 @@
  *
  * Umbrella header for the Ghoti.io Security library.
  *
- * Primitives only: comparison, wiping, and the entropy call in this revision.
- * Hashes, MACs, ciphers, agreement, and signatures are named in
- * `tools/oracle/primitives.txt` and are not declared until the commit that
- * implements them. X.509, PEM, the handshake, and password hashing for
+ * Primitives only: comparison, wiping, the entropy call, and SHA-256.
+ * The rest of the set is named in `tools/oracle/primitives.txt` and is not
+ * declared until the commit that implements it. X.509, PEM, the handshake,
+ * and password hashing for
  * storage are other libraries. See documentation/design.md.
  */
 
@@ -39,5 +39,6 @@
 #include <ghoti.io/security/random.h>
 #include <ghoti.io/security/secret.h>
 #include <ghoti.io/security/selftest.h>
+#include <ghoti.io/security/sha256.h>
 
 #endif /* GHOTI_IO_GSEC_SECURITY_H */
