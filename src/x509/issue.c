@@ -419,6 +419,11 @@ static void add_extensions(Buf * o, const GSEC_X509_Tbs * tbs) {
   }
 }
 
+static GSEC_Result issue_fail(void * out, size_t out_cap, GSEC_Result result) {
+  gsec_wipe(out, out_cap);
+  return result;
+}
+
 GSEC_Result gsec_x509_issue(const GSEC_X509_Tbs * tbs,
     const GSEC_X509_Signer * signer, void * out, size_t out_cap,
     size_t * out_len) {
@@ -433,16 +438,17 @@ GSEC_Result gsec_x509_issue(const GSEC_X509_Tbs * tbs,
   size_t der_len = 0;
   GSEC_Result result = GSEC_OK;
 
-  if (tbs == NULL || signer == NULL || out == NULL || out_len == NULL) {
+  if (out == NULL) {
     return GSEC_ERR_INVALID;
   }
-  if (tbs->issuer == NULL || tbs->subject == NULL || tbs->serial == NULL ||
+  if (tbs == NULL || signer == NULL || out_len == NULL ||
+      tbs->issuer == NULL || tbs->subject == NULL || tbs->serial == NULL ||
       tbs->issuer_len == 0 || tbs->subject_len == 0 || tbs->serial_len == 0 ||
       tbs->serial_len > 20u || signer->d == NULL || signer->d_len == 0) {
-    return GSEC_ERR_INVALID;
+    return issue_fail(out, out_cap, GSEC_ERR_INVALID);
   }
   if (!alg_for(signer, &alg, &alg_len)) {
-    return GSEC_ERR_INVALID;
+    return issue_fail(out, out_cap, GSEC_ERR_INVALID);
   }
   memset(&tbs_buf, 0, sizeof tbs_buf);
   add_tlv(&tbs_buf, 0xa0, version, sizeof version);
@@ -457,33 +463,33 @@ GSEC_Result gsec_x509_issue(const GSEC_X509_Tbs * tbs,
   add_spki(&tbs_buf, tbs);
   add_extensions(&tbs_buf, tbs);
   if (tbs_buf.bad || validity.bad) {
-    return GSEC_ERR_LIMIT;
+    return issue_fail(out, out_cap, GSEC_ERR_LIMIT);
   }
   {
     Buf wrapped;
     memset(&wrapped, 0, sizeof wrapped);
     add_seq(&wrapped, &tbs_buf);
     if (wrapped.bad) {
-      return GSEC_ERR_LIMIT;
+      return issue_fail(out, out_cap, GSEC_ERR_LIMIT);
     }
     memcpy(tbs_buf.b, wrapped.b, wrapped.n);
     tbs_buf.n = wrapped.n;
   }
   if (signer->key == GSEC_X509_P256) {
     if (signer->d_len != GSEC_ECDSA_P256_LEN) {
-      return GSEC_ERR_INVALID;
+      return issue_fail(out, out_cap, GSEC_ERR_INVALID);
     }
     result = gsec_ecdsa_p256_sign(signer->d, tbs_buf.b, tbs_buf.n, sig);
     der_len = 64;
   } else if (signer->key == GSEC_X509_P384) {
     if (signer->d_len != GSEC_ECDSA_P384_LEN) {
-      return GSEC_ERR_INVALID;
+      return issue_fail(out, out_cap, GSEC_ERR_INVALID);
     }
     result = gsec_ecdsa_p384_sign(signer->d, tbs_buf.b, tbs_buf.n, sig);
     der_len = 96;
   } else if (signer->key == GSEC_X509_ED25519) {
     if (signer->d_len != 32u) {
-      return GSEC_ERR_INVALID;
+      return issue_fail(out, out_cap, GSEC_ERR_INVALID);
     }
     result = gsec_ed25519_sign(signer->d, tbs_buf.b, tbs_buf.n, sig);
     der_len = 64;
@@ -491,14 +497,14 @@ GSEC_Result gsec_x509_issue(const GSEC_X509_Tbs * tbs,
     size_t k = signer->n_len;
     const unsigned char * n = signer->n;
     if (signer->n == NULL || signer->e == NULL || k == 0) {
-      return GSEC_ERR_INVALID;
+      return issue_fail(out, out_cap, GSEC_ERR_INVALID);
     }
     while (k > 0 && n[0] == 0x00) {
       n++;
       k--;
     }
     if (k == 0 || k > sizeof sig) {
-      return GSEC_ERR_INVALID;
+      return issue_fail(out, out_cap, GSEC_ERR_INVALID);
     }
     result = gsec_rsa_private_pkcs1_v15_sign(signer->hash, signer->n,
         signer->n_len, signer->e, signer->e_len, signer->d, signer->d_len,
@@ -507,7 +513,7 @@ GSEC_Result gsec_x509_issue(const GSEC_X509_Tbs * tbs,
   }
   if (result != GSEC_OK) {
     gsec_wipe(sig, sizeof sig);
-    return result;
+    return issue_fail(out, out_cap, result);
   }
   if (signer->key == GSEC_X509_P256 || signer->key == GSEC_X509_P384) {
     Buf nums;
@@ -520,14 +526,14 @@ GSEC_Result gsec_x509_issue(const GSEC_X509_Tbs * tbs,
     add_seq(&seq, &nums);
     if (seq.bad || seq.n > sizeof der_sig) {
       gsec_wipe(sig, sizeof sig);
-      return GSEC_ERR_LIMIT;
+      return issue_fail(out, out_cap, GSEC_ERR_LIMIT);
     }
     memcpy(der_sig, seq.b, seq.n);
     der_len = seq.n;
   } else {
     if (der_len > sizeof der_sig) {
       gsec_wipe(sig, sizeof sig);
-      return GSEC_ERR_LIMIT;
+      return issue_fail(out, out_cap, GSEC_ERR_LIMIT);
     }
     memcpy(der_sig, sig, der_len);
   }
@@ -552,7 +558,7 @@ GSEC_Result gsec_x509_issue(const GSEC_X509_Tbs * tbs,
     add_seq(&wrapped, &cert);
     if (wrapped.bad || wrapped.n > out_cap) {
       gsec_wipe(der_sig, sizeof der_sig);
-      return GSEC_ERR_LIMIT;
+      return issue_fail(out, out_cap, GSEC_ERR_LIMIT);
     }
     memcpy(out, wrapped.b, wrapped.n);
     *out_len = wrapped.n;
