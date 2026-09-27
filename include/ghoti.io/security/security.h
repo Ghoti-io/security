@@ -24,7 +24,7 @@
  * Umbrella header for the Ghoti.io Security library.
  *
  * Primitives only: comparison, wiping, the entropy call, SHA-256, SHA-512,
- * SHA-384, SHA-1, MD5, HMAC over the SHA hashes, HKDF, and PBKDF2.
+ * SHA-384, SHA-1, MD5, HMAC over the SHA hashes, HKDF, PBKDF2, and AES.
  * The rest of the set is named in `tools/oracle/primitives.txt` and is not
  * declared until the commit that implements it. X.509, PEM, the handshake,
  * and password hashing for
@@ -34,6 +34,7 @@
 #ifndef GHOTI_IO_GSEC_SECURITY_H
 #define GHOTI_IO_GSEC_SECURITY_H
 
+#include <ghoti.io/security/aes.h>
 #include <ghoti.io/security/allocator.h>
 #include <ghoti.io/security/hkdf.h>
 #include <ghoti.io/security/hmac.h>

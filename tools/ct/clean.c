@@ -17,6 +17,7 @@
 #include <ghoti.io/security/hkdf.h>
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
+#include <ghoti.io/security/aes.h>
 #include <ghoti.io/security/md5.h>
 #include <ghoti.io/security/sha1.h>
 #include <ghoti.io/security/sha256.h>
@@ -109,6 +110,22 @@ int main(void) {
       return 14;
     }
     gsec_wipe(digest, sizeof digest);
+  }
+  {
+    unsigned char block[GSEC_AES_BLOCK_LEN];
+    unsigned char out[GSEC_AES_BLOCK_LEN];
+    unsigned char key[GSEC_AES128_KEY_LEN];
+
+    memset(block, 0x5a, sizeof block);
+    memset(key, 0x3c, sizeof key);
+    gsec_poison(key, sizeof key);
+    gsec_poison(block, sizeof block);
+    if (gsec_aes_encrypt(key, sizeof key, block, out) != GSEC_OK) {
+      return 15;
+    }
+    gsec_wipe(out, sizeof out);
+    gsec_wipe(key, sizeof key);
+    gsec_wipe(block, sizeof block);
   }
   {
     unsigned char mac[GSEC_SHA256_DIGEST_LEN];

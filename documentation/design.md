@@ -5,8 +5,9 @@ the vector corpus, constant-time compare, and the entropy and explicit-zero
 calls. SHA-256, SHA-512, SHA-384, SHA-1, MD5, HMAC over the SHA
 hashes, and HKDF and PBKDF2 are implemented. MD5 does not provide collision
 resistance; the declaration says so, and HMAC does not take it. HKDF is the high-entropy derivation and
-PBKDF2 is the slow one; they are different functions. No cipher or
-signature is implemented. The primitive
+PBKDF2 is the slow one; they are different functions. AES-128, AES-192, and
+AES-256 encrypt and decrypt one block; the substitution is table-free. CTR
+and GCM are the rest of that phase. No signature is implemented. The primitive
 registry in `tools/oracle/primitives.txt` is the list of what may be
 declared. The phases below are the order the rest is built in.
 
@@ -29,7 +30,7 @@ package is `ghoti.io-security-0`, the include path
 | Entropy comes from the kernel | `gsec_random_bytes` calls `getrandom` without `GRND_NONBLOCK` on Linux, `getentropy` on macOS, and `BCryptGenRandom` on Windows. A short read is retried. Any other failure wipes the output and returns `GSEC_ERR_IO`. |
 | A wiped buffer stays wiped | `gsec_wipe` writes through a `volatile` pointer. The compiler is not trusted to keep a `memset` of a dead buffer. |
 | Nothing in the library prints a secret | `gsec_result_string` returns one of a fixed table of static strings. There is no `_dump` for a key, a scalar, or a derived secret. |
-| A function that does not exist yet cannot be declared quietly | `check-foundation` reads the registry and the headers. `implemented` must have a declaration. `pending` and `excluded` must not. The check plants `gsec_aes_encrypt` and requires that plant to be rejected while `aes_encrypt` is pending. |
+| A function that does not exist yet cannot be declared quietly | `check-foundation` reads the registry and the headers. `implemented` must have a declaration. `pending` and `excluded` must not. The check plants `gsec_aes_gcm` and requires that plant to be rejected while `aes_gcm` is pending. |
 | An outside judge, once the function exists | An `implemented` row whose judge is not `self` requires a vector file hashed in `tests/data/vectors/MANIFEST`. The container image is how that judge is run. See [oracles.md](oracles.md). |
 
 `GSEC_Limits` has one field, `max_random_bytes`, default 1 MiB, because that

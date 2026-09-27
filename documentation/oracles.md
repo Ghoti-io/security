@@ -67,7 +67,7 @@ Each is hashed in one call and in chunks of 1 and of 64. The helper is
 padding lengths 111 through 129. SHA-1 uses the same helper, with the
 SHA-256 padding lengths and chunks of 1 and of 64. `tools/oracle/primitives.txt`
 lists those rows as `implemented` with judge `openssl`. Declaring
-`gsec_aes_encrypt` while that row is still pending fails `make test`. HMAC is
+`gsec_aes_gcm` while that row is still pending fails `make test`. HMAC is
 compared the same way: `examples/hmac.c` (`GSEC_HMAC_BIN`) against
 `openssl dgst -mac HMAC`. HKDF uses `examples/hkdf.c` (`GSEC_HKDF_BIN`)
 against `openssl kdf HKDF`. PBKDF2 uses `examples/pbkdf2.c`

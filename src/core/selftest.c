@@ -29,6 +29,7 @@
 
 #include <ghoti.io/security/macros.h>
 
+#include <ghoti.io/security/aes.h>
 #include <ghoti.io/security/hkdf.h>
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
@@ -352,6 +353,44 @@ GSEC_Result gsec_selftest(void) {
     }
     result = gsec_equal(dig, md5_abc, sizeof dig);
     gsec_wipe(dig, sizeof dig);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  /* FIPS 197 appendix C.1, both directions. */
+  {
+    static const unsigned char key[GSEC_AES128_KEY_LEN] = {
+      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+      0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+    };
+    static const unsigned char pt[GSEC_AES_BLOCK_LEN] = {
+      0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+      0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff
+    };
+    static const unsigned char ct_want[GSEC_AES_BLOCK_LEN] = {
+      0x69, 0xc4, 0xe0, 0xd8, 0x6a, 0x7b, 0x04, 0x30,
+      0xd8, 0xcd, 0xb7, 0x80, 0x70, 0xb4, 0xc5, 0x5a
+    };
+    unsigned char ct[GSEC_AES_BLOCK_LEN];
+    unsigned char back[GSEC_AES_BLOCK_LEN];
+
+    result = gsec_aes_encrypt(key, sizeof key, pt, ct);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(ct, ct_want, sizeof ct);
+    if (result != GSEC_OK) {
+      gsec_wipe(ct, sizeof ct);
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+    result = gsec_aes_decrypt(key, sizeof key, ct, back);
+    gsec_wipe(ct, sizeof ct);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(back, pt, sizeof back);
+    gsec_wipe(back, sizeof back);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
     }

@@ -449,6 +449,72 @@ def diff_pbkdf2():
                 % (alg, iterations, got, want))
             return 1
         print("pbkdf2 %s %s" % (alg, want))
+    return diff_aes()
+
+
+def openssl_aes_block(bits, key_hex, block, decrypt):
+    command = [
+        "openssl", "enc", "-aes-%s-ecb" % bits, "-K", key_hex,
+        "-nopad", "-nosalt"]
+    if decrypt:
+        command.append("-d")
+    proc = subprocess.run(
+        oracle_env.command("openssl", command),
+        input=block, capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        raise SystemExit(1)
+    if len(proc.stdout) != 16:
+        sys.stderr.write("openssl aes wrote %s bytes\n" % len(proc.stdout))
+        raise SystemExit(1)
+    return proc.stdout.hex()
+
+
+def library_aes_block(binary, direction, bits, key_hex, block_hex):
+    proc = subprocess.run(
+        [binary, direction, bits, key_hex, block_hex], capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        sys.stderr.write("aes helper exited %s\n" % proc.returncode)
+        raise SystemExit(1)
+    got = proc.stdout.decode("utf-8", "replace").strip()
+    if len(got) != 32:
+        sys.stderr.write("aes helper wrote %r\n" % got)
+        raise SystemExit(1)
+    return got
+
+
+def diff_aes():
+    binary = os.environ.get("GSEC_AES_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_AES_BIN is not set\n")
+        return 1
+    cases = [
+        ("128", "000102030405060708090a0b0c0d0e0f",
+         bytes.fromhex("00112233445566778899aabbccddeeff")),
+        ("192", "000102030405060708090a0b0c0d0e0f1011121314151617",
+         bytes.fromhex("00112233445566778899aabbccddeeff")),
+        ("256",
+         "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+         bytes.fromhex("00112233445566778899aabbccddeeff")),
+        ("128", "00" * 16, bytes(16)),
+        ("256", "00" * 32, bytes(16)),
+    ]
+    for bits, key_hex, block in cases:
+        want = openssl_aes_block(bits, key_hex, block, False)
+        got = library_aes_block(binary, "encrypt", bits, key_hex, block.hex())
+        if not compare.hex_equal(got, want):
+            sys.stderr.write(
+                "aes-%s encrypt is %s, openssl says %s\n" % (bits, got, want))
+            return 1
+        print("aes-%s encrypt %s" % (bits, want))
+        back = openssl_aes_block(bits, key_hex, bytes.fromhex(want), True)
+        got = library_aes_block(binary, "decrypt", bits, key_hex, want)
+        if not compare.hex_equal(got, back):
+            sys.stderr.write(
+                "aes-%s decrypt is %s, openssl says %s\n" % (bits, got, back))
+            return 1
+        print("aes-%s decrypt %s" % (bits, back))
     return 0
 
 
