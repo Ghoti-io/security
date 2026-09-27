@@ -25,8 +25,8 @@
  *
  * This lives here until a certificates library takes it. The pointers in
  * the result address the caller's buffer. They are the key, so the caller
- * wipes that buffer. A password-encrypted key is ::GSEC_ERR_UNSUPPORTED.
- * PKCS#12 is a different encoding and is not read here.
+ * wipes that buffer. A password-encrypted key is opened with
+ * ::gsec_pkcs8_decrypt. PKCS#12 is a different encoding.
  *
  * RSA yields the modulus, the public exponent, and the private exponent.
  * P-256 and P-384 yield the scalar. Ed25519 yields the 32-byte seed.
@@ -87,6 +87,30 @@ typedef struct GSEC_Pkcs8 {
  */
 GSEC_API GSEC_Result gsec_pkcs8_parse(const void * der, size_t len,
     GSEC_Pkcs8 * out);
+
+/**
+ * @brief Decrypt a PBES2 EncryptedPrivateKeyInfo.
+ *
+ * @p password is the password bytes themselves. PKCS#12 uses a different
+ * encoding of the same characters and does not call this. On success
+ * @p out holds a PrivateKeyInfo, which ::gsec_pkcs8_parse can read. A
+ * wrong password is ::GSEC_ERR_MISMATCH and @p out is wiped. An algorithm
+ * other than PBES2 with PBKDF2 and AES-CBC or three-key Triple DES is
+ * ::GSEC_ERR_UNSUPPORTED.
+ *
+ * @param der EncryptedPrivateKeyInfo. NULL only when @p len is 0.
+ * @param len Length of @p der.
+ * @param password Password. NULL only when @p password_len is 0.
+ * @param password_len Length of @p password.
+ * @param out Buffer for the PrivateKeyInfo. Wiped on failure.
+ * @param out_cap Capacity of @p out. It must hold the ciphertext.
+ * @param out_len Receives the PrivateKeyInfo length. Not written on failure.
+ * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH, ::GSEC_ERR_UNSUPPORTED,
+ *   ::GSEC_ERR_CORRUPT, ::GSEC_ERR_LIMIT, or ::GSEC_ERR_INVALID.
+ */
+GSEC_API GSEC_Result gsec_pkcs8_decrypt(const void * der, size_t len,
+    const void * password, size_t password_len, void * out, size_t out_cap,
+    size_t * out_len);
 
 #ifdef __cplusplus
 }

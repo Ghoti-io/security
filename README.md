@@ -2,10 +2,11 @@
 
 Cryptographic primitives: hashes, MACs, key derivation, authenticated
 encryption, key agreement, signatures, and the entropy call. Strict DER,
-PEM, unencrypted PKCS#8, and X.509 path validation live here until a
-certificates library takes them. It does not hold a certificate store,
-revocation, a handshake, or policy. `certificates` and `tls` are the
-libraries those belong in.
+PEM, PKCS#8 including PBES2, PKCS#12, X.509 including issuance, a parsed
+CRL, and a parsed OCSP response live here until a certificates library
+takes them. Fetching revocation and enumerating an operating-system trust
+store stay with the caller. It does not hold a handshake or policy.
+`certificates` and `tls` are the libraries those belong in.
 
 ## What is implemented
 
@@ -72,8 +73,11 @@ as P-256 with SHA-384 and 48-byte coordinates.
 - `gsec_ecdsa_p384_public`, `gsec_ecdsa_p384_sign`, and `gsec_ecdsa_p384_verify` are ECDSA on P-384. Coordinates and each half of a signature are 48 bytes. Signing uses SHA-384 and RFC 6979 and emits the low s. Verification accepts a high s.
 - `gsec_der_tlv` reads one strict DER value. An indefinite length, a non-minimal integer, and a SET that is not strictly ascending are rejected.
 - `gsec_pem_decode` reads the first PEM block. `gsec_pem_encode` writes one.
-- `gsec_pkcs8_parse` reads an unencrypted PKCS#8 key: RSA, P-256, P-384, or Ed25519. A password-encrypted key is `GSEC_ERR_UNSUPPORTED`. The pointers address the caller's buffer.
-- `gsec_x509_parse` reads one certificate. `gsec_x509_signed_by` checks the signature. `gsec_x509_path` walks a chain the caller arranged, leaf then intermediates then anchor, at a Unix second the caller supplies. `gsec_x509_hostname` matches a DNS name. Revocation is not checked. A critical extension this parser does not know is rejected.
+- `gsec_pkcs8_parse` reads an unencrypted PKCS#8 key: RSA, P-256, P-384, or Ed25519. `gsec_pkcs8_decrypt` opens a PBES2 EncryptedPrivateKeyInfo (PBKDF2 and AES-CBC or three-key Triple DES) and the password bytes are used as given. A wrong password is `GSEC_ERR_MISMATCH` and the buffer is wiped. The pointers address the caller's buffer.
+- `gsec_pkcs12_open` reads a PFX. The MAC uses the PKCS#12 key derivation on the password as UTF-16BE with two trailing zero bytes. A PBES2 bag uses the UTF-8 password. The key and the certificates are views of the caller's scratch buffer. RC2 is rejected.
+- `gsec_x509_parse` reads one certificate. `gsec_x509_signed_by` checks the signature. `gsec_x509_path` walks a chain the caller arranged, leaf then intermediates then anchor, at a Unix second the caller supplies. `gsec_x509_hostname` matches a DNS name. The path does not check revocation. `gsec_x509_issue` builds a certificate and signs it. A critical extension this parser does not know is rejected.
+- `gsec_crl_parse` reads a certificate revocation list. `gsec_crl_signed_by` checks the signature. `gsec_crl_contains` reports whether a serial is on the list. Fetching the list stays with the caller.
+- `gsec_ocsp_parse` reads a successful basic OCSP response. `gsec_ocsp_signed_by` checks the signature. `gsec_ocsp_status` looks up a certificate from hashes the caller computed. Fetching the response stays with the caller.
 - `gsec_selftest` runs the known-answer checks an embedder can call at startup: equal, wipe, a short entropy call, each hash, HMAC, HKDF, PBKDF2, AES, CTR, CBC, GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH, ECDSA P-256 and P-384, a 512-bit RSA signature in both paddings, and one DER value. RSA verification's known answer is the vector file.
 - `gsec_poison` and `gsec_unpoison` mark secret bytes for the constant-time gate. In a normal build they do nothing.
 

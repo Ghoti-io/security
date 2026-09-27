@@ -14,7 +14,7 @@
 #
 # A new primitive is a new row, with a named caller in documentation/design.md,
 # before the function is declared. tools/check_foundation.py is what enforces
-# that. It is run on a planted gsec_pkcs12 first, and fails if that plant is
+# that. It is run on a planted gsec_x448 first, and fails if that plant is
 # not reported as excluded.
 
 equal	implemented	self	tests/data/vectors/equal.vec
@@ -45,8 +45,7 @@ rsa_private	implemented	openssl	tests/data/vectors/rsa_private.vec
 rsa_pkcs1_v15	implemented	self	-
 rsa_oaep	implemented	self	-
 
-# Not now, and not by adding a row as implemented without the caller the
-# design names. pkcs12 stays excluded. Password-encrypted PKCS#8 is rejected.
+# Not now. x448 stays excluded so the foundation check still has a plant.
 aes_cbc	implemented	openssl	tests/data/vectors/aes_cbc.vec
 des	implemented	openssl	tests/data/vectors/des.vec
 rc4	implemented	openssl	tests/data/vectors/rc4.vec
@@ -59,4 +58,7 @@ der	implemented	self	-
 pem	implemented	self	-
 pkcs8	implemented	self	-
 x509	implemented	self	-
-pkcs12	excluded	none	-
+crl	implemented	self	-
+ocsp	implemented	self	-
+pkcs12	implemented	self	-
+x448	excluded	none	-

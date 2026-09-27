@@ -28,8 +28,9 @@
  * AES-CTR, AES-CBC, AES-GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 and
  * P-384 ECDH,
  * ECDSA P-256, ECDSA P-384, RSA signature verification, scrypt, bcrypt, Argon2,
- * and the certificate encodings (strict DER, PEM, unencrypted PKCS#8, and
- * X.509). Those encodings live here until a certificates library takes them.
+ * and the certificate encodings (strict DER, PEM, PKCS#8 including
+ * PBES2, PKCS#12, X.509 including issuance, CRLs, and basic OCSP).
+ * Those encodings live here until a certificates library takes them.
  * The handshake does not. See documentation/design.md.
  */
 
@@ -46,8 +47,11 @@
 #include <ghoti.io/security/hkdf.h>
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/pbkdf2.h>
+#include <ghoti.io/security/crl.h>
+#include <ghoti.io/security/ocsp.h>
 #include <ghoti.io/security/pem.h>
 #include <ghoti.io/security/pkcs8.h>
+#include <ghoti.io/security/pkcs12.h>
 #include <ghoti.io/security/core.h>
 #include <ghoti.io/security/der.h>
 #include <ghoti.io/security/des.h>

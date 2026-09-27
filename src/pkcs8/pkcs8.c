@@ -21,15 +21,18 @@
 /**
  * @file
  *
- * PKCS#8 PrivateKeyInfo, version 0 or 1, with no encryption. The private
- * key bytes stay in the caller's buffer.
+ * PKCS#8 PrivateKeyInfo, version 0 or 1. Parsing reads an unencrypted
+ * key. Decryption opens PBES2 and then parses. The private key bytes
+ * stay in the caller's buffer.
  */
 
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/pkcs8.h>
+#include <ghoti.io/security/secret.h>
 
 #include "../der/der_int.h"
+#include "pbes2.h"
 
 static const unsigned char OID_RSA[] = {
   0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01
@@ -312,6 +315,61 @@ GSEC_Result gsec_pkcs8_parse(const void * der, size_t len, GSEC_Pkcs8 * out) {
       clear_out(out);
       return result;
     }
+  }
+  return GSEC_OK;
+}
+
+GSEC_Result gsec_pkcs8_decrypt(const void * der, size_t len,
+    const void * password, size_t password_len, void * out, size_t out_cap,
+    size_t * out_len) {
+  GSEC_Der seq;
+  GSEC_Der alg;
+  GSEC_Der data;
+  GSEC_Result result;
+  const unsigned char * p;
+  size_t left;
+  GSEC_Pkcs8 key;
+
+  if (out_len == NULL || (der == NULL && len != 0) ||
+      (password == NULL && password_len != 0)) {
+    return GSEC_ERR_INVALID;
+  }
+  if (len == 0) {
+    return GSEC_ERR_CORRUPT;
+  }
+  result = gsec_der_tlv(der, len, &seq);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  if (!gsec_der_is(&seq, GSEC_DER_UNIVERSAL, 1, 16) || seq.total_len != len) {
+    return GSEC_ERR_CORRUPT;
+  }
+  p = seq.value;
+  left = seq.value_len;
+  result = gsec_der_next(&p, &left, &alg);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  if (gsec_der_is(&alg, GSEC_DER_UNIVERSAL, 0, 2)) {
+    return GSEC_ERR_UNSUPPORTED;
+  }
+  result = gsec_der_next(&p, &left, &data);
+  if (result != GSEC_OK || left != 0 ||
+      !gsec_der_is(&data, GSEC_DER_UNIVERSAL, 0, 4)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  result = gsec_pbes2_decrypt(&alg, data.value, data.value_len, password,
+      password_len, out, out_cap, out_len);
+  if (result != GSEC_OK) {
+    if (result == GSEC_ERR_MISMATCH && out != NULL) {
+      gsec_wipe(out, out_cap);
+    }
+    return result;
+  }
+  result = gsec_pkcs8_parse(out, *out_len, &key);
+  if (result != GSEC_OK) {
+    gsec_wipe(out, out_cap < data.value_len ? out_cap : data.value_len);
+    return result == GSEC_ERR_INVALID ? result : GSEC_ERR_MISMATCH;
   }
   return GSEC_OK;
 }

@@ -164,6 +164,71 @@ GSEC_API GSEC_Result gsec_x509_path(const void * leaf, size_t leaf_len,
 GSEC_API GSEC_Result gsec_x509_hostname(const GSEC_X509 * cert,
     const char * name, size_t name_len);
 
+/**
+ * @brief What to put in a certificate, apart from the issuer's key.
+ *
+ * @p issuer and @p subject are Name values, the whole SEQUENCE. @p serial
+ * is the unsigned magnitude, 1 to 20 bytes. @p point is x then y for a
+ * curve, or the 32-byte Ed25519 public key. @p dns, when @p dns_len is
+ * not 0, is one dNSName. @p ca emits a critical basicConstraints.
+ */
+typedef struct GSEC_X509_Tbs {
+  const void * issuer;
+  size_t issuer_len;
+  const void * subject;
+  size_t subject_len;
+  int64_t not_before;
+  int64_t not_after;
+  const void * serial;
+  size_t serial_len;
+  uint32_t subject_key;
+  const void * n;
+  size_t n_len;
+  const void * e;
+  size_t e_len;
+  const void * point;
+  size_t point_len;
+  int ca;
+  int path_len_set;
+  uint32_t path_len;
+  const void * dns;
+  size_t dns_len;
+} GSEC_X509_Tbs;
+
+/**
+ * @brief The issuer's private key.
+ *
+ * @p hash selects the RSA digest. P-256 signs with SHA-256 and P-384 with
+ * SHA-384. Ed25519 ignores @p hash. @p d is the private exponent, the
+ * scalar, or the Ed25519 seed.
+ */
+typedef struct GSEC_X509_Signer {
+  uint32_t key;
+  uint32_t hash;
+  const void * n;
+  size_t n_len;
+  const void * e;
+  size_t e_len;
+  const void * d;
+  size_t d_len;
+} GSEC_X509_Signer;
+
+/**
+ * @brief Build a certificate and sign it.
+ *
+ * The result parses with ::gsec_x509_parse. Extensions are a critical
+ * basicConstraints when @p tbs->ca is set, and one dNSName when
+ * @p tbs->dns_len is not 0.
+ *
+ * @param out The certificate. Wiped on failure.
+ * @param out_len Receives the certificate length.
+ * @return ::GSEC_OK, ::GSEC_ERR_INVALID, ::GSEC_ERR_LIMIT, ::GSEC_ERR_IO,
+ *   or ::GSEC_ERR_INTERNAL.
+ */
+GSEC_API GSEC_Result gsec_x509_issue(const GSEC_X509_Tbs * tbs,
+    const GSEC_X509_Signer * signer, void * out, size_t out_cap,
+    size_t * out_len);
+
 #ifdef __cplusplus
 }
 #endif

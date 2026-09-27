@@ -712,9 +712,12 @@ $(eval $(call fuzz-rule,fuzz_sha512,sha512))
 $(eval $(call fuzz-rule,fuzz_der,der))
 $(eval $(call fuzz-rule,fuzz_pem,pem))
 $(eval $(call fuzz-rule,fuzz_pkcs8,pkcs8))
+$(eval $(call fuzz-rule,fuzz_pkcs12,pkcs12))
+$(eval $(call fuzz-rule,fuzz_crl,crl))
+$(eval $(call fuzz-rule,fuzz_ocsp,ocsp))
 $(eval $(call fuzz-rule,fuzz_x509,x509))
 
-FUZZERS := aes aes_cbc aes_ctr aes_gcm des rc4 scrypt bcrypt argon2 chacha20_poly1305 x25519 ed25519 ecdh_p256 ecdh_p384 ecdsa_p256 ecdsa_p384 rsa_verify rsa_sign rsa_crypt equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512 der pem pkcs8 x509
+FUZZERS := aes aes_cbc aes_ctr aes_gcm des rc4 scrypt bcrypt argon2 chacha20_poly1305 x25519 ed25519 ecdh_p256 ecdh_p384 ecdsa_p256 ecdsa_p384 rsa_verify rsa_sign rsa_crypt equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512 der pem pkcs8 pkcs12 crl ocsp x509
 
 fuzz: $(addprefix fuzz-run-,$(FUZZERS)) ## Build and run every fuzzer
 
