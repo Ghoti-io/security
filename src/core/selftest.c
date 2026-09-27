@@ -31,6 +31,7 @@
 
 #include <ghoti.io/security/aes.h>
 #include <ghoti.io/security/aes_ctr.h>
+#include <ghoti.io/security/aes_gcm.h>
 #include <ghoti.io/security/hkdf.h>
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
@@ -424,6 +425,28 @@ GSEC_Result gsec_selftest(void) {
     }
     result = gsec_equal(got, want, sizeof got);
     gsec_wipe(got, sizeof got);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  /* AES-128-GCM, empty plaintext, 12 zero nonce bytes, zero key. */
+  {
+    static const unsigned char key[GSEC_AES128_KEY_LEN] = {0};
+    static const unsigned char iv[12] = {0};
+    static const unsigned char tag_want[16] = {
+      0x58, 0xe2, 0xfc, 0xce, 0xfa, 0x7e, 0x30, 0x61,
+      0x36, 0x7f, 0x1d, 0x57, 0xa4, 0xe7, 0x45, 0x5a
+    };
+    unsigned char tag[16];
+
+    result = gsec_aes_gcm_encrypt(key, sizeof key, iv, sizeof iv, NULL, 0,
+        NULL, 0, NULL, tag, sizeof tag);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(tag, tag_want, sizeof tag);
+    gsec_wipe(tag, sizeof tag);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
     }

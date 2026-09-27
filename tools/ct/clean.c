@@ -19,6 +19,7 @@
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/aes.h>
 #include <ghoti.io/security/aes_ctr.h>
+#include <ghoti.io/security/aes_gcm.h>
 #include <ghoti.io/security/md5.h>
 #include <ghoti.io/security/sha1.h>
 #include <ghoti.io/security/sha256.h>
@@ -142,6 +143,25 @@ int main(void) {
       return 16;
     }
     gsec_wipe(out, sizeof out);
+    gsec_wipe(key, sizeof key);
+  }
+  {
+    unsigned char iv[12];
+    unsigned char tag[16];
+    unsigned char out[8];
+    unsigned char key[GSEC_AES128_KEY_LEN];
+
+    memset(iv, 2, sizeof iv);
+    memset(key, 0x3c, sizeof key);
+    gsec_poison(key, sizeof key);
+    gsec_poison(secret, sizeof secret);
+    if (gsec_aes_gcm_encrypt(key, sizeof key, iv, sizeof iv, secret,
+        sizeof secret, secret, sizeof secret, out, tag, sizeof tag) !=
+        GSEC_OK) {
+      return 17;
+    }
+    gsec_wipe(out, sizeof out);
+    gsec_wipe(tag, sizeof tag);
     gsec_wipe(key, sizeof key);
   }
   {

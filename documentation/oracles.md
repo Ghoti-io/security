@@ -66,8 +66,10 @@ Each is hashed in one call and in chunks of 1 and of 64. The helper is
 (`GSEC_HASH_BIN`) the same way, with chunks of 1 and of 128, and with the
 padding lengths 111 through 129. SHA-1 uses the same helper, with the
 SHA-256 padding lengths and chunks of 1 and of 64. `tools/oracle/primitives.txt`
-lists those rows as `implemented` with judge `openssl`. Declaring
-`gsec_aes_gcm` while that row is still pending fails `make test`. HMAC is
+lists those rows as `implemented` with judge `openssl`. AES-GCM is judged
+by the pinned Wycheproof file, because `openssl enc` does not implement an
+AEAD. Declaring `gsec_chacha20_poly1305` while that row is still pending
+fails `make test`. HMAC is
 compared the same way: `examples/hmac.c` (`GSEC_HMAC_BIN`) against
 `openssl dgst -mac HMAC`. HKDF uses `examples/hkdf.c` (`GSEC_HKDF_BIN`)
 against `openssl kdf HKDF`. PBKDF2 uses `examples/pbkdf2.c`

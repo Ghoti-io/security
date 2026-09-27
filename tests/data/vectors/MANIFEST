@@ -1,5 +1,6 @@
 a6de9dffa7336eafa863c5b9ea1579e12f23b8cd655ca339c174ffb6ca4e6fdf  tests/data/vectors/aes.vec
 b6d7e5008c23e0a7861354148be9d49d53bcec35bffbc4727e0bc452b7cfa242  tests/data/vectors/aes_ctr.vec
+f8b77e6a539daf97101ea79ff5b02ba7f8996f6d8145481148d0ac0248d6964a  tests/data/vectors/aes_gcm.vec
 353144e6afcd18916ff464f0ff49714cb5c4357ffd7876f7811b7daf582c817c  tests/data/vectors/equal.vec
 edf8e22212acbcafa7a8c0b5782167825a85b90ef46931f7df6359b12d68fdf3  tests/data/vectors/hmac.vec
 de5f3fd5e1e190986d9ee417d788fadd4414bb9815244b99da597acf68bf6eda  tests/data/vectors/hkdf.vec

@@ -19,6 +19,7 @@ image, and the digests must be the same. GSEC_SHA256_BIN is that library,
 built by `make check-oracle`.
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -573,6 +574,83 @@ def diff_ctr():
                 "aes-%s-ctr is %s, openssl says %s\n" % (bits, got, want))
             return 1
         print("aes-%s-ctr %s" % (bits, want))
+    return diff_gcm()
+
+
+def same_hex(got, want):
+    if got == "" and want == "":
+        return True
+    return compare.hex_equal(got, want)
+
+
+def library_gcm(binary, direction, bits, key_hex, iv_hex, aad_hex, tag_hex,
+        message):
+    argv = [binary, direction, bits, key_hex, iv_hex, aad_hex]
+    if direction == "decrypt":
+        argv.append(tag_hex)
+    proc = subprocess.run(argv, input=message, capture_output=True)
+    text = proc.stdout.decode("utf-8", "replace")
+    return proc.returncode, text
+
+
+def diff_gcm():
+    binary = os.environ.get("GSEC_AES_GCM_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_AES_GCM_BIN is not set\n")
+        return 1
+    proc = subprocess.run(
+        oracle_env.command("wycheproof", ["cat", WYCHEPROOF_FILE]),
+        capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        return 1
+    try:
+        data = json.loads(proc.stdout.decode("utf-8"))
+    except json.JSONDecodeError as error:
+        sys.stderr.write("wycheproof aes_gcm_test.json: %s\n" % error)
+        return 1
+    checked = 0
+    for group in data["testGroups"]:
+        bits = str(group["keySize"])
+        for case in group["tests"]:
+            aad = case["aad"] if case["aad"] else "-"
+            iv = case["iv"] if case["iv"] else "-"
+            message = bytes.fromhex(case["msg"]) if case["msg"] else b""
+            checked += 1
+            if case["result"] != "valid":
+                code, _text = library_gcm(
+                    binary, "decrypt", bits, case["key"], iv, aad, case["tag"],
+                    bytes.fromhex(case["ct"]) if case["ct"] else b"")
+                if code == 0:
+                    sys.stderr.write(
+                        "aes-gcm tc %s was accepted\n" % case["tcId"])
+                    return 1
+                continue
+            code, text = library_gcm(
+                binary, "encrypt", bits, case["key"], iv, aad, "", message)
+            lines = text.splitlines()
+            if code != 0 or len(lines) != 2:
+                sys.stderr.write(
+                    "aes-gcm tc %s encrypt exited %s\n" % (case["tcId"], code))
+                return 1
+            if not same_hex(lines[0], case["ct"]) or not compare.hex_equal(
+                    lines[1], case["tag"]):
+                sys.stderr.write(
+                    "aes-gcm tc %s encrypt is %s %s, wycheproof says %s %s\n"
+                    % (case["tcId"], lines[0], lines[1], case["ct"], case["tag"]))
+                return 1
+            cipher = bytes.fromhex(case["ct"]) if case["ct"] else b""
+            code, text = library_gcm(
+                binary, "decrypt", bits, case["key"], iv, aad, case["tag"],
+                cipher)
+            if code != 0 or not same_hex(text.strip(), case["msg"]):
+                sys.stderr.write(
+                    "aes-gcm tc %s decrypt exited %s\n" % (case["tcId"], code))
+                return 1
+    if checked < 300:
+        sys.stderr.write("aes-gcm checked %s wycheproof cases\n" % checked)
+        return 1
+    print("aes-gcm wycheproof %s" % checked)
     return 0
 
 

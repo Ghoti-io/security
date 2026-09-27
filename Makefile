@@ -683,6 +683,7 @@ endef
 
 $(eval $(call fuzz-rule,fuzz_aes,aes))
 $(eval $(call fuzz-rule,fuzz_aes_ctr,aes_ctr))
+$(eval $(call fuzz-rule,fuzz_aes_gcm,aes_gcm))
 $(eval $(call fuzz-rule,fuzz_equal,equal))
 $(eval $(call fuzz-rule,fuzz_hmac,hmac))
 $(eval $(call fuzz-rule,fuzz_hkdf,hkdf))
@@ -693,7 +694,7 @@ $(eval $(call fuzz-rule,fuzz_sha1,sha1))
 $(eval $(call fuzz-rule,fuzz_sha256,sha256))
 $(eval $(call fuzz-rule,fuzz_sha512,sha512))
 
-FUZZERS := aes aes_ctr equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512
+FUZZERS := aes aes_ctr aes_gcm equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512
 
 fuzz: $(addprefix fuzz-run-,$(FUZZERS)) ## Build and run every fuzzer
 
@@ -725,7 +726,8 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/hkdf$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/pbkdf2$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/aes$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/aes_ctr$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
+		$(APP_DIR)/examples/aes_ctr$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/aes_gcm$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
 	@GHOTI_ORACLE_REQUIRED=1 GSEC_SHA256_BIN="$(APP_DIR)/examples/sha256$(EXE_EXTENSION)" \
 		GSEC_HASH_BIN="$(APP_DIR)/examples/hash$(EXE_EXTENSION)" \
 		GSEC_HMAC_BIN="$(APP_DIR)/examples/hmac$(EXE_EXTENSION)" \
@@ -733,6 +735,7 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		GSEC_PBKDF2_BIN="$(APP_DIR)/examples/pbkdf2$(EXE_EXTENSION)" \
 		GSEC_AES_BIN="$(APP_DIR)/examples/aes$(EXE_EXTENSION)" \
 		GSEC_AES_CTR_BIN="$(APP_DIR)/examples/aes_ctr$(EXE_EXTENSION)" \
+		GSEC_AES_GCM_BIN="$(APP_DIR)/examples/aes_gcm$(EXE_EXTENSION)" \
 		$(ORACLE_RUN) openssl,wycheproof -- python3 $(ORACLE)/openssl_kat.py
 
 ####################################################################
