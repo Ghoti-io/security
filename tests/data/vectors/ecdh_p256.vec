@@ -1,0 +1,10 @@
+# P-256 ECDH.
+# peer is x then y, with no uncompressed-point prefix.
+# make check-oracle also runs the pinned Wycheproof file.
+primitive ecdh_p256
+
+case wycheproof-1
+scalar 0612465c89a023ab17855b0a6bcebfd3febb53aef84138647b5352e02c10c346
+peer 62d5bd3372af75fe85a040715d0f502428e07046868b0bfdfa61d731afe44f26ac333a93a9e70a81cd5a95b5bf8d13990eb741c8c38872b4a07d275a014e30cf
+shared 53020d908b0219328b658b525f26780e3ae12bcd952bb25a93bc0895e1714285
+public b59cc7671dd6a6b836e2cd9396ef5618b2ff3e8192dd7c9d36c27cb56ff916614826d9dbd5ae64cdd8575068bbc9e63f231ea57ed03248844c09331b95392053

@@ -76,8 +76,10 @@ case may be rejected, which is how the all-zero shared secret is handled,
 or it must match. Ed25519 is the same shape: the committed vector is RFC 8032,
 and the oracle runs the pinned Wycheproof file. A `valid` case must be
 accepted. An `invalid` case, including a non-canonical S, must be rejected.
-Declaring `gsec_ecdh_p256` while that row is still pending
-fails `make test`. HMAC is
+P-256 ECDH is judged by the pinned Wycheproof ecpoint file. The committed
+vector is one of those cases. A `valid` case must match the shared x. An
+`invalid` case, and a compressed point, must be rejected. Declaring
+`gsec_ecdsa_p256` while that row is still pending fails `make test`. HMAC is
 compared the same way: `examples/hmac.c` (`GSEC_HMAC_BIN`) against
 `openssl dgst -mac HMAC`. HKDF uses `examples/hkdf.c` (`GSEC_HKDF_BIN`)
 against `openssl kdf HKDF`. PBKDF2 uses `examples/pbkdf2.c`

@@ -67,6 +67,8 @@
 #define gsec_aes_gcm_encrypt GHOTIIO_SECURITY(gsec_aes_gcm_encrypt)
 #define gsec_chacha20_poly1305_decrypt GHOTIIO_SECURITY(gsec_chacha20_poly1305_decrypt)
 #define gsec_chacha20_poly1305_encrypt GHOTIIO_SECURITY(gsec_chacha20_poly1305_encrypt)
+#define gsec_ecdh_p256 GHOTIIO_SECURITY(gsec_ecdh_p256)
+#define gsec_ecdh_p256_public GHOTIIO_SECURITY(gsec_ecdh_p256_public)
 #define gsec_ed25519_public GHOTIIO_SECURITY(gsec_ed25519_public)
 #define gsec_ed25519_sign GHOTIIO_SECURITY(gsec_ed25519_sign)
 #define gsec_ed25519_verify GHOTIIO_SECURITY(gsec_ed25519_verify)

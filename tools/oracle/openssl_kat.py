@@ -13,7 +13,7 @@
 SHA-256 of the three bytes 61 62 63 is the NIST known answer
 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad.
 Wycheproof's aes_gcm_test.json, chacha20_poly1305_test.json,
-x25519_test.json, and ed25519_test.json at the pinned commit have the
+x25519_test.json, ed25519_test.json, and ecdh_secp256r1_ecpoint_test.json at the pinned commit have the
 digests in containers/CORPUS.
 Those checks judge the oracle. The messages after
 them are hashed by this library and by `openssl dgst -sha256` in the
@@ -36,6 +36,7 @@ WYCHEPROOF_FILE = "/opt/wycheproof/testvectors_v1/aes_gcm_test.json"
 WYCHEPROOF_CHACHA = "/opt/wycheproof/testvectors_v1/chacha20_poly1305_test.json"
 WYCHEPROOF_X25519 = "/opt/wycheproof/testvectors_v1/x25519_test.json"
 WYCHEPROOF_ED25519 = "/opt/wycheproof/testvectors_v1/ed25519_test.json"
+WYCHEPROOF_ECDH_P256 = "/opt/wycheproof/testvectors_v1/ecdh_secp256r1_ecpoint_test.json"
 
 
 def corpus_digest(filename):
@@ -147,6 +148,25 @@ def main():
             "wycheproof ed25519_test.json is %s, CORPUS says %s\n" % (got, want))
         return 1
     print("wycheproof ed25519_test.json %s" % got)
+
+    wy = subprocess.run(
+        oracle_env.command("wycheproof", ["sha256sum", WYCHEPROOF_ECDH_P256]),
+        capture_output=True)
+    if wy.returncode != 0:
+        sys.stderr.write(wy.stderr.decode("utf-8", "replace"))
+        return 1
+    fields = wy.stdout.decode("utf-8", "replace").split()
+    if not fields:
+        sys.stderr.write("sha256sum produced no digest\n")
+        return 1
+    got = fields[0]
+    want = corpus_digest("testvectors_v1/ecdh_secp256r1_ecpoint_test.json")
+    if not compare.hex_equal(got, want):
+        sys.stderr.write(
+            "wycheproof ecdh_secp256r1_ecpoint_test.json is %s, CORPUS says %s\n"
+            % (got, want))
+        return 1
+    print("wycheproof ecdh_secp256r1_ecpoint_test.json %s" % got)
     return diff_library()
 
 
@@ -886,6 +906,57 @@ def diff_ed25519():
         sys.stderr.write("ed25519 checked %s wycheproof cases\n" % checked)
         return 1
     print("ed25519 wycheproof %s" % checked)
+    return diff_ecdh_p256()
+
+
+def library_ecdh_p256(binary, scalar_hex, peer_hex):
+    proc = subprocess.run(
+        [binary, scalar_hex, peer_hex], capture_output=True)
+    text = proc.stdout.decode("utf-8", "replace")
+    return proc.returncode, text
+
+
+def diff_ecdh_p256():
+    binary = os.environ.get("GSEC_ECDH_P256_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_ECDH_P256_BIN is not set\n")
+        return 1
+    proc = subprocess.run(
+        oracle_env.command("wycheproof", ["cat", WYCHEPROOF_ECDH_P256]),
+        capture_output=True)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
+        return 1
+    try:
+        data = json.loads(proc.stdout.decode("utf-8"))
+    except json.JSONDecodeError as error:
+        sys.stderr.write("wycheproof ecdh_secp256r1_ecpoint_test.json: %s\n" % error)
+        return 1
+    checked = 0
+    for group in data["testGroups"]:
+        for case in group["tests"]:
+            checked += 1
+            code, text = library_ecdh_p256(binary, case["private"], case["public"])
+            shared = text.strip()
+            if case["result"] == "valid":
+                if code != 0 or not compare.hex_equal(shared, case["shared"]):
+                    sys.stderr.write(
+                        "ecdh-p256 tc %s exited %s\n" % (case["tcId"], code))
+                    return 1
+                continue
+            if case["result"] == "invalid" or case["result"] == "acceptable":
+                if code == 0:
+                    sys.stderr.write(
+                        "ecdh-p256 tc %s was accepted\n" % case["tcId"])
+                    return 1
+                continue
+            sys.stderr.write(
+                "ecdh-p256 tc %s has result %s\n" % (case["tcId"], case["result"]))
+            return 1
+    if checked < 355:
+        sys.stderr.write("ecdh-p256 checked %s wycheproof cases\n" % checked)
+        return 1
+    print("ecdh-p256 wycheproof %s" % checked)
     return 0
 
 

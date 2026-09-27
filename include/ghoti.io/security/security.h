@@ -25,7 +25,7 @@
  *
  * Primitives only: comparison, wiping, the entropy call, SHA-256, SHA-512,
  * SHA-384, SHA-1, MD5, HMAC over the SHA hashes, HKDF, PBKDF2, AES,
- * AES-CTR, AES-GCM, ChaCha20-Poly1305, X25519, and Ed25519.
+ * AES-CTR, AES-GCM, ChaCha20-Poly1305, X25519, Ed25519, and P-256 ECDH.
  * The rest of the set is named in `tools/oracle/primitives.txt` and is not
  * declared until the commit that implements it. X.509, PEM, the handshake,
  * and password hashing for
@@ -44,6 +44,7 @@
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/core.h>
+#include <ghoti.io/security/ecdh_p256.h>
 #include <ghoti.io/security/ed25519.h>
 #include <ghoti.io/security/macros.h>
 #include <ghoti.io/security/md5.h>

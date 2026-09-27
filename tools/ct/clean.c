@@ -21,6 +21,7 @@
 #include <ghoti.io/security/aes_ctr.h>
 #include <ghoti.io/security/aes_gcm.h>
 #include <ghoti.io/security/chacha20_poly1305.h>
+#include <ghoti.io/security/ecdh_p256.h>
 #include <ghoti.io/security/ed25519.h>
 #include <ghoti.io/security/x25519.h>
 #include <ghoti.io/security/md5.h>
@@ -212,6 +213,28 @@ int main(void) {
     }
     gsec_wipe(sig, sizeof sig);
     gsec_wipe(seed, sizeof seed);
+  }
+  {
+    unsigned char scalar[GSEC_P256_LEN];
+    unsigned char peer[GSEC_P256_PUBLIC_LEN] = {
+      0x6b, 0x17, 0xd1, 0xf2, 0xe1, 0x2c, 0x42, 0x47,
+      0xf8, 0xbc, 0xe6, 0xe5, 0x63, 0xa4, 0x40, 0xf2,
+      0x77, 0x03, 0x7d, 0x81, 0x2d, 0xeb, 0x33, 0xa0,
+      0xf4, 0xa1, 0x39, 0x45, 0xd8, 0x98, 0xc2, 0x96,
+      0x4f, 0xe3, 0x42, 0xe2, 0xfe, 0x1a, 0x7f, 0x9b,
+      0x8e, 0xe7, 0xeb, 0x4a, 0x7c, 0x0f, 0x9e, 0x16,
+      0x2b, 0xce, 0x33, 0x57, 0x6b, 0x31, 0x5e, 0xce,
+      0xcb, 0xb6, 0x40, 0x68, 0x37, 0xbf, 0x51, 0xf5
+    };
+    unsigned char out[GSEC_P256_LEN];
+
+    memset(scalar, 0x3c, sizeof scalar);
+    gsec_poison(scalar, sizeof scalar);
+    if (gsec_ecdh_p256(scalar, peer, out) != GSEC_OK) {
+      return 21;
+    }
+    gsec_wipe(out, sizeof out);
+    gsec_wipe(scalar, sizeof scalar);
   }
   {
     unsigned char mac[GSEC_SHA256_DIGEST_LEN];

@@ -15,7 +15,11 @@ X25519 is RFC 7748. The scalar is clamped inside the function, and the top
 bit of the u-coordinate is ignored. A shared secret of all zeros is rejected
 and wiped. Ed25519 is RFC 8032, pure, with no context string. Signing is
 deterministic. Verification rejects a non-canonical point and an S that is
-not strictly less than the group order. The primitive
+not strictly less than the group order. P-256 ECDH uses the complete
+addition formula. A coordinate that is not strictly less than the prime,
+a point that is not on the curve, and the point at infinity are rejected
+and the output is wiped. A shared x of zero is a result, not a failure.
+The primitive
 registry in `tools/oracle/primitives.txt` is the list of what may be
 declared. The phases below are the order the rest is built in.
 
@@ -38,7 +42,7 @@ package is `ghoti.io-security-0`, the include path
 | Entropy comes from the kernel | `gsec_random_bytes` calls `getrandom` without `GRND_NONBLOCK` on Linux, `getentropy` on macOS, and `BCryptGenRandom` on Windows. A short read is retried. Any other failure wipes the output and returns `GSEC_ERR_IO`. |
 | A wiped buffer stays wiped | `gsec_wipe` writes through a `volatile` pointer. The compiler is not trusted to keep a `memset` of a dead buffer. |
 | Nothing in the library prints a secret | `gsec_result_string` returns one of a fixed table of static strings. There is no `_dump` for a key, a scalar, or a derived secret. |
-| A function that does not exist yet cannot be declared quietly | `check-foundation` reads the registry and the headers. `implemented` must have a declaration. `pending` and `excluded` must not. The check plants `gsec_ecdh_p256` and requires that plant to be rejected while `ecdh_p256` is pending. |
+| A function that does not exist yet cannot be declared quietly | `check-foundation` reads the registry and the headers. `implemented` must have a declaration. `pending` and `excluded` must not. The check plants `gsec_ecdsa_p256` and requires that plant to be rejected while `ecdsa_p256` is pending. |
 | An outside judge, once the function exists | An `implemented` row whose judge is not `self` requires a vector file hashed in `tests/data/vectors/MANIFEST`. The container image is how that judge is run. See [oracles.md](oracles.md). |
 
 `GSEC_Limits` has one field, `max_random_bytes`, default 1 MiB, because that
@@ -149,7 +153,7 @@ Phase 9 may never be built.
 | 4 | ChaCha20-Poly1305 is implemented | TLS 1.3. No bignum |
 | 5 | X25519 is implemented | TLS 1.3 key agreement. The all-zero shared secret is rejected |
 | 6 | Ed25519 is implemented | RFC 8032. Verification rejects a non-canonical point and a non-canonical S |
-| 7 | P-256: field, point arithmetic, ECDH, ECDSA with RFC 6979 | The first hard one |
+| 7 | P-256 ECDH is implemented. ECDSA with RFC 6979 is still to come | ECDH rejects a non-canonical coordinate, an off-curve point, and infinity |
 | 8 | Bignum, RSA verify (PSS and PKCS#1 v1.5) | Verification only |
 | 9 | RSA private operations | Skippable |
 | 10 | P-384, if certificates need it | |
