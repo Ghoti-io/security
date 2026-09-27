@@ -3,9 +3,9 @@
  *
  * libFuzzer harness for PKCS#12.
  *
- * An iteration count above 64 is refused here. The library accepts far
- * more, and a fuzzer that honoured that would spend the run inside
- * PBKDF2.
+ * A three- or four-byte INTEGER anywhere in the input is refused here.
+ * That is how an iteration count large enough to stall the run is
+ * encoded. The library accepts far more.
  *
  * Copyright 2026 by Corey Pennycuff
  */
