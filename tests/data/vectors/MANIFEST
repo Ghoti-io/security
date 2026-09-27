@@ -12,3 +12,4 @@ dd2f23b603fa5341b96b2a6b266ada1fd5ff9913fdde8c20fb1c3ed1aefccd4e  tests/data/vec
 f5c3e5a90c2eb6b6e6758f7f72624ada841fcc79f5ba136237419a52219ee34d  tests/data/vectors/sha384.vec
 165d7478324cbf99478187fb773e515c4086d40371bf45a5e972d6b795b32c65  tests/data/vectors/sha512.vec
 debca332606f0dfb4544e896b9ebf39455e4fb0c4fd9ce9a6bb0d61e49e958ec  tests/data/vectors/x25519.vec
+b8a0ccfef9246bdcbb6440d8dd9e4cef55207be327337a0142653377fdaf8f29  tests/data/vectors/ed25519.vec

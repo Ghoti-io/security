@@ -15,7 +15,7 @@ run that fails when two files that are supposed to name one pin have drifted,
 or when a primitive was declared without a row saying who judges it.
 
 The classifier is run on a planted declaration before it is trusted on the
-tree. A planted `gsec_ed25519` while ed25519 is still pending
+tree. A planted `gsec_ecdh_p256` while ecdh_p256 is still pending
 must be reported. If it is not, this program is not a gate. The plant moves to the
 next pending primitive when one is implemented.
 """
@@ -177,13 +177,14 @@ def main():
         "gsec_aes_gcm_encrypt", "gsec_aes_gcm_decrypt",
         "gsec_chacha20_poly1305_encrypt", "gsec_chacha20_poly1305_decrypt",
         "gsec_x25519", "gsec_x25519_public",
+        "gsec_ed25519_public", "gsec_ed25519_sign", "gsec_ed25519_verify",
     }
     clean = classify(present, rows)
     if clean:
         fail("the implemented set was rejected: %r" % clean)
-    planted = classify(present | {"gsec_ed25519"}, rows)
-    if not any("ed25519" in item and "pending" in item for item in planted):
-        fail("a planted gsec_ed25519 was not rejected: %r" % planted)
+    planted = classify(present | {"gsec_ecdh_p256"}, rows)
+    if not any("ecdh_p256" in item and "pending" in item for item in planted):
+        fail("a planted gsec_ecdh_p256 was not rejected: %r" % planted)
 
     functions = declarations()
     missing = sorted(FOUNDATION - functions)
@@ -223,6 +224,8 @@ def main():
         fail("CORPUS does not name chacha20_poly1305_test.json")
     if "testvectors_v1/x25519_test.json" not in corpus:
         fail("CORPUS does not name x25519_test.json")
+    if "testvectors_v1/ed25519_test.json" not in corpus:
+        fail("CORPUS does not name ed25519_test.json")
     digest = None
     for line in corpus.splitlines():
         if line.startswith("#") or not line.strip():

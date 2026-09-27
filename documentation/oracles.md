@@ -55,7 +55,7 @@ probe that exits non-zero is a failure. The probe is
 `tools/oracle/openssl_kat.py`:
 
 - SHA-256 of `abc` is `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`.
-- `sha256sum` of the pinned `aes_gcm_test.json`, `chacha20_poly1305_test.json`, and `x25519_test.json` match `CORPUS`.
+- `sha256sum` of the pinned `aes_gcm_test.json`, `chacha20_poly1305_test.json`, `x25519_test.json`, and `ed25519_test.json` match `CORPUS`.
 
 Those two checks judge the oracle. The messages after them judge
 `gsec_sha256`: empty, `abc`, the RFC 6234 two-block string, the padding
@@ -73,7 +73,10 @@ committed vector is the RFC 8439 case; the oracle runs the rest.
 X25519 is the same shape: the committed vector is RFC 7748, and the oracle
 runs the pinned Wycheproof file. A `valid` case must match. An `acceptable`
 case may be rejected, which is how the all-zero shared secret is handled,
-or it must match. Declaring `gsec_ed25519` while that row is still pending
+or it must match. Ed25519 is the same shape: the committed vector is RFC 8032,
+and the oracle runs the pinned Wycheproof file. A `valid` case must be
+accepted. An `invalid` case, including a non-canonical S, must be rejected.
+Declaring `gsec_ecdh_p256` while that row is still pending
 fails `make test`. HMAC is
 compared the same way: `examples/hmac.c` (`GSEC_HMAC_BIN`) against
 `openssl dgst -mac HMAC`. HKDF uses `examples/hkdf.c` (`GSEC_HKDF_BIN`)

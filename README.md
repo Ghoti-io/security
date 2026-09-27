@@ -20,7 +20,9 @@ CTR, GCM, and ChaCha20-Poly1305 are implemented. ChaCha20-Poly1305 takes a
 when the tag does not match. Nonce reuse under one key destroys authentication.
 X25519 takes a 32-byte scalar and a 32-byte u-coordinate. The scalar is
 clamped inside the function. A shared secret of all zeros is rejected and
-the output is wiped.
+the output is wiped. Ed25519 takes a 32-byte seed. The signature is 64
+bytes. Verification rejects a point that is not canonical and an S that is
+not strictly less than the group order.
 
 - `gsec_equal` compares two regions and returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
@@ -34,6 +36,7 @@ the output is wiped.
 - `gsec_aes_gcm_encrypt` and `gsec_aes_gcm_decrypt` are AES-GCM. Decrypt wipes the plaintext when the tag does not match. Nonce reuse under one key destroys authentication.
 - `gsec_chacha20_poly1305_encrypt` and `gsec_chacha20_poly1305_decrypt` are AEAD_CHACHA20_POLY1305. The key, nonce, and tag lengths are fixed. Decrypt wipes the plaintext when the tag does not match. Nonce reuse under one key destroys authentication.
 - `gsec_x25519` multiplies a scalar by a peer u-coordinate. `gsec_x25519_public` multiplies it by the base point. Both lengths are fixed at 32 bytes. The all-zero shared secret is rejected and the output is wiped.
+- `gsec_ed25519_public` derives a public key from a 32-byte seed. `gsec_ed25519_sign` signs a message. `gsec_ed25519_verify` returns `GSEC_ERR_MISMATCH` for a bad signature, a non-canonical point, or an S that is not strictly less than the group order.
 - `gsec_selftest` runs the known-answer checks an embedder can call at startup. That is the calls above, including each hash of the empty message and of `abc`, and the HMAC-SHA-256 of RFC 4231 test case 1.
 - `gsec_poison` and `gsec_unpoison` mark secret bytes for the constant-time gate. In a normal build they do nothing.
 
