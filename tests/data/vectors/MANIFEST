@@ -1,4 +1,5 @@
 353144e6afcd18916ff464f0ff49714cb5c4357ffd7876f7811b7daf582c817c  tests/data/vectors/equal.vec
+8d1d8ca3c7eea4901ea7b29ab39d8c82baab46bffc6770c29e61ed23fcf82ddb  tests/data/vectors/sha1.vec
 dd2f23b603fa5341b96b2a6b266ada1fd5ff9913fdde8c20fb1c3ed1aefccd4e  tests/data/vectors/sha256.vec
 f5c3e5a90c2eb6b6e6758f7f72624ada841fcc79f5ba136237419a52219ee34d  tests/data/vectors/sha384.vec
 165d7478324cbf99478187fb773e515c4086d40371bf45a5e972d6b795b32c65  tests/data/vectors/sha512.vec

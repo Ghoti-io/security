@@ -4,8 +4,8 @@ The algorithms this library implements are judged by something that is
 not this library. `make check-oracle` first checks that the image still
 produces the published SHA-256 of `abc` and the Wycheproof file the pin
 names. It then hashes the same messages with this library and with
-`openssl dgst` in the image, for SHA-256, SHA-512, and SHA-384. A difference
-fails the target.
+`openssl dgst` in the image, for SHA-256, SHA-512, SHA-384, and SHA-1. A
+difference fails the target.
 
 `make test` does not run a container. A checkout with no container runtime
 still builds and tests. The differential is a separate target, and that
@@ -64,9 +64,10 @@ Each is hashed in one call and in chunks of 1 and of 64. The helper is
 `examples/sha256.c`, which `make check-oracle` builds and passes as
 `GSEC_SHA256_BIN`. SHA-512 and SHA-384 use `examples/hash.c`
 (`GSEC_HASH_BIN`) the same way, with chunks of 1 and of 128, and with the
-padding lengths 111 through 129. `tools/oracle/primitives.txt` lists those
-rows as `implemented` with judge `openssl`. Declaring `gsec_sha1_init` while
-that row is still pending fails `make test`.
+padding lengths 111 through 129. SHA-1 uses the same helper, with the
+SHA-256 padding lengths and chunks of 1 and of 64. `tools/oracle/primitives.txt`
+lists those rows as `implemented` with judge `openssl`. Declaring
+`gsec_hmac_init` while that row is still pending fails `make test`.
 
 A host-mode run (`GHOTI_ORACLE=host`) uses the `openssl` on `PATH` and still
 requires the version string. It is a way to run the probe without a
@@ -83,6 +84,6 @@ hand-edited expected digest would not have.
 
 The parser rejects a truncated hex string, an odd number of digits, an
 uppercase digit, a boolean expectation, and a length that does not match
-the bytes. `equal`, `sha256`, `sha512`, and `sha384` each have a file. A
+the bytes. `equal`, `sha256`, `sha512`, `sha384`, and `sha1` each have a file. A
 later primitive adds a file in the same commit as the function, and names
 it on the registry row.

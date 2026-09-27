@@ -15,7 +15,7 @@ run that fails when two files that are supposed to name one pin have drifted,
 or when a primitive was declared without a row saying who judges it.
 
 The classifier is run on a planted declaration before it is trusted on the
-tree. A planted `gsec_sha1_init` while sha1 is still pending must be
+tree. A planted `gsec_hmac_init` while hmac is still pending must be
 reported. If it is not, this program is not a gate. The plant moves to the
 next pending primitive when one is implemented.
 """
@@ -156,6 +156,8 @@ def main():
     # those apart: both look like whatever the headers happen to say.
     present = {
         "gsec_equal", "gsec_wipe", "gsec_random_bytes",
+        "gsec_sha1", "gsec_sha1_init", "gsec_sha1_update",
+        "gsec_sha1_final",
         "gsec_sha256", "gsec_sha256_init", "gsec_sha256_update",
         "gsec_sha256_final",
         "gsec_sha384", "gsec_sha384_init", "gsec_sha384_update",
@@ -166,9 +168,9 @@ def main():
     clean = classify(present, rows)
     if clean:
         fail("the implemented set was rejected: %r" % clean)
-    planted = classify(present | {"gsec_sha1_init"}, rows)
-    if not any("sha1" in item and "pending" in item for item in planted):
-        fail("a planted gsec_sha1_init was not rejected: %r" % planted)
+    planted = classify(present | {"gsec_hmac_init"}, rows)
+    if not any("hmac" in item and "pending" in item for item in planted):
+        fail("a planted gsec_hmac_init was not rejected: %r" % planted)
 
     functions = declarations()
     missing = sorted(FOUNDATION - functions)

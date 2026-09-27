@@ -14,8 +14,8 @@
 #
 # A new primitive is a new row, with a named caller in documentation/design.md,
 # before the function is declared. tools/check_foundation.py is what enforces
-# that. It is run on a planted gsec_sha1_init first, and fails if that plant
-# is not reported while sha1 is still pending.
+# that. It is run on a planted gsec_hmac_init first, and fails if that plant
+# is not reported while hmac is still pending.
 
 equal	implemented	self	tests/data/vectors/equal.vec
 wipe	implemented	self	-
@@ -24,7 +24,7 @@ random	implemented	self	-
 sha256	implemented	openssl	tests/data/vectors/sha256.vec
 sha384	implemented	openssl	tests/data/vectors/sha384.vec
 sha512	implemented	openssl	tests/data/vectors/sha512.vec
-sha1	pending	openssl	-
+sha1	implemented	openssl	tests/data/vectors/sha1.vec
 hmac	pending	openssl	-
 hkdf	pending	rfc	-
 pbkdf2	pending	rfc	-

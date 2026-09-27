@@ -14,6 +14,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/secret.h>
+#include <ghoti.io/security/sha1.h>
 #include <ghoti.io/security/sha256.h>
 #include <ghoti.io/security/sha384.h>
 #include <ghoti.io/security/sha512.h>
@@ -84,6 +85,15 @@ int main(void) {
     gsec_poison(secret, sizeof secret);
     if (gsec_sha384(secret, sizeof secret, digest) != GSEC_OK) {
       return 9;
+    }
+    gsec_wipe(digest, sizeof digest);
+  }
+  {
+    unsigned char digest[GSEC_SHA1_DIGEST_LEN];
+
+    gsec_poison(secret, sizeof secret);
+    if (gsec_sha1(secret, sizeof secret, digest) != GSEC_OK) {
+      return 10;
     }
     gsec_wipe(digest, sizeof digest);
   }

@@ -23,7 +23,7 @@
  *
  * Hash stdin and print the digest in hex.
  *
- * `hash sha384` or `hash sha512`. `--chunk N` absorbs stdin N bytes at a
+ * `hash sha1`, `hash sha384`, or `hash sha512`. `--chunk N` absorbs stdin N bytes at a
  * time. The message is capped at 1 MiB. `make check-oracle` runs both
  * forms against the pinned OpenSSL.
  */
@@ -31,6 +31,7 @@
 #include <ghoti.io/security/macros.h>
 
 #include <ghoti.io/security/secret.h>
+#include <ghoti.io/security/sha1.h>
 #include <ghoti.io/security/sha384.h>
 #include <ghoti.io/security/sha512.h>
 
@@ -90,6 +91,9 @@ static int hash_oneshot(const char * alg) {
   } else if (strcmp(alg, "sha384") == 0) {
     digest_len = GSEC_SHA384_DIGEST_LEN;
     result = gsec_sha384(n == 0 ? NULL : buf, n, digest);
+  } else if (strcmp(alg, "sha1") == 0) {
+    digest_len = GSEC_SHA1_DIGEST_LEN;
+    result = gsec_sha1(n == 0 ? NULL : buf, n, digest);
   } else {
     gsec_wipe(buf, MAX_MESSAGE);
     free(buf);
@@ -105,28 +109,67 @@ static int hash_oneshot(const char * alg) {
   return rc;
 }
 
+static void wipe_ctx(int kind, GSEC_Sha512 * sha512, GSEC_Sha384 * sha384,
+    GSEC_Sha1 * sha1) {
+  if (kind == 512) {
+    gsec_wipe(sha512, sizeof *sha512);
+  } else if (kind == 384) {
+    gsec_wipe(sha384, sizeof *sha384);
+  } else {
+    gsec_wipe(sha1, sizeof *sha1);
+  }
+}
+
+static GSEC_Result update_ctx(int kind, GSEC_Sha512 * sha512,
+    GSEC_Sha384 * sha384, GSEC_Sha1 * sha1, const unsigned char * buf,
+    size_t n) {
+  if (kind == 512) {
+    return gsec_sha512_update(sha512, buf, n);
+  }
+  if (kind == 384) {
+    return gsec_sha384_update(sha384, buf, n);
+  }
+  return gsec_sha1_update(sha1, buf, n);
+}
+
+static GSEC_Result final_ctx(int kind, GSEC_Sha512 * sha512,
+    GSEC_Sha384 * sha384, GSEC_Sha1 * sha1, unsigned char * digest) {
+  if (kind == 512) {
+    return gsec_sha512_final(sha512, digest);
+  }
+  if (kind == 384) {
+    return gsec_sha384_final(sha384, digest);
+  }
+  return gsec_sha1_final(sha1, digest);
+}
+
 static int hash_chunks(const char * alg, size_t chunk) {
   unsigned char * buf;
   unsigned char digest[GSEC_SHA512_DIGEST_LEN];
   GSEC_Sha512 sha512;
   GSEC_Sha384 sha384;
+  GSEC_Sha1 sha1;
   size_t total = 0;
   size_t digest_len = 0;
   GSEC_Result result;
   int rc;
-  int is_512;
+  int kind;
 
   if (chunk == 0 || chunk > MAX_MESSAGE) {
     return 2;
   }
   if (strcmp(alg, "sha512") == 0) {
-    is_512 = 1;
+    kind = 512;
     digest_len = GSEC_SHA512_DIGEST_LEN;
     result = gsec_sha512_init(&sha512);
   } else if (strcmp(alg, "sha384") == 0) {
-    is_512 = 0;
+    kind = 384;
     digest_len = GSEC_SHA384_DIGEST_LEN;
     result = gsec_sha384_init(&sha384);
+  } else if (strcmp(alg, "sha1") == 0) {
+    kind = 1;
+    digest_len = GSEC_SHA1_DIGEST_LEN;
+    result = gsec_sha1_init(&sha1);
   } else {
     return 2;
   }
@@ -135,11 +178,7 @@ static int hash_chunks(const char * alg, size_t chunk) {
   }
   buf = malloc(chunk);
   if (buf == NULL) {
-    if (is_512) {
-      gsec_wipe(&sha512, sizeof sha512);
-    } else {
-      gsec_wipe(&sha384, sizeof sha384);
-    }
+    wipe_ctx(kind, &sha512, &sha384, &sha1);
     return 2;
   }
   for (;;) {
@@ -148,27 +187,15 @@ static int hash_chunks(const char * alg, size_t chunk) {
       if (total > MAX_MESSAGE - got) {
         gsec_wipe(buf, chunk);
         free(buf);
-        if (is_512) {
-          gsec_wipe(&sha512, sizeof sha512);
-        } else {
-          gsec_wipe(&sha384, sizeof sha384);
-        }
+        wipe_ctx(kind, &sha512, &sha384, &sha1);
         return 2;
       }
       total += got;
-      if (is_512) {
-        result = gsec_sha512_update(&sha512, buf, got);
-      } else {
-        result = gsec_sha384_update(&sha384, buf, got);
-      }
+      result = update_ctx(kind, &sha512, &sha384, &sha1, buf, got);
       gsec_wipe(buf, chunk);
       if (result != GSEC_OK) {
         free(buf);
-        if (is_512) {
-          gsec_wipe(&sha512, sizeof sha512);
-        } else {
-          gsec_wipe(&sha384, sizeof sha384);
-        }
+        wipe_ctx(kind, &sha512, &sha384, &sha1);
         return 1;
       }
     }
@@ -178,25 +205,13 @@ static int hash_chunks(const char * alg, size_t chunk) {
   }
   free(buf);
   if (ferror(stdin)) {
-    if (is_512) {
-      gsec_wipe(&sha512, sizeof sha512);
-    } else {
-      gsec_wipe(&sha384, sizeof sha384);
-    }
+    wipe_ctx(kind, &sha512, &sha384, &sha1);
     return 2;
   }
-  if (is_512) {
-    result = gsec_sha512_final(&sha512, digest);
-    if (result != GSEC_OK) {
-      gsec_wipe(&sha512, sizeof sha512);
-      return 1;
-    }
-  } else {
-    result = gsec_sha384_final(&sha384, digest);
-    if (result != GSEC_OK) {
-      gsec_wipe(&sha384, sizeof sha384);
-      return 1;
-    }
+  result = final_ctx(kind, &sha512, &sha384, &sha1, digest);
+  if (result != GSEC_OK) {
+    wipe_ctx(kind, &sha512, &sha384, &sha1);
+    return 1;
   }
   rc = print_digest(digest, digest_len);
   gsec_wipe(digest, sizeof digest);
@@ -218,6 +233,6 @@ int main(int argc, char ** argv) {
     }
     return hash_chunks(argv[1], (size_t)chunk);
   }
-  fprintf(stderr, "usage: hash sha384|sha512 [--chunk N] < message\n");
+  fprintf(stderr, "usage: hash sha1|sha384|sha512 [--chunk N] < message\n");
   return 2;
 }

@@ -32,6 +32,7 @@
 #include <ghoti.io/security/random.h>
 #include <ghoti.io/security/secret.h>
 #include <ghoti.io/security/selftest.h>
+#include <ghoti.io/security/sha1.h>
 #include <ghoti.io/security/sha256.h>
 #include <ghoti.io/security/sha384.h>
 #include <ghoti.io/security/sha512.h>
@@ -249,6 +250,56 @@ GSEC_Result gsec_selftest(void) {
     }
     result = gsec_equal(dig384, sha384_abc, sizeof dig384);
     gsec_wipe(dig384, sizeof dig384);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  /* RFC 3174. SHA-1 is not collision resistant; the known answer is still
+   * the check that this implementation is the function the caller asked for. */
+  {
+    static const unsigned char sha1_empty[GSEC_SHA1_DIGEST_LEN] = {
+      0xda, 0x39, 0xa3, 0xee, 0x5e, 0x6b, 0x4b, 0x0d,
+      0x32, 0x55, 0xbf, 0xef, 0x95, 0x60, 0x18, 0x90,
+      0xaf, 0xd8, 0x07, 0x09
+    };
+    static const unsigned char sha1_abc[GSEC_SHA1_DIGEST_LEN] = {
+      0xa9, 0x99, 0x3e, 0x36, 0x47, 0x06, 0x81, 0x6a,
+      0xba, 0x3e, 0x25, 0x71, 0x78, 0x50, 0xc2, 0x6c,
+      0x9c, 0xd0, 0xd8, 0x9d
+    };
+    static const unsigned char abc_msg[3] = {0x61, 0x62, 0x63};
+    unsigned char dig[GSEC_SHA1_DIGEST_LEN];
+    GSEC_Sha1 ctx;
+
+    result = gsec_sha1(NULL, 0, dig);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(dig, sha1_empty, sizeof dig);
+    gsec_wipe(dig, sizeof dig);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+
+    result = gsec_sha1_init(&ctx);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    for (i = 0; i < sizeof abc_msg; i++) {
+      result = gsec_sha1_update(&ctx, abc_msg + i, 1);
+      if (result != GSEC_OK) {
+        gsec_wipe(&ctx, sizeof ctx);
+        return result;
+      }
+    }
+    result = gsec_sha1_final(&ctx, dig);
+    if (result != GSEC_OK) {
+      gsec_wipe(&ctx, sizeof ctx);
+      return result;
+    }
+    result = gsec_equal(dig, sha1_abc, sizeof dig);
+    gsec_wipe(dig, sizeof dig);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
     }

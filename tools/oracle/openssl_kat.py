@@ -199,6 +199,37 @@ def diff_wide():
                         % (alg, name, how, got, want))
                     return 1
             print("%s %s %s" % (alg, name, want))
+    return diff_sha1()
+
+
+def diff_sha1():
+    binary = os.environ.get("GSEC_HASH_BIN", "")
+    if not binary:
+        sys.stderr.write("GSEC_HASH_BIN is not set\n")
+        return 1
+    messages = [
+        ("empty", b""),
+        ("abc", b"abc"),
+        ("two-block",
+         b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+        ("pad-55", b"a" * 55),
+        ("pad-56", b"a" * 56),
+        ("pad-63", b"a" * 63),
+        ("pad-64", b"a" * 64),
+        ("pad-65", b"a" * 65),
+        ("thousand", b"a" * 1000),
+        ("bytes", bytes(range(256))),
+    ]
+    for name, data in messages:
+        want = openssl_wide("-sha1", data)
+        for chunk in (None, 1, 64):
+            got = library_wide(binary, "sha1", data, chunk, 40)
+            if not compare.hex_equal(got, want):
+                how = "oneshot" if chunk is None else "chunk %s" % chunk
+                sys.stderr.write(
+                    "sha1 %s %s is %s, openssl says %s\n" % (name, how, got, want))
+                return 1
+        print("sha1 %s %s" % (name, want))
     return 0
 
 
