@@ -25,12 +25,15 @@
  *
  * The password is UTF-8. The MAC turns it into the BMP string RFC 7292
  * requires, including the trailing two zero bytes, then uses the PKCS#12
- * key derivation of Appendix B with id 3 and HMAC. A PBES2 bag uses the
- * UTF-8 bytes themselves, which is what OpenSSL writes. A character
+ * key derivation of Appendix B with id 3 and HMAC. A PBES2 bag and a
+ * PBES1 bag use the UTF-8 bytes themselves. A PKCS#12 PBE bag turns the
+ * password into the BMP string before deriving the key. A character
  * outside the Basic Multilingual Plane is rejected. A wrong password
  * fails the MAC.
  *
- * Shrouded keys and encrypted cert bags use PBES2. RC2 is rejected.
+ * Shrouded keys and encrypted cert bags use PBES2, PBES1, or a PKCS#12
+ * PBE, including RC2 and RC4. PBES1, RC2, and RC4 are here so an old
+ * archive can be opened. A new encrypted bag is PBES2 with AES.
  * The key and the certificates are views of @p scratch, or of the input
  * when a bag was not encrypted. At most ::GSEC_PKCS12_CERT_MAX
  * certificates are returned.

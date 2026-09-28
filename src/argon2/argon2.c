@@ -41,7 +41,8 @@
 #define ADDRESSES 128u
 #define PREHASH 64u
 #define SEED_BYTES 72u
-#define VERSION 0x13u
+#define VERSION_10 0x10u
+#define VERSION_13 0x13u
 
 typedef struct Block {
   uint64_t v[BLOCK_QWORDS];
@@ -368,7 +369,8 @@ static void next_addresses(Block *address, Block *input, const Block *zero) {
 
 static void fill_segment(Block *memory, uint32_t lane_length,
     uint32_t segment_length, uint32_t blocks, uint32_t passes, uint32_t lanes,
-    uint32_t type, uint32_t pass, uint32_t lane, uint32_t slice) {
+    uint32_t type, uint32_t version, uint32_t pass, uint32_t lane,
+    uint32_t slice) {
   Block address;
   Block input;
   Block zero;
@@ -426,7 +428,7 @@ static void fill_segment(Block *memory, uint32_t lane_length,
     }
     ref_index = index_alpha(pass, slice, i, lane_length, segment_length,
         (uint32_t)pseudo, ref_lane == lane);
-    with_xor = pass != 0;
+    with_xor = version != VERSION_10 && pass != 0;
     fill_block(&memory[prev], &memory[ref_lane * lane_length + ref_index],
         &memory[curr], with_xor);
   }
@@ -439,11 +441,11 @@ static int fits_u32(size_t n) {
   return n <= UINT32_MAX;
 }
 
-GSEC_Result gsec_argon2(uint32_t type, const void * password,
-    size_t password_len, const void * salt, size_t salt_len,
-    const void * secret, size_t secret_len, const void * ad, size_t ad_len,
-    uint32_t memory_kib, uint32_t passes, uint32_t lanes, void * tag,
-    size_t tag_len) {
+GSEC_Result gsec_argon2_version(uint32_t version, uint32_t type,
+    const void * password, size_t password_len, const void * salt,
+    size_t salt_len, const void * secret, size_t secret_len, const void * ad,
+    size_t ad_len, uint32_t memory_kib, uint32_t passes, uint32_t lanes,
+    void * tag, size_t tag_len) {
   const GSEC_Allocator * alloc;
   Block * memory = NULL;
   unsigned char seed[SEED_BYTES];
@@ -458,7 +460,8 @@ GSEC_Result gsec_argon2(uint32_t type, const void * password,
   uint32_t lane;
   GSEC_Result result = GSEC_OK;
 
-  if (type > GSEC_ARGON2_ID || passes == 0 || lanes == 0 ||
+  if ((version != VERSION_10 && version != VERSION_13) ||
+      type > GSEC_ARGON2_ID || passes == 0 || lanes == 0 ||
       lanes > GSEC_ARGON2_MEMORY_MAX / 8u || tag == NULL ||
       tag_len < GSEC_ARGON2_TAG_MIN || tag_len > GSEC_ARGON2_TAG_MAX ||
       salt == NULL || salt_len < GSEC_ARGON2_SALT_MIN ||
@@ -492,7 +495,7 @@ GSEC_Result gsec_argon2(uint32_t type, const void * password,
   blake2b_update(&hash, value, 4);
   store32(value, passes);
   blake2b_update(&hash, value, 4);
-  store32(value, VERSION);
+  store32(value, version);
   blake2b_update(&hash, value, 4);
   store32(value, type);
   blake2b_update(&hash, value, 4);
@@ -530,7 +533,7 @@ GSEC_Result gsec_argon2(uint32_t type, const void * password,
     for (slice = 0; slice < SYNC_POINTS; slice++) {
       for (lane = 0; lane < lanes; lane++) {
         fill_segment(memory, lane_length, segment, blocks, passes, lanes,
-            type, pass, lane, slice);
+            type, version, pass, lane, slice);
       }
     }
   }
@@ -556,4 +559,14 @@ GSEC_Result gsec_argon2(uint32_t type, const void * password,
   gsec_wipe(value, sizeof value);
   alloc->free_fn(alloc->ctx, memory);
   return result;
+}
+
+GSEC_Result gsec_argon2(uint32_t type, const void * password,
+    size_t password_len, const void * salt, size_t salt_len,
+    const void * secret, size_t secret_len, const void * ad, size_t ad_len,
+    uint32_t memory_kib, uint32_t passes, uint32_t lanes, void * tag,
+    size_t tag_len) {
+  return gsec_argon2_version(VERSION_13, type, password, password_len, salt,
+      salt_len, secret, secret_len, ad, ad_len, memory_kib, passes, lanes, tag,
+      tag_len);
 }

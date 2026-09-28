@@ -21,8 +21,11 @@
 /**
  * @file
  *
- * PBES2, shared by encrypted PKCS#8 and PKCS#12. The password bytes are
- * used as given: PKCS#12 has already turned them into its BMP string.
+ * Password-based decryption shared by encrypted PKCS#8 and PKCS#12.
+ * ::gsec_pbe_decrypt accepts PBES2, PBES1, and the PKCS#12 PBE schemes.
+ * PBES2 uses the password bytes as given. PBES1 does too. A PKCS#12 PBE
+ * object identifier turns the password into UTF-16BE with two trailing
+ * zero bytes before the key derivation. The MAC uses that same string.
  */
 
 #ifndef GHOTI_IO_GSEC_PBES2_H
@@ -40,5 +43,20 @@
 GSEC_Result gsec_pbes2_decrypt(const GSEC_Der * alg, const void * ct,
     size_t ct_len, const void * password, size_t password_len, void * out,
     size_t out_cap, size_t * out_len);
+
+GSEC_Result gsec_pbe_decrypt(const GSEC_Der * alg, const void * ct,
+    size_t ct_len, const void * password, size_t password_len, void * out,
+    size_t out_cap, size_t * out_len);
+
+GSEC_Result gsec_pkcs7_unpad(unsigned char * buf, size_t n, size_t block,
+    size_t * out_len);
+
+GSEC_Result gsec_pkcs12_bmp(const unsigned char * in, size_t n,
+    unsigned char * out, size_t * out_len);
+
+GSEC_Result gsec_pkcs12_kdf(uint32_t id, size_t u, size_t v,
+    const unsigned char * pass, size_t pass_len, const unsigned char * salt,
+    size_t salt_len, uint32_t iterations, unsigned char purpose,
+    unsigned char * dk, size_t dk_len);
 
 #endif /* GHOTI_IO_GSEC_PBES2_H */

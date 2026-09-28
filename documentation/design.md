@@ -13,8 +13,9 @@ WinZip does. GCM is one shot. ChaCha20-Poly1305 is one shot, with a fixed
 Nonce reuse under one key destroys authentication, and both declarations say so.
 X25519 is RFC 7748. The scalar is clamped inside the function, and the top
 bit of the u-coordinate is ignored. A shared secret of all zeros is rejected
-and wiped. Ed25519 is RFC 8032, pure, with no context string. Signing is
-deterministic. Verification rejects a non-canonical point and an S that is
+and wiped. Ed25519 is RFC 8032. Pure signing uses an empty domain
+string. Ed25519ctx binds a context of at most 255 bytes. Ed25519ph signs
+SHA-512 of the message. Signing is deterministic. Verification rejects a non-canonical point and an S that is
 not strictly less than the group order. P-256 ECDH uses the complete
 addition formula. A coordinate that is not strictly less than the prime,
 a point that is not on the curve, and the point at infinity are rejected
@@ -169,14 +170,14 @@ an RSA key, and a client certificate whose key is RSA, need phase 9.
 | 3 | AES-128/192/256, CTR, and GCM are implemented | Completes the archive set |
 | 4 | ChaCha20-Poly1305 is implemented | TLS 1.3. No bignum |
 | 5 | X25519 is implemented | TLS 1.3 key agreement. The all-zero shared secret is rejected |
-| 6 | Ed25519 is implemented | RFC 8032. Verification rejects a non-canonical point and a non-canonical S |
+| 6 | Ed25519 is implemented | RFC 8032. Pure, a context, and the SHA-512 prehash. Verification rejects a non-canonical point and a non-canonical S |
 | 7 | P-256 ECDH and ECDSA are implemented | ECDH rejects a non-canonical coordinate, an off-curve point, and infinity. ECDSA signs with RFC 6979, emits the low s, and accepts a high s |
 | 8 | RSA-PSS and PKCS#1 v1.5 verification are implemented | Public exponent only. The DigestInfo is the DER encoding, including the NULL. A modulus past 4096 bits is rejected |
 | 9 | RSA private signing is implemented | The exponentiation does not branch on the private exponent. The base is blinded. PKCS#1 v1.5 and PSS both sign. The PSS salt is the caller's. A modulus past 4096 bits is rejected |
 | 10 | ECDSA P-384 is implemented | SHA-384 and RFC 6979. The signature is raw r then s. Signing emits the low s. Verification accepts a high s |
 | 11 | AES-CBC is implemented | No padding. The initialization vector is the caller's. The mode does not authenticate. A repeated vector under one key leaks prefix equality |
-| 12 | DES and RC4 are implemented | Both are broken. Old formats still name them. Neither is constant-time: DES indexes substitution boxes with key-dependent bits, and RC4 indexes its permutation with secret bytes |
-| 13 | scrypt, bcrypt, and Argon2 are implemented | Password hashes for storage. Not PBKDF2. The salt is the caller's. The cost parameters are public. bcrypt is the $2b$ rule, which is also $2y$. $2a$ adds crypt_blowfish's collision tweak, and $2x$ is the sign-extending key schedule. Argon2 is version 0x13, and BLAKE2b stays inside it |
+| 12 | DES, RC2, and RC4 are implemented | All three are broken. Old formats still name them. RC2 and two-key Triple DES are here because PKCS#12 and PBES1 name them. None is constant-time |
+| 13 | scrypt, bcrypt, and Argon2 are implemented | Password hashes for storage. Not PBKDF2. The salt is the caller's. The cost parameters are public. bcrypt is the $2b$ rule, which is also $2y$. $2a$ adds crypt_blowfish's collision tweak, and $2x$ is the sign-extending key schedule. `gsec_argon2` is version 0x13. `gsec_argon2_version` also accepts 0x10, which overwrites a block on later passes. A PHC string is `gsec_argon2_phc`. BLAKE2b stays inside Argon2 |
 
 Nonces are the caller's. The GCM and ChaCha20-Poly1305 declarations say what a repeated nonce
 does. ECDSA signing uses RFC 6979 so the nonce is a

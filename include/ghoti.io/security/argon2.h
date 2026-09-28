@@ -21,7 +21,13 @@
 /**
  * @file argon2.h
  *
- * Argon2, as RFC 9106 specifies it, version 0x13.
+ * Argon2. ::gsec_argon2 is version 0x13, as RFC 9106 specifies it, and
+ * ::GSEC_ARGON2_ID is the type for a new password store.
+ * ::gsec_argon2_version also accepts version 0x10, which is for checking
+ * an old hash. Do not use 0x10 for a new hash: that version overwrites a
+ * block on later passes instead of mixing it in. A PHC string is
+ * ::gsec_argon2_phc and ::gsec_argon2_phc_verify. A string with no
+ * version is 0x10, and it is checked as that old version.
  *
  * This is a password hash for storage. It is not PBKDF2 and it is not
  * scrypt. The salt is the caller's, at least 8 bytes. The memory cost,
@@ -59,6 +65,12 @@ extern "C" {
 
 /** Argon2id. RFC 9106 type 2. The type to use for password storage. */
 #define GSEC_ARGON2_ID 2u
+
+/** Argon2 version 1.2.1. Later passes overwrite a block. */
+#define GSEC_ARGON2_VERSION_10 0x10u
+
+/** Argon2 version 1.3. RFC 9106. Later passes mix the old block in. */
+#define GSEC_ARGON2_VERSION_13 0x13u
 
 /** Largest working set, in kibibytes. */
 #define GSEC_ARGON2_MEMORY_MAX (32u * 1024u)
@@ -99,6 +111,61 @@ GSEC_API GSEC_Result gsec_argon2(uint32_t type, const void * password,
     const void * secret, size_t secret_len, const void * ad, size_t ad_len,
     uint32_t memory_kib, uint32_t passes, uint32_t lanes, void * tag,
     size_t tag_len);
+
+/**
+ * @brief Hash a password with Argon2 at a chosen version.
+ *
+ * Version 0x10 checks an old hash. A new hash uses
+ * ::GSEC_ARGON2_VERSION_13, or calls ::gsec_argon2.
+ *
+ * @param version ::GSEC_ARGON2_VERSION_10 or ::GSEC_ARGON2_VERSION_13.
+ *   Any other value is ::GSEC_ERR_INVALID.
+ * The remaining arguments match ::gsec_argon2.
+ */
+GSEC_API GSEC_Result gsec_argon2_version(uint32_t version, uint32_t type,
+    const void * password, size_t password_len, const void * salt,
+    size_t salt_len, const void * secret, size_t secret_len, const void * ad,
+    size_t ad_len, uint32_t memory_kib, uint32_t passes, uint32_t lanes,
+    void * tag, size_t tag_len);
+
+/**
+ * @brief Hash a password and write the PHC string.
+ *
+ * The string is `$argon2id$v=19$m=65536,t=3,p=4$<salt>$<tag>`, with the
+ * type, the decimal version, and the parameters filled in. The salt and
+ * the tag are standard base64 with the padding omitted. The secret and
+ * the associated data are not written into the string. @p encoded is
+ * terminated with a zero byte when the call succeeds, and @p encoded_len
+ * does not count that byte.
+ *
+ * @param tag_len Tag length, from ::GSEC_ARGON2_TAG_MIN to
+ *   ::GSEC_ARGON2_TAG_MAX. The usual length is 32.
+ * @param encoded Output. Not NULL.
+ * @param encoded_cap Capacity, including the terminating zero.
+ * @param encoded_len Receives the string length. Not written on failure.
+ * @return ::GSEC_OK, ::GSEC_ERR_INVALID, or ::GSEC_ERR_LIMIT.
+ */
+GSEC_API GSEC_Result gsec_argon2_phc(uint32_t version, uint32_t type,
+    const void * password, size_t password_len, const void * salt,
+    size_t salt_len, const void * secret, size_t secret_len, const void * ad,
+    size_t ad_len, uint32_t memory_kib, uint32_t passes, uint32_t lanes,
+    size_t tag_len, void * encoded, size_t encoded_cap, size_t * encoded_len);
+
+/**
+ * @brief Check a password against a PHC string.
+ *
+ * A string with no `v=` field is version 0x10. The secret and the
+ * associated data are the caller's, because the string does not carry
+ * them. A wrong password is ::GSEC_ERR_MISMATCH.
+ *
+ * @param encoded The PHC string. Not necessarily terminated.
+ * @param encoded_len Length of @p encoded, not counting a terminator.
+ * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH, ::GSEC_ERR_CORRUPT,
+ *   ::GSEC_ERR_INVALID, or ::GSEC_ERR_LIMIT.
+ */
+GSEC_API GSEC_Result gsec_argon2_phc_verify(const void * encoded,
+    size_t encoded_len, const void * password, size_t password_len,
+    const void * secret, size_t secret_len, const void * ad, size_t ad_len);
 
 #ifdef __cplusplus
 }

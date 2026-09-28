@@ -23,14 +23,17 @@
  *
  * DES and three-key Triple DES, as FIPS 46-3 specifies them, plus CBC.
  *
- * Both ciphers are broken. They are here because old formats still name
- * them. Do not use either for a new design. The substitution boxes are
+ * These ciphers are broken. They are here because old formats still name
+ * them. Do not use them for a new design. A new cipher is AES-GCM or
+ * ChaCha20-Poly1305. The substitution boxes are
  * indexed by bits that depend on the key, so this is not a constant-time
  * implementation and it is not in the constant-time gate.
  *
  * The low bit of each key byte is the parity bit DES defines and is not
  * a key bit. A wrong parity is accepted: the other 56 bits are the key.
- * Triple DES is encrypt, decrypt, encrypt with three 8-byte keys.
+ * Triple DES is encrypt, decrypt, encrypt. Three-key uses K1, K2, K3.
+ * Two-key uses K1, K2, K1. Old PKCS#12 and PBES1 files still name the
+ * two-key form.
  *
  * CBC does not authenticate. The initialization vector is the caller's.
  * Repeating it under one key leaks the equality of plaintext prefixes.
@@ -54,6 +57,9 @@ extern "C" {
 
 /** DES key length in bytes, including the parity bit in each byte. */
 #define GSEC_DES_KEY_LEN 8u
+
+/** Two-key Triple DES key length: K1 then K2. The third key is K1 again. */
+#define GSEC_DES_EDE2_KEY_LEN 16u
 
 /** Three-key Triple DES key length: three DES keys, in order. */
 #define GSEC_DES_EDE3_KEY_LEN 24u
@@ -88,6 +94,29 @@ GSEC_API GSEC_Result gsec_des_decrypt(const void * key, const void * in,
  * @param out Exactly ::GSEC_DES_BLOCK_LEN bytes. May be @p in.
  * @return ::GSEC_OK, or ::GSEC_ERR_INVALID.
  */
+/**
+ * @brief Encrypt one block with two-key Triple DES.
+ *
+ * @param key Exactly ::GSEC_DES_EDE2_KEY_LEN bytes: K1, K2. Encryption is
+ *   K1, then K2 reversed, then K1 again.
+ * @param in Exactly ::GSEC_DES_BLOCK_LEN bytes.
+ * @param out Exactly ::GSEC_DES_BLOCK_LEN bytes. May be @p in.
+ * @return ::GSEC_OK, or ::GSEC_ERR_INVALID.
+ */
+GSEC_API GSEC_Result gsec_des_ede2_encrypt(const void * key, const void * in,
+    void * out);
+
+/**
+ * @brief Decrypt one block with two-key Triple DES.
+ *
+ * @param key Exactly ::GSEC_DES_EDE2_KEY_LEN bytes: K1, K2.
+ * @param in Exactly ::GSEC_DES_BLOCK_LEN bytes.
+ * @param out Exactly ::GSEC_DES_BLOCK_LEN bytes. May be @p in.
+ * @return ::GSEC_OK, or ::GSEC_ERR_INVALID.
+ */
+GSEC_API GSEC_Result gsec_des_ede2_decrypt(const void * key, const void * in,
+    void * out);
+
 GSEC_API GSEC_Result gsec_des_ede3_encrypt(const void * key, const void * in,
     void * out);
 
@@ -153,6 +182,32 @@ GSEC_API GSEC_Result gsec_des_ede3_cbc_encrypt(const void * key,
  * @return ::GSEC_OK, or ::GSEC_ERR_INVALID.
  */
 GSEC_API GSEC_Result gsec_des_ede3_cbc_decrypt(const void * key,
+    const void * iv, const void * in, size_t len, void * out);
+
+/**
+ * @brief Encrypt with two-key Triple DES in CBC mode.
+ *
+ * @param key Exactly ::GSEC_DES_EDE2_KEY_LEN bytes.
+ * @param iv Exactly ::GSEC_DES_BLOCK_LEN bytes. The caller's nonce.
+ * @param in Plaintext. NULL only when @p len is 0.
+ * @param len Zero, or a multiple of ::GSEC_DES_BLOCK_LEN.
+ * @param out Ciphertext, @p len bytes. May be @p in.
+ * @return ::GSEC_OK, or ::GSEC_ERR_INVALID.
+ */
+GSEC_API GSEC_Result gsec_des_ede2_cbc_encrypt(const void * key,
+    const void * iv, const void * in, size_t len, void * out);
+
+/**
+ * @brief Decrypt with two-key Triple DES in CBC mode.
+ *
+ * @param key Exactly ::GSEC_DES_EDE2_KEY_LEN bytes.
+ * @param iv Exactly ::GSEC_DES_BLOCK_LEN bytes.
+ * @param in Ciphertext. NULL only when @p len is 0.
+ * @param len Zero, or a multiple of ::GSEC_DES_BLOCK_LEN.
+ * @param out Plaintext, @p len bytes. May be @p in.
+ * @return ::GSEC_OK, or ::GSEC_ERR_INVALID.
+ */
+GSEC_API GSEC_Result gsec_des_ede2_cbc_decrypt(const void * key,
     const void * iv, const void * in, size_t len, void * out);
 
 #ifdef __cplusplus

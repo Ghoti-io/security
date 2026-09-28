@@ -39,6 +39,37 @@ TEST(Pkcs8Decrypt, OpensTheLeafKey) {
   EXPECT_EQ(gsec_equal(got.scalar, expect.scalar, got.scalar_len), GSEC_OK);
 }
 
+TEST(Pkcs8Decrypt, OpensTheOlderSchemes) {
+  static const char * names[] = {
+    "pbe-md5-des.p8",
+    "pbe-md5-rc2-64.p8",
+    "pbe-sha1-des.p8",
+    "pbe-sha1-rc2-64.p8",
+    "pbe-sha1-3des.p8",
+    "pbe-sha1-2des.p8",
+    "pbe-sha1-rc2-128.p8",
+    "pbe-sha1-rc2-40.p8",
+    "pbe-sha1-rc4-128.p8",
+    "pbe-sha1-rc4-40.p8",
+  };
+  auto plain = load("leaf.plain.p8");
+  GSEC_Pkcs8 expect;
+  size_t i;
+  ASSERT_EQ(gsec_pkcs8_parse(plain.data(), plain.size(), &expect), GSEC_OK);
+  for (i = 0; i < sizeof names / sizeof names[0]; i++) {
+    auto enc = load(names[i]);
+    std::vector<unsigned char> out(enc.size());
+    size_t n = 0;
+    GSEC_Pkcs8 got;
+    SCOPED_TRACE(names[i]);
+    ASSERT_EQ(gsec_pkcs8_decrypt(enc.data(), enc.size(), "secret", 6,
+        out.data(), out.size(), &n), GSEC_OK);
+    ASSERT_EQ(gsec_pkcs8_parse(out.data(), n, &got), GSEC_OK);
+    ASSERT_EQ(got.scalar_len, expect.scalar_len);
+    EXPECT_EQ(gsec_equal(got.scalar, expect.scalar, got.scalar_len), GSEC_OK);
+  }
+}
+
 TEST(Pkcs8Decrypt, WrongPasswordWipes) {
   auto enc = load("leaf.p8");
   std::vector<unsigned char> out(enc.size(), 0xa5);

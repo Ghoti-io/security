@@ -375,9 +375,10 @@ static GSEC_Result label_hash(uint32_t hash, const void * label,
   return GSEC_OK;
 }
 
-GSEC_Result gsec_rsa_oaep_encrypt(uint32_t hash, const void * n, size_t n_len,
-    const void * e, size_t e_len, const void * label, size_t label_len,
-    const void * msg, size_t msg_len, void * out, size_t out_len) {
+GSEC_Result gsec_rsa_oaep_mgf_encrypt(uint32_t hash, uint32_t mgf_hash,
+    const void * n, size_t n_len, const void * e, size_t e_len,
+    const void * label, size_t label_len, const void * msg, size_t msg_len,
+    void * out, size_t out_len) {
   bn mod;
   const unsigned char * exp = NULL;
   unsigned char em[GSEC_RSA_MODULUS_MAX];
@@ -394,6 +395,14 @@ GSEC_Result gsec_rsa_oaep_encrypt(uint32_t hash, const void * n, size_t n_len,
 
   if ((label == NULL && label_len != 0) || (msg == NULL && msg_len != 0)) {
     return GSEC_ERR_INVALID;
+  }
+  {
+    size_t mgf_len = 0;
+
+    result = hash_len(mgf_hash, &mgf_len);
+    if (result != GSEC_OK) {
+      return result;
+    }
   }
   result = hash_len(hash, &hlen);
   if (result != GSEC_OK) {
@@ -428,14 +437,14 @@ GSEC_Result gsec_rsa_oaep_encrypt(uint32_t hash, const void * n, size_t n_len,
   if (result != GSEC_OK) {
     goto fail;
   }
-  result = mgf(hash, seed, hlen, mask, db_len);
+  result = mgf(mgf_hash, seed, hlen, mask, db_len);
   if (result != GSEC_OK) {
     goto fail;
   }
   for (i = 0; i < db_len; i++) {
     db[i] = (unsigned char)(db[i] ^ mask[i]);
   }
-  result = mgf(hash, db, db_len, mask, hlen);
+  result = mgf(mgf_hash, db, db_len, mask, hlen);
   if (result != GSEC_OK) {
     goto fail;
   }
@@ -466,10 +475,11 @@ fail:
   return result;
 }
 
-GSEC_Result gsec_rsa_oaep_decrypt(uint32_t hash, const void * n, size_t n_len,
-    const void * e, size_t e_len, const void * d, size_t d_len,
-    const void * label, size_t label_len, const void * cipher,
-    size_t cipher_len, void * msg, size_t msg_cap, size_t * msg_len) {
+GSEC_Result gsec_rsa_oaep_mgf_decrypt(uint32_t hash, uint32_t mgf_hash,
+    const void * n, size_t n_len, const void * e, size_t e_len,
+    const void * d, size_t d_len, const void * label, size_t label_len,
+    const void * cipher, size_t cipher_len, void * msg, size_t msg_cap,
+    size_t * msg_len) {
   bn mod;
   bn priv;
   const unsigned char * exp = NULL;
@@ -496,6 +506,14 @@ GSEC_Result gsec_rsa_oaep_decrypt(uint32_t hash, const void * n, size_t n_len,
 
   if (label == NULL && label_len != 0) {
     return GSEC_ERR_INVALID;
+  }
+  {
+    size_t mgf_len = 0;
+
+    result = hash_len(mgf_hash, &mgf_len);
+    if (result != GSEC_OK) {
+      return result;
+    }
   }
   result = hash_len(hash, &hlen);
   if (result != GSEC_OK) {
@@ -528,14 +546,14 @@ GSEC_Result gsec_rsa_oaep_decrypt(uint32_t hash, const void * n, size_t n_len,
   }
   secret = em;
   db_len = k - hlen - 1u;
-  result = mgf(hash, em + 1u + hlen, db_len, mask, hlen);
+  result = mgf(mgf_hash, em + 1u + hlen, db_len, mask, hlen);
   if (result != GSEC_OK) {
     goto fail_em;
   }
   for (i = 0; i < hlen; i++) {
     seed[i] = (unsigned char)(secret[1u + i] ^ mask[i]);
   }
-  result = mgf(hash, seed, hlen, db, db_len);
+  result = mgf(mgf_hash, seed, hlen, db, db_len);
   if (result != GSEC_OK) {
     goto fail_em;
   }
@@ -574,4 +592,19 @@ fail_em:
   gsec_wipe(lhash, sizeof lhash);
   gsec_wipe(msg, msg_cap < k ? msg_cap : k);
   return result;
+}
+
+GSEC_Result gsec_rsa_oaep_encrypt(uint32_t hash, const void * n, size_t n_len,
+    const void * e, size_t e_len, const void * label, size_t label_len,
+    const void * msg, size_t msg_len, void * out, size_t out_len) {
+  return gsec_rsa_oaep_mgf_encrypt(hash, hash, n, n_len, e, e_len, label,
+      label_len, msg, msg_len, out, out_len);
+}
+
+GSEC_Result gsec_rsa_oaep_decrypt(uint32_t hash, const void * n, size_t n_len,
+    const void * e, size_t e_len, const void * d, size_t d_len,
+    const void * label, size_t label_len, const void * cipher,
+    size_t cipher_len, void * msg, size_t msg_cap, size_t * msg_len) {
+  return gsec_rsa_oaep_mgf_decrypt(hash, hash, n, n_len, e, e_len, d, d_len,
+      label, label_len, cipher, cipher_len, msg, msg_cap, msg_len);
 }

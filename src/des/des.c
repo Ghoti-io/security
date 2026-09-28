@@ -254,6 +254,38 @@ GSEC_Result gsec_des_decrypt(const void * key, const void * in, void * out) {
   return GSEC_OK;
 }
 
+GSEC_Result gsec_des_ede2_encrypt(const void * key, const void * in,
+    void * out) {
+  unsigned char block[GSEC_DES_BLOCK_LEN];
+  const unsigned char * k;
+
+  if (key == NULL || in == NULL || out == NULL) {
+    return GSEC_ERR_INVALID;
+  }
+  k = (const unsigned char *)key;
+  one_block(k, (const unsigned char *)in, block, 0);
+  one_block(k + GSEC_DES_KEY_LEN, block, block, 1);
+  one_block(k, block, (unsigned char *)out, 0);
+  gsec_wipe(block, sizeof block);
+  return GSEC_OK;
+}
+
+GSEC_Result gsec_des_ede2_decrypt(const void * key, const void * in,
+    void * out) {
+  unsigned char block[GSEC_DES_BLOCK_LEN];
+  const unsigned char * k;
+
+  if (key == NULL || in == NULL || out == NULL) {
+    return GSEC_ERR_INVALID;
+  }
+  k = (const unsigned char *)key;
+  one_block(k, (const unsigned char *)in, block, 1);
+  one_block(k + GSEC_DES_KEY_LEN, block, block, 0);
+  one_block(k, block, (unsigned char *)out, 1);
+  gsec_wipe(block, sizeof block);
+  return GSEC_OK;
+}
+
 GSEC_Result gsec_des_ede3_encrypt(const void * key, const void * in,
     void * out) {
   unsigned char block[GSEC_DES_BLOCK_LEN];
@@ -286,17 +318,33 @@ GSEC_Result gsec_des_ede3_decrypt(const void * key, const void * in,
   return GSEC_OK;
 }
 
+static GSEC_Result cipher_block(const void * key, const unsigned char * in,
+    unsigned char * out, int keys, int decrypt) {
+  if (keys == 3) {
+    return decrypt ? gsec_des_ede3_decrypt(key, in, out)
+        : gsec_des_ede3_encrypt(key, in, out);
+  }
+  if (keys == 2) {
+    return decrypt ? gsec_des_ede2_decrypt(key, in, out)
+        : gsec_des_ede2_encrypt(key, in, out);
+  }
+  return decrypt ? gsec_des_decrypt(key, in, out)
+      : gsec_des_encrypt(key, in, out);
+}
+
 static GSEC_Result cbc(const void * key, size_t key_len, const void * iv,
-    const void * in, size_t len, void * out, int ede3, int decrypt) {
+    const void * in, size_t len, void * out, int keys, int decrypt) {
   const unsigned char * src;
   unsigned char * dst;
   unsigned char prev[GSEC_DES_BLOCK_LEN];
   unsigned char block[GSEC_DES_BLOCK_LEN];
+  size_t expect;
   size_t off;
   unsigned i;
 
-  if (key == NULL || iv == NULL || key_len !=
-      (ede3 ? GSEC_DES_EDE3_KEY_LEN : GSEC_DES_KEY_LEN)) {
+  expect = keys == 3 ? GSEC_DES_EDE3_KEY_LEN
+      : keys == 2 ? GSEC_DES_EDE2_KEY_LEN : GSEC_DES_KEY_LEN;
+  if (key == NULL || iv == NULL || key_len != expect) {
     return GSEC_ERR_INVALID;
   }
   if ((len % GSEC_DES_BLOCK_LEN) != 0) {
@@ -321,11 +369,7 @@ static GSEC_Result cbc(const void * key, size_t key_len, const void * iv,
       for (i = 0; i < GSEC_DES_BLOCK_LEN; i++) {
         block[i] = (unsigned char)(src[off + i] ^ prev[i]);
       }
-      if (ede3) {
-        gsec_des_ede3_encrypt(key, block, dst + off);
-      } else {
-        gsec_des_encrypt(key, block, dst + off);
-      }
+      cipher_block(key, block, dst + off, keys, 0);
       for (i = 0; i < GSEC_DES_BLOCK_LEN; i++) {
         prev[i] = dst[off + i];
       }
@@ -333,11 +377,7 @@ static GSEC_Result cbc(const void * key, size_t key_len, const void * iv,
       for (i = 0; i < GSEC_DES_BLOCK_LEN; i++) {
         block[i] = src[off + i];
       }
-      if (ede3) {
-        gsec_des_ede3_decrypt(key, block, dst + off);
-      } else {
-        gsec_des_decrypt(key, block, dst + off);
-      }
+      cipher_block(key, block, dst + off, keys, 1);
       for (i = 0; i < GSEC_DES_BLOCK_LEN; i++) {
         dst[off + i] = (unsigned char)(dst[off + i] ^ prev[i]);
         prev[i] = block[i];
@@ -351,20 +391,30 @@ static GSEC_Result cbc(const void * key, size_t key_len, const void * iv,
 
 GSEC_Result gsec_des_cbc_encrypt(const void * key, const void * iv,
     const void * in, size_t len, void * out) {
-  return cbc(key, GSEC_DES_KEY_LEN, iv, in, len, out, 0, 0);
+  return cbc(key, GSEC_DES_KEY_LEN, iv, in, len, out, 1, 0);
 }
 
 GSEC_Result gsec_des_cbc_decrypt(const void * key, const void * iv,
     const void * in, size_t len, void * out) {
-  return cbc(key, GSEC_DES_KEY_LEN, iv, in, len, out, 0, 1);
+  return cbc(key, GSEC_DES_KEY_LEN, iv, in, len, out, 1, 1);
+}
+
+GSEC_Result gsec_des_ede2_cbc_encrypt(const void * key, const void * iv,
+    const void * in, size_t len, void * out) {
+  return cbc(key, GSEC_DES_EDE2_KEY_LEN, iv, in, len, out, 2, 0);
+}
+
+GSEC_Result gsec_des_ede2_cbc_decrypt(const void * key, const void * iv,
+    const void * in, size_t len, void * out) {
+  return cbc(key, GSEC_DES_EDE2_KEY_LEN, iv, in, len, out, 2, 1);
 }
 
 GSEC_Result gsec_des_ede3_cbc_encrypt(const void * key, const void * iv,
     const void * in, size_t len, void * out) {
-  return cbc(key, GSEC_DES_EDE3_KEY_LEN, iv, in, len, out, 1, 0);
+  return cbc(key, GSEC_DES_EDE3_KEY_LEN, iv, in, len, out, 3, 0);
 }
 
 GSEC_Result gsec_des_ede3_cbc_decrypt(const void * key, const void * iv,
     const void * in, size_t len, void * out) {
-  return cbc(key, GSEC_DES_EDE3_KEY_LEN, iv, in, len, out, 1, 1);
+  return cbc(key, GSEC_DES_EDE3_KEY_LEN, iv, in, len, out, 3, 1);
 }

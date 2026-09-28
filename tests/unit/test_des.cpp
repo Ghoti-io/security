@@ -66,6 +66,17 @@ TEST(Des, FipsBlockAndOpenSslTriple) {
   EXPECT_EQ(gsec_equal(got, ct3.data(), 8), GSEC_OK);
   ASSERT_EQ(gsec_des_ede3_decrypt(k3.data(), got, back), GSEC_OK);
   EXPECT_EQ(gsec_equal(back, pt.data(), 8), GSEC_OK);
+
+  auto k2 = hex("00112233445566778899aabbccddeeff");
+  auto iv2 = hex("0102030405060708");
+  auto pt16 = hex("6162636465666768696a6b6c6d6e6f70");
+  auto ct2k = hex("7c430a32f889c35c1d5e617482b940a0");
+  ASSERT_EQ(gsec_des_ede2_cbc_encrypt(k2.data(), iv2.data(), pt16.data(), 16,
+      wide), GSEC_OK);
+  EXPECT_EQ(gsec_equal(wide, ct2k.data(), 16), GSEC_OK);
+  ASSERT_EQ(gsec_des_ede2_cbc_decrypt(k2.data(), iv2.data(), wide, 16,
+      wide_back), GSEC_OK);
+  EXPECT_EQ(gsec_equal(wide_back, pt16.data(), 16), GSEC_OK);
 }
 
 TEST(Des, RejectsABadCall) {

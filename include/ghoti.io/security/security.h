@@ -25,11 +25,14 @@
  *
  * Primitives only: comparison, wiping, the entropy call, SHA-256, SHA-512,
  * SHA-384, SHA-1, MD5, HMAC over the SHA hashes, HKDF, PBKDF2, AES,
- * AES-CTR, AES-CBC, AES-GCM, ChaCha20-Poly1305, X25519, Ed25519, P-256 and
- * P-384 ECDH,
- * ECDSA P-256, ECDSA P-384, RSA signature verification, scrypt, bcrypt, Argon2,
+ * AES-CTR, AES-CBC, AES-GCM, ChaCha20-Poly1305, X25519, Ed25519
+ * (pure, context, and prehash), P-256 and P-384 ECDH,
+ * ECDSA P-256, ECDSA P-384, RSA signature verification, scrypt, bcrypt, Argon2
+ * (version 0x13 and version 0x10),
  * and the certificate encodings (strict DER, PEM, PKCS#8 including
- * PBES2, PKCS#12, X.509 including issuance, CRLs, and basic OCSP).
+ * PBES2, PBES1, and PKCS#12 PBE, PKCS#12, X.509 including issuance, CRLs,
+ * and basic OCSP). DES, two-key and three-key Triple DES, RC2, and RC4
+ * are included because those encodings still name them.
  * Those encodings live here until a certificates library takes them.
  * The handshake does not. See documentation/design.md.
  */
@@ -64,6 +67,7 @@
 #include <ghoti.io/security/md5.h>
 #include <ghoti.io/security/random.h>
 #include <ghoti.io/security/bcrypt.h>
+#include <ghoti.io/security/rc2.h>
 #include <ghoti.io/security/rc4.h>
 #include <ghoti.io/security/rsa.h>
 #include <ghoti.io/security/scrypt.h>

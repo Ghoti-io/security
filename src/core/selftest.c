@@ -33,6 +33,7 @@
 #include <ghoti.io/security/argon2.h>
 #include <ghoti.io/security/bcrypt.h>
 #include <ghoti.io/security/scrypt.h>
+#include <ghoti.io/security/rc2.h>
 #include <ghoti.io/security/rc4.h>
 #include <ghoti.io/security/der.h>
 #include <ghoti.io/security/des.h>
@@ -610,6 +611,38 @@ GSEC_Result gsec_selftest(void) {
     }
   }
 
+  /* RFC 8032 section 7.3, TEST abc, empty context. */
+  {
+    static const unsigned char seed[GSEC_ED25519_LEN] = {
+      0x83, 0x3f, 0xe6, 0x24, 0x09, 0x23, 0x7b, 0x9d,
+      0x62, 0xec, 0x77, 0x58, 0x75, 0x20, 0x91, 0x1e,
+      0x9a, 0x75, 0x9c, 0xec, 0x1d, 0x19, 0x75, 0x5b,
+      0x7d, 0xa9, 0x01, 0xb9, 0x6d, 0xca, 0x3d, 0x42
+    };
+    static const unsigned char msg[3] = {0x61, 0x62, 0x63};
+    static const unsigned char sig[GSEC_ED25519_SIG_LEN] = {
+      0x98, 0xa7, 0x02, 0x22, 0xf0, 0xb8, 0x12, 0x1a,
+      0xa9, 0xd3, 0x0f, 0x81, 0x3d, 0x68, 0x3f, 0x80,
+      0x9e, 0x46, 0x2b, 0x46, 0x9c, 0x7f, 0xf8, 0x76,
+      0x39, 0x49, 0x9b, 0xb9, 0x4e, 0x6d, 0xae, 0x41,
+      0x31, 0xf8, 0x50, 0x42, 0x46, 0x3c, 0x2a, 0x35,
+      0x5a, 0x20, 0x03, 0xd0, 0x62, 0xad, 0xf5, 0xaa,
+      0xa1, 0x0b, 0x8c, 0x61, 0xe6, 0x36, 0x06, 0x2a,
+      0xaa, 0xd1, 0x1c, 0x2a, 0x26, 0x08, 0x34, 0x06
+    };
+    unsigned char got[GSEC_ED25519_SIG_LEN];
+
+    result = gsec_ed25519_ph_sign(seed, msg, sizeof msg, NULL, 0, got);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(got, sig, sizeof got);
+    gsec_wipe(got, sizeof got);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
   /* One P-256 ECDH known answer: the shared x, and the public key. */
   {
     static const unsigned char scalar[GSEC_P256_LEN] = {
@@ -1026,6 +1059,25 @@ GSEC_Result gsec_selftest(void) {
   }
 
   {
+    static const unsigned char key[8] = {0};
+    static const unsigned char pt[8] = {0};
+    static const unsigned char ct[8] = {
+      0xeb, 0xb7, 0x73, 0xf9, 0x93, 0x27, 0x8e, 0xff
+    };
+    unsigned char got[8];
+
+    result = gsec_rc2_encrypt(key, sizeof key, 63, pt, got);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(got, ct, sizeof got);
+    gsec_wipe(got, sizeof got);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  {
     static const unsigned char key[5] = {0x01, 0x02, 0x03, 0x04, 0x05};
     static const unsigned char pt[5] = {0x68, 0x65, 0x6c, 0x6c, 0x6f};
     static const unsigned char ct[5] = {0xda, 0x5c, 0x0f, 0x69, 0x9f};
@@ -1151,6 +1203,12 @@ GSEC_Result gsec_selftest(void) {
       0xd0, 0x1e, 0xf0, 0x45, 0x2d, 0x75, 0xb6, 0x5e,
       0xb5, 0x25, 0x20, 0xe9, 0x6b, 0x01, 0xe6, 0x59
     };
+    static const unsigned char old[32] = {
+      0xb6, 0x46, 0x15, 0xf0, 0x77, 0x89, 0xb6, 0x6b,
+      0x64, 0x5b, 0x67, 0xee, 0x9e, 0xd3, 0xb3, 0x77,
+      0xae, 0x35, 0x0b, 0x6b, 0xfc, 0xbb, 0x0f, 0xc9,
+      0x51, 0x41, 0xea, 0x8f, 0x32, 0x26, 0x13, 0xc0
+    };
     unsigned i;
 
     for (i = 0; i < sizeof password; i++) {
@@ -1168,12 +1226,19 @@ GSEC_Result gsec_selftest(void) {
     result = gsec_argon2(GSEC_ARGON2_ID, password, sizeof password, salt,
         sizeof salt, secret, sizeof secret, ad, sizeof ad, 32, 3, 4, tag,
         sizeof tag);
+    if (result == GSEC_OK) {
+      result = gsec_equal(tag, want, sizeof tag);
+    }
+    if (result == GSEC_OK) {
+      result = gsec_argon2_version(GSEC_ARGON2_VERSION_10, GSEC_ARGON2_ID,
+          password, sizeof password, salt, sizeof salt, secret, sizeof secret,
+          ad, sizeof ad, 32, 3, 4, tag, sizeof tag);
+    }
+    if (result == GSEC_OK) {
+      result = gsec_equal(tag, old, sizeof tag);
+    }
     gsec_wipe(password, sizeof password);
     gsec_wipe(secret, sizeof secret);
-    if (result != GSEC_OK) {
-      return result;
-    }
-    result = gsec_equal(tag, want, sizeof tag);
     gsec_wipe(tag, sizeof tag);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;

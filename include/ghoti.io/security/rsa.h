@@ -43,8 +43,13 @@
  *
  * Encryption uses the same modulus rules. PKCS#1 v1.5 type 2 is what TLS
  * 1.2 RSA key transport decrypts, and the padding check does not branch on
- * the encoded message. OAEP is the same operation with the safer padding.
- * Neither uses the Chinese remainder theorem.
+ * the encoded message. Do not use it for a new design. A new RSA
+ * encryption is OAEP. A new key agreement is X25519 or P-256. A new RSA
+ * signature is PSS, with SHA-256 or stronger. MD5 and SHA-1 are for
+ * checking an old signature and then rejecting the algorithm.
+ * The label hash and the MGF1 hash are separate on
+ * ::gsec_rsa_oaep_mgf_encrypt. ::gsec_rsa_oaep_encrypt uses one hash for
+ * both, which is what TLS does. Neither uses the Chinese remainder theorem.
  */
 
 #ifndef GHOTI_IO_GSEC_RSA_H
@@ -128,6 +133,9 @@ GSEC_API GSEC_Result gsec_rsa_pss_verify(uint32_t hash, uint32_t mgf_hash,
 /**
  * @brief Sign with RSASSA-PKCS1-v1_5.
  *
+ * A new RSA signature is ::gsec_rsa_private_pss_sign, with SHA-256 or
+ * stronger. MD5 and SHA-1 are for an old signature.
+ *
  * @param hash The message hash. The same ids as
  *   ::gsec_rsa_pkcs1_v15_verify, including MD5 and SHA-1.
  * @param n Modulus, big-endian. A leading 0x00 is ignored.
@@ -190,7 +198,9 @@ GSEC_API GSEC_Result gsec_rsa_private_pss_sign(uint32_t hash,
 /**
  * @brief Encrypt with RSAES-PKCS1-v1_5.
  *
- * The padding is random nonzero bytes from the kernel generator. The
+ * Do not use this for a new design. A new encryption is
+ * ::gsec_rsa_oaep_encrypt. A new key agreement is X25519 or P-256. The
+ * padding is random nonzero bytes from the kernel generator. The
  * message must be at least eleven bytes shorter than the stripped
  * modulus.
  *
@@ -241,7 +251,8 @@ GSEC_API GSEC_Result gsec_rsa_pkcs1_v15_decrypt(const void * n, size_t n_len,
 /**
  * @brief Encrypt with RSAES-OAEP.
  *
- * @p hash is both the label hash and MGF1. An empty label is @p label_len
+ * @p hash is both the label hash and MGF1. A ciphertext whose MGF1 hash
+ * differs is ::gsec_rsa_oaep_mgf_encrypt. An empty label is @p label_len
  * 0, and @p label may be NULL in that case. The message must be shorter
  * than the modulus by two digests plus two bytes.
  *
@@ -295,6 +306,31 @@ GSEC_API GSEC_Result gsec_rsa_oaep_decrypt(uint32_t hash, const void * n,
     size_t n_len, const void * e, size_t e_len, const void * d, size_t d_len,
     const void * label, size_t label_len, const void * cipher,
     size_t cipher_len, void * msg, size_t msg_cap, size_t * msg_len);
+
+/**
+ * @brief Encrypt with RSAES-OAEP and a separate MGF1 hash.
+ *
+ * @p hash is the label hash. @p mgf_hash is MGF1. They may differ.
+ * The rest of the arguments match ::gsec_rsa_oaep_encrypt. The seed is
+ * @p hash's digest length, not @p mgf_hash's.
+ */
+GSEC_API GSEC_Result gsec_rsa_oaep_mgf_encrypt(uint32_t hash, uint32_t mgf_hash,
+    const void * n, size_t n_len, const void * e, size_t e_len,
+    const void * label, size_t label_len, const void * msg, size_t msg_len,
+    void * out, size_t out_len);
+
+/**
+ * @brief Decrypt with RSAES-OAEP and a separate MGF1 hash.
+ *
+ * @p hash and @p mgf_hash are the hashes used to encrypt. A mismatch of
+ * either, bad padding, and a ciphertext of the wrong length are all
+ * ::GSEC_ERR_MISMATCH. @p msg is wiped on failure.
+ */
+GSEC_API GSEC_Result gsec_rsa_oaep_mgf_decrypt(uint32_t hash, uint32_t mgf_hash,
+    const void * n, size_t n_len, const void * e, size_t e_len,
+    const void * d, size_t d_len, const void * label, size_t label_len,
+    const void * cipher, size_t cipher_len, void * msg, size_t msg_cap,
+    size_t * msg_len);
 
 #ifdef __cplusplus
 }

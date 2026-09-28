@@ -501,9 +501,16 @@ static void clamp(unsigned char a[32], const unsigned char h[32]) {
   a[31] = (unsigned char)(a[31] | 64u);
 }
 
-static GSEC_Result hash_two(const unsigned char * a, size_t an,
-    const unsigned char * b, size_t bn, const void * c, size_t cn,
-    unsigned char out[GSEC_SHA512_DIGEST_LEN]) {
+static GSEC_Result hash_update(GSEC_Sha512 * ctx, const void * data, size_t n) {
+  if (n == 0) {
+    return GSEC_OK;
+  }
+  return gsec_sha512_update(ctx, data, n);
+}
+
+static GSEC_Result hash_dom(const unsigned char * dom, size_t dom_n,
+    const unsigned char * a, size_t an, const unsigned char * b, size_t bn,
+    const void * c, size_t cn, unsigned char out[GSEC_SHA512_DIGEST_LEN]) {
   GSEC_Sha512 ctx;
   GSEC_Result result;
 
@@ -511,19 +518,39 @@ static GSEC_Result hash_two(const unsigned char * a, size_t an,
   if (result != GSEC_OK) {
     return result;
   }
-  result = gsec_sha512_update(&ctx, a, an);
+  result = hash_update(&ctx, dom, dom_n);
   if (result != GSEC_OK) {
     return result;
   }
-  result = gsec_sha512_update(&ctx, b, bn);
+  result = hash_update(&ctx, a, an);
   if (result != GSEC_OK) {
     return result;
   }
-  result = gsec_sha512_update(&ctx, c, cn);
+  result = hash_update(&ctx, b, bn);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  result = hash_update(&ctx, c, cn);
   if (result != GSEC_OK) {
     return result;
   }
   return gsec_sha512_final(&ctx, out);
+}
+
+static size_t domain(unsigned char * out, int phflag, const void * ctx,
+    size_t ctx_len) {
+  static const char prefix[] = "SigEd25519 no Ed25519 collisions";
+
+  if (phflag < 0) {
+    return 0;
+  }
+  memcpy(out, prefix, 32);
+  out[32] = (unsigned char)phflag;
+  out[33] = (unsigned char)ctx_len;
+  if (ctx_len != 0) {
+    memcpy(out + 34, ctx, ctx_len);
+  }
+  return 34u + ctx_len;
 }
 
 static void public_from_scalar(unsigned char out[32], const unsigned char scalar[32]) {
@@ -563,8 +590,8 @@ GSEC_Result gsec_ed25519_public(const void * seed, void * out) {
   return GSEC_OK;
 }
 
-GSEC_Result gsec_ed25519_sign(const void * seed, const void * data, size_t n,
-    void * out) {
+static GSEC_Result sign_variant(const void * seed, const void * data, size_t n,
+    void * out, int phflag, const void * ctx, size_t ctx_len) {
   unsigned char seed_copy[GSEC_ED25519_LEN];
   unsigned char hash[GSEC_SHA512_DIGEST_LEN];
   unsigned char scalar[GSEC_ED25519_LEN];
@@ -580,10 +607,16 @@ GSEC_Result gsec_ed25519_sign(const void * seed, const void * data, size_t n,
   sc a;
   sc ka;
   sc s;
+  unsigned char dom[34 + 255];
+  unsigned char ph[GSEC_SHA512_DIGEST_LEN];
+  const unsigned char * body;
+  size_t body_n;
+  size_t dom_n;
   GSEC_Result result;
   const unsigned char * message = (const unsigned char *)data;
 
-  if (seed == NULL || out == NULL || (data == NULL && n != 0)) {
+  if (seed == NULL || out == NULL || (data == NULL && n != 0) ||
+      ctx_len > 255 || (ctx == NULL && ctx_len != 0)) {
     return GSEC_ERR_INVALID;
   }
   memcpy(seed_copy, seed, GSEC_ED25519_LEN);
@@ -597,7 +630,22 @@ GSEC_Result gsec_ed25519_sign(const void * seed, const void * data, size_t n,
   memcpy(prefix, hash + 32, 32);
   gsec_wipe(hash, sizeof hash);
   public_from_scalar(pub, scalar);
-  result = hash_two(prefix, 32, message, n, NULL, 0, rhash);
+  if (phflag > 0) {
+    result = gsec_sha512(message, n, ph);
+    if (result != GSEC_OK) {
+      gsec_wipe(prefix, sizeof prefix);
+      gsec_wipe(scalar, sizeof scalar);
+      gsec_wipe(pub, sizeof pub);
+      return result;
+    }
+    body = ph;
+    body_n = GSEC_SHA512_DIGEST_LEN;
+  } else {
+    body = message;
+    body_n = n;
+  }
+  dom_n = domain(dom, phflag, ctx, ctx_len);
+  result = hash_dom(dom, dom_n, prefix, 32, body, body_n, NULL, 0, rhash);
   if (result != GSEC_OK) {
     gsec_wipe(prefix, sizeof prefix);
     gsec_wipe(scalar, sizeof scalar);
@@ -609,7 +657,7 @@ GSEC_Result gsec_ed25519_sign(const void * seed, const void * data, size_t n,
   gsec_wipe(rhash, sizeof rhash);
   sc_store(rbytes, &r);
   public_from_scalar(sig, rbytes);
-  result = hash_two(sig, 32, pub, 32, message, n, khash);
+  result = hash_dom(dom, dom_n, sig, 32, pub, 32, body, body_n, khash);
   if (result != GSEC_OK) {
     gsec_wipe(prefix, sizeof prefix);
     gsec_wipe(scalar, sizeof scalar);
@@ -639,11 +687,28 @@ GSEC_Result gsec_ed25519_sign(const void * seed, const void * data, size_t n,
   gsec_wipe(&a, sizeof a);
   gsec_wipe(&ka, sizeof ka);
   gsec_wipe(&s, sizeof s);
+  gsec_wipe(dom, sizeof dom);
+  gsec_wipe(ph, sizeof ph);
   return GSEC_OK;
 }
 
-GSEC_Result gsec_ed25519_verify(const void * public_key, const void * data,
-    size_t n, const void * sig) {
+GSEC_Result gsec_ed25519_sign(const void * seed, const void * data, size_t n,
+    void * out) {
+  return sign_variant(seed, data, n, out, -1, NULL, 0);
+}
+
+GSEC_Result gsec_ed25519_ctx_sign(const void * seed, const void * data,
+    size_t n, const void * ctx, size_t ctx_len, void * out) {
+  return sign_variant(seed, data, n, out, 0, ctx, ctx_len);
+}
+
+GSEC_Result gsec_ed25519_ph_sign(const void * seed, const void * data,
+    size_t n, const void * ctx, size_t ctx_len, void * out) {
+  return sign_variant(seed, data, n, out, 1, ctx, ctx_len);
+}
+
+static GSEC_Result verify_variant(const void * public_key, const void * data,
+    size_t n, const void * sig, int phflag, const void * ctx, size_t ctx_len) {
   const unsigned char * pub = (const unsigned char *)public_key;
   const unsigned char * signature = (const unsigned char *)sig;
   const unsigned char * message = (const unsigned char *)data;
@@ -659,16 +724,34 @@ GSEC_Result gsec_ed25519_verify(const void * public_key, const void * data,
   ge sum;
   fe25519 zero;
   sc k;
+  unsigned char dom[34 + 255];
+  unsigned char ph[GSEC_SHA512_DIGEST_LEN];
+  const unsigned char * body;
+  size_t body_n;
+  size_t dom_n;
   GSEC_Result result;
 
-  if (public_key == NULL || sig == NULL || (data == NULL && n != 0)) {
+  if (public_key == NULL || sig == NULL || (data == NULL && n != 0) ||
+      ctx_len > 255 || (ctx == NULL && ctx_len != 0)) {
     return GSEC_ERR_INVALID;
   }
   if (!sc_canonical(signature + 32) || !ge_decode(&point_a, pub) ||
       !ge_decode(&point_r, signature)) {
     return GSEC_ERR_MISMATCH;
   }
-  result = hash_two(signature, 32, pub, 32, message, n, khash);
+  if (phflag > 0) {
+    result = gsec_sha512(message, n, ph);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    body = ph;
+    body_n = GSEC_SHA512_DIGEST_LEN;
+  } else {
+    body = message;
+    body_n = n;
+  }
+  dom_n = domain(dom, phflag, ctx, ctx_len);
+  result = hash_dom(dom, dom_n, signature, 32, pub, 32, body, body_n, khash);
   if (result != GSEC_OK) {
     return result;
   }
@@ -697,8 +780,22 @@ GSEC_Result gsec_ed25519_verify(const void * public_key, const void * data,
   gsec_wipe(kbytes, sizeof kbytes);
   gsec_wipe(&k, sizeof k);
   gsec_wipe(lhs, sizeof lhs);
-  if (result == GSEC_ERR_MISMATCH || result == GSEC_OK) {
-    return result;
-  }
+  gsec_wipe(dom, sizeof dom);
+  gsec_wipe(ph, sizeof ph);
   return result;
+}
+
+GSEC_Result gsec_ed25519_verify(const void * public_key, const void * data,
+    size_t n, const void * sig) {
+  return verify_variant(public_key, data, n, sig, -1, NULL, 0);
+}
+
+GSEC_Result gsec_ed25519_ctx_verify(const void * public_key, const void * data,
+    size_t n, const void * sig, const void * ctx, size_t ctx_len) {
+  return verify_variant(public_key, data, n, sig, 0, ctx, ctx_len);
+}
+
+GSEC_Result gsec_ed25519_ph_verify(const void * public_key, const void * data,
+    size_t n, const void * sig, const void * ctx, size_t ctx_len) {
+  return verify_variant(public_key, data, n, sig, 1, ctx, ctx_len);
 }

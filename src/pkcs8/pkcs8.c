@@ -358,7 +358,7 @@ GSEC_Result gsec_pkcs8_decrypt(const void * der, size_t len,
       !gsec_der_is(&data, GSEC_DER_UNIVERSAL, 0, 4)) {
     return GSEC_ERR_CORRUPT;
   }
-  result = gsec_pbes2_decrypt(&alg, data.value, data.value_len, password,
+  result = gsec_pbe_decrypt(&alg, data.value, data.value_len, password,
       password_len, out, out_cap, out_len);
   if (result != GSEC_OK) {
     if (result == GSEC_ERR_MISMATCH && out != NULL) {

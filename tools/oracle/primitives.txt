@@ -48,6 +48,7 @@ rsa_oaep	implemented	wycheproof	tests/data/vectors/rsa_oaep.vec
 # Not now. x448 stays excluded so the foundation check still has a plant.
 aes_cbc	implemented	openssl	tests/data/vectors/aes_cbc.vec
 des	implemented	openssl	tests/data/vectors/des.vec
+rc2	implemented	rfc	tests/data/vectors/rc2.vec
 rc4	implemented	openssl	tests/data/vectors/rc4.vec
 argon2	implemented	openssl	tests/data/vectors/argon2.vec
 scrypt	implemented	openssl	tests/data/vectors/scrypt.vec

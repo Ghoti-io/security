@@ -5,9 +5,10 @@ not this library. `make check-oracle` first checks that the image still
 produces the published SHA-256 of `abc` and the Wycheproof file the pin
 names. It then judges every implemented primitive that has an outside
 judge: the hashes, including MD5, HMAC, HKDF, PBKDF2, AES, AES-CTR, AES-CBC,
-DES, RC4, scrypt, and Argon2, against OpenSSL in the image, and the AEAD
+DES, RC4, scrypt, and Argon2, against OpenSSL in the image. RC2 is
+the committed RFC 2268 file. The AEAD
 algorithms, the curves, including P-384, ECDSA, RSA verification, and
-RSAES-OAEP against the pinned Wycheproof files. bcrypt is judged by
+RSAES-OAEP are judged against the pinned Wycheproof files. bcrypt is judged by
 libxcrypt in the same image. RSA signing, and RSAES-PKCS1-v1_5, are judged
 by a 2048-bit key the image generates. OpenSSL also writes a certificate,
 its PEM, and an unencrypted PKCS#8 key, and this library reads them. A
@@ -110,7 +111,8 @@ which calls libxcrypt's `crypt_r`. The comparison is the 23 bytes the
 modular-crypt string stores. `$2a$`, `$2b$`, and `$2x$` each call their
 function. `$2y$` is asked of libxcrypt and compared with `gsec_bcrypt`. P-384 ECDH runs
 `ecdh_secp384r1_ecpoint_test.json`. RSAES-OAEP runs the pinned files
-whose label hash and MGF1 hash are the same. RSAES-PKCS1-v1_5 encrypts
+including those whose MGF1 hash differs from the label hash.
+RSAES-PKCS1-v1_5 encrypts
 a fresh message with `openssl pkeyutl` and decrypts it here. RC4's short
 keys go through `rc4-evp`, because `openssl enc -rc4` zero-pads `-K`.
 DER, PEM, PKCS#8, and X.509 read objects OpenSSL just wrote.
@@ -131,7 +133,7 @@ hand-edited expected digest would not have.
 The parser rejects a truncated hex string, an odd number of digits, an
 uppercase digit, a boolean expectation, and a length that does not match
 the bytes. `equal`, the five hashes, `hmac`, `hkdf`, `pbkdf2`, `aes`,
-`aes_ctr`, `aes_cbc`, `des`, `rc4`, `scrypt`, `bcrypt`, `argon2`, `aes_gcm`, `chacha20_poly1305`, `x25519`, `ed25519`,
+`aes_ctr`, `aes_cbc`, `des`, `rc2`, `rc4`, `scrypt`, `bcrypt`, `argon2`, `aes_gcm`, `chacha20_poly1305`, `x25519`, `ed25519`,
 `ecdh_p256`, `ecdh_p384`, `ecdsa_p256`, `ecdsa_p384`, `rsa_pkcs1`, `rsa_pss`, `rsa_private`,
 `rsa_oaep`, `rsaes_pkcs1`, `der`, `pem`, `pkcs8`, and `x509` each have a file. A
 later primitive adds a file in the same commit as the function, and names

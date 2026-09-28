@@ -150,7 +150,7 @@ static GSEC_Result prf_of(const GSEC_Der * alg, uint32_t * hash) {
   return GSEC_OK;
 }
 
-static GSEC_Result unpad(unsigned char * buf, size_t n, size_t block,
+GSEC_Result gsec_pkcs7_unpad(unsigned char * buf, size_t n, size_t block,
     size_t * out_len) {
   const volatile unsigned char * secret;
   uint32_t pad;
@@ -354,5 +354,5 @@ GSEC_Result gsec_pbes2_decrypt(const GSEC_Der * alg, const void * ct,
     gsec_wipe(out, ct_len);
     return result;
   }
-  return unpad(out, ct_len, block, out_len);
+  return gsec_pkcs7_unpad(out, ct_len, block, out_len);
 }

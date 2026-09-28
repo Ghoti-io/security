@@ -48,12 +48,19 @@ WYCHEPROOF_ECDSA_P384 = "/opt/wycheproof/testvectors_v1/ecdsa_secp384r1_sha384_p
 WYCHEPROOF_ECDH_P384 = "/opt/wycheproof/testvectors_v1/ecdh_secp384r1_ecpoint_test.json"
 OAEP_FILES = (
     "rsa_oaep_2048_sha1_mgf1sha1_test.json",
+    "rsa_oaep_2048_sha256_mgf1sha1_test.json",
     "rsa_oaep_2048_sha256_mgf1sha256_test.json",
+    "rsa_oaep_2048_sha384_mgf1sha1_test.json",
     "rsa_oaep_2048_sha384_mgf1sha384_test.json",
+    "rsa_oaep_2048_sha512_mgf1sha1_test.json",
     "rsa_oaep_2048_sha512_mgf1sha512_test.json",
+    "rsa_oaep_3072_sha256_mgf1sha1_test.json",
     "rsa_oaep_3072_sha256_mgf1sha256_test.json",
+    "rsa_oaep_3072_sha512_mgf1sha1_test.json",
     "rsa_oaep_3072_sha512_mgf1sha512_test.json",
+    "rsa_oaep_4096_sha256_mgf1sha1_test.json",
     "rsa_oaep_4096_sha256_mgf1sha256_test.json",
+    "rsa_oaep_4096_sha512_mgf1sha1_test.json",
     "rsa_oaep_4096_sha512_mgf1sha512_test.json",
 )
 HASH_NAME = {
@@ -1767,9 +1774,9 @@ def diff_ecdh_p384():
     return diff_ecdsa_p256()
 
 
-def library_oaep(binary, hash_name, private, label, cipher):
+def library_oaep(binary, hash_name, mgf_name, private, label, cipher):
     proc = subprocess.run([
-        binary, "decrypt-oaep", hash_name, private["modulus"],
+        binary, "decrypt-oaep", hash_name, mgf_name, private["modulus"],
         private["publicExponent"], private["privateExponent"],
         label if label else "-", cipher], capture_output=True, text=True)
     return proc.returncode, proc.stdout.strip()
@@ -1794,19 +1801,15 @@ def diff_oaep():
             sys.stderr.write("wycheproof %s: %s\n" % (filename, error))
             return 1
         for group in data["testGroups"]:
-            if group["sha"] != group["mgfSha"]:
-                sys.stderr.write("%s mixes %s and %s\n" % (
-                    filename, group["sha"], group["mgfSha"]))
-                return 1
             hash_name = HASH_NAME.get(group["sha"])
-            if hash_name is None:
-                sys.stderr.write("%s uses %s\n" % (filename, group["sha"]))
-                return 1
+            mgf_name = HASH_NAME.get(group["mgfSha"])
+            if hash_name is None or mgf_name is None:
+                continue
             private = group["privateKey"]
             for case in group["tests"]:
                 checked += 1
                 code, text = library_oaep(
-                    binary, hash_name, private, case["label"], case["ct"])
+                    binary, hash_name, mgf_name, private, case["label"], case["ct"])
                 if case["result"] == "valid":
                     if code != 0 or text.lower() != case["msg"].lower():
                         sys.stderr.write(
@@ -1825,7 +1828,7 @@ def diff_oaep():
                     "oaep %s tc %s has result %s\n" % (
                         filename, case["tcId"], case["result"]))
                 return 1
-    if checked < 283:
+    if checked < 502:
         sys.stderr.write("oaep checked %s wycheproof cases\n" % checked)
         return 1
     print("oaep wycheproof %s" % checked)
@@ -1880,8 +1883,8 @@ def diff_rsaes():
                 command = [binary, "decrypt-pkcs1", modulus, public, private, cipher]
             else:
                 command = [
-                    binary, "decrypt-oaep", "sha256", modulus, public, private,
-                    "-", cipher]
+                    binary, "decrypt-oaep", "sha256", "sha256", modulus, public,
+                    private, "-", cipher]
             got = subprocess.run(command, capture_output=True, text=True)
             if got.returncode != 0 or got.stdout.strip() != message.hex():
                 sys.stderr.write("rsaes %s decrypted %s\n" % (label, got.stdout.strip()))

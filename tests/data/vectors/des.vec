@@ -1,4 +1,5 @@
-# DES and three-key Triple DES known answers. No padding.
+# DES, two-key Triple DES, and three-key Triple DES. No padding.
+# ede2-cbc is an OpenSSL 3.5.7 ciphertext.
 primitive des
 
 case fips-ecb
@@ -21,3 +22,10 @@ key 0123456789abcdef5555555555555555fedcba9876543210
 iv -
 pt 0123456789abcdef
 ct 6b9ef97b5c955c29
+
+case ede2-cbc
+mode ede2-cbc
+key 00112233445566778899aabbccddeeff
+iv 0102030405060708
+pt 6162636465666768696a6b6c6d6e6f70
+ct 7c430a32f889c35c1d5e617482b940a0

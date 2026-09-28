@@ -131,6 +131,28 @@ TEST(RsaCrypt, RoundTrip) {
       sizeof got, &got_len), GSEC_ERR_MISMATCH);
 }
 
+TEST(RsaCrypt, OaepMgfHashIsSeparate) {
+  auto n = unhex(kN);
+  auto d = unhex(kD);
+  unsigned char e[3] = {0x01, 0x00, 0x01};
+  unsigned char msg[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+  unsigned char ct[128];
+  unsigned char got[8];
+  size_t got_len = 0;
+
+  ASSERT_EQ(gsec_rsa_oaep_mgf_encrypt(GSEC_RSA_SHA256, GSEC_RSA_SHA1,
+      n.data(), n.size(), e, sizeof e, nullptr, 0, msg, sizeof msg, ct,
+      sizeof ct), GSEC_OK);
+  ASSERT_EQ(gsec_rsa_oaep_mgf_decrypt(GSEC_RSA_SHA256, GSEC_RSA_SHA1,
+      n.data(), n.size(), e, sizeof e, d.data(), d.size(), nullptr, 0, ct,
+      sizeof ct, got, sizeof got, &got_len), GSEC_OK);
+  EXPECT_EQ(got_len, sizeof msg);
+  EXPECT_EQ(std::memcmp(got, msg, sizeof msg), 0);
+  EXPECT_EQ(gsec_rsa_oaep_decrypt(GSEC_RSA_SHA256, n.data(), n.size(), e,
+      sizeof e, d.data(), d.size(), nullptr, 0, ct, sizeof ct, got,
+      sizeof got, &got_len), GSEC_ERR_MISMATCH);
+}
+
 TEST(RsaCrypt, RejectsBadPadding) {
   auto n = unhex(kN);
   auto d = unhex(kD);

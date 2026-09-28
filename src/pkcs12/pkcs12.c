@@ -74,7 +74,7 @@ static const unsigned char OID_SHA512[] = {
 #define BMP_MAX 514u
 #define I_MAX 2048u
 
-static GSEC_Result bmp_password(const unsigned char * in, size_t n,
+GSEC_Result gsec_pkcs12_bmp(const unsigned char * in, size_t n,
     unsigned char * out, size_t * out_len) {
   size_t i = 0;
   size_t o = 0;
@@ -161,9 +161,10 @@ static GSEC_Result hash_bytes(uint32_t id, const unsigned char * p, size_t n,
   return gsec_sha512(p, n, out);
 }
 
-static GSEC_Result pkcs12_kdf(uint32_t id, size_t u, size_t v,
+GSEC_Result gsec_pkcs12_kdf(uint32_t id, size_t u, size_t v,
     const unsigned char * pass, size_t pass_len, const unsigned char * salt,
-    size_t salt_len, uint32_t iterations, unsigned char * dk, size_t dk_len) {
+    size_t salt_len, uint32_t iterations, unsigned char purpose,
+    unsigned char * dk, size_t dk_len) {
   unsigned char diversifier[128];
   unsigned char material[I_MAX];
   unsigned char block[64];
@@ -183,7 +184,7 @@ static GSEC_Result pkcs12_kdf(uint32_t id, size_t u, size_t v,
     return GSEC_ERR_LIMIT;
   }
   for (i = 0; i < v; i++) {
-    diversifier[i] = 3;
+    diversifier[i] = purpose;
   }
   for (i = 0; i < s_len; i++) {
     material[i] = salt[i % salt_len];
@@ -363,7 +364,7 @@ static GSEC_Result take_bags(const unsigned char * p, size_t n,
       if (ct.value_len > *scratch_left) {
         return GSEC_ERR_LIMIT;
       }
-      result = gsec_pbes2_decrypt(&alg, ct.value, ct.value_len, pass, pass_len,
+      result = gsec_pbe_decrypt(&alg, ct.value, ct.value_len, pass, pass_len,
           *scratch, *scratch_left, &plain_len);
       if (result != GSEC_OK) {
         return result;
@@ -454,7 +455,7 @@ static GSEC_Result take_content(const GSEC_Der * info, const unsigned char * pas
     if (ct.value_len > *scratch_left) {
       return GSEC_ERR_LIMIT;
     }
-    result = gsec_pbes2_decrypt(&alg, ct.value, ct.value_len, pass, pass_len,
+    result = gsec_pbe_decrypt(&alg, ct.value, ct.value_len, pass, pass_len,
         *scratch, *scratch_left, &plain_len);
     if (result != GSEC_OK) {
       return result;
@@ -500,7 +501,7 @@ GSEC_Result gsec_pkcs12_open(const void * der, size_t len, const void * password
   if (len == 0 || len > GSEC_X509_DER_MAX) {
     return len == 0 ? GSEC_ERR_CORRUPT : GSEC_ERR_LIMIT;
   }
-  result = bmp_password(password, password_len, bmp, &bmp_len);
+  result = gsec_pkcs12_bmp(password, password_len, bmp, &bmp_len);
   if (result != GSEC_OK) {
     return result;
   }
@@ -652,8 +653,8 @@ GSEC_Result gsec_pkcs12_open(const void * der, size_t len, const void * password
     }
     content = content_oct.value;
     content_len = content_oct.value_len;
-    result = pkcs12_kdf(id, u, v, bmp, bmp_len, salt.value, salt.value_len,
-        iterations, key, u);
+    result = gsec_pkcs12_kdf(id, u, v, bmp, bmp_len, salt.value, salt.value_len,
+        iterations, 3, key, u);
     if (result != GSEC_OK) {
       gsec_wipe(bmp, sizeof bmp);
       gsec_wipe(key, sizeof key);

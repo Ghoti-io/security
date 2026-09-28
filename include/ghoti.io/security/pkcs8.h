@@ -89,14 +89,15 @@ GSEC_API GSEC_Result gsec_pkcs8_parse(const void * der, size_t len,
     GSEC_Pkcs8 * out);
 
 /**
- * @brief Decrypt a PBES2 EncryptedPrivateKeyInfo.
+ * @brief Decrypt an EncryptedPrivateKeyInfo.
  *
- * @p password is the password bytes themselves. PKCS#12 uses a different
- * encoding of the same characters and does not call this. On success
- * @p out holds a PrivateKeyInfo, which ::gsec_pkcs8_parse can read. A
- * wrong password is ::GSEC_ERR_MISMATCH and @p out is wiped. An algorithm
- * other than PBES2 with PBKDF2 and AES-CBC or three-key Triple DES is
- * ::GSEC_ERR_UNSUPPORTED.
+ * PBES2 and PBES1 use @p password as given. A PKCS#12 PBE object
+ * identifier turns it into UTF-16BE with two trailing zero bytes first.
+ * PBES1 and a PKCS#12 PBE are here so an old key can be opened. A new
+ * encrypted key is PBES2 with AES.
+ * On success @p out holds a PrivateKeyInfo, which ::gsec_pkcs8_parse can
+ * read. A wrong password is ::GSEC_ERR_MISMATCH and @p out is wiped. An
+ * algorithm this library does not implement is ::GSEC_ERR_UNSUPPORTED.
  *
  * @param der EncryptedPrivateKeyInfo. NULL only when @p len is 0.
  * @param len Length of @p der.

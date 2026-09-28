@@ -25,6 +25,8 @@ struct Case {
   std::vector<unsigned char> msg;
   std::vector<unsigned char> pub;
   std::vector<unsigned char> sig;
+  std::string mode;
+  std::vector<unsigned char> context;
 };
 
 int hex_value(char c) {
@@ -123,6 +125,17 @@ bool parse_file(const std::string & text, std::vector<Case> * cases,
       return false;
     }
     std::vector<unsigned char> * dest = nullptr;
+    if (key == "mode") {
+      current.mode = value;
+      continue;
+    }
+    if (key == "context") {
+      if (!parse_hex(value, &current.context)) {
+        *error = key;
+        return false;
+      }
+      continue;
+    }
     if (key == "seed") {
       dest = &current.seed;
     } else if (key == "msg") {
@@ -165,23 +178,40 @@ TEST(Ed25519, CommittedFileMatches) {
   std::string error;
   std::vector<Case> cases;
   ASSERT_TRUE(parse_file(load_committed(), &cases, &error)) << error;
-  ASSERT_EQ(cases.size(), 2u);
+  ASSERT_EQ(cases.size(), 5u);
   for (const Case & item : cases) {
     unsigned char pub[GSEC_ED25519_LEN];
     unsigned char sig[GSEC_ED25519_SIG_LEN];
     unsigned char inplace[GSEC_ED25519_SIG_LEN];
+    const unsigned char * ctx = bytes_or_null(item.context);
     SCOPED_TRACE(item.name);
     ASSERT_EQ(gsec_ed25519_public(item.seed.data(), pub), GSEC_OK);
     EXPECT_EQ(gsec_equal(pub, item.pub.data(), sizeof pub), GSEC_OK);
-    ASSERT_EQ(gsec_ed25519_sign(item.seed.data(), bytes_or_null(item.msg),
-        item.msg.size(), sig), GSEC_OK);
-    EXPECT_EQ(gsec_equal(sig, item.sig.data(), sizeof sig), GSEC_OK);
-    EXPECT_EQ(gsec_ed25519_verify(item.pub.data(), bytes_or_null(item.msg),
-        item.msg.size(), item.sig.data()), GSEC_OK);
-    std::memcpy(inplace, item.seed.data(), GSEC_ED25519_LEN);
-    ASSERT_EQ(gsec_ed25519_sign(inplace, bytes_or_null(item.msg),
-        item.msg.size(), inplace), GSEC_OK);
-    EXPECT_EQ(gsec_equal(inplace, item.sig.data(), sizeof inplace), GSEC_OK);
+    if (item.mode == "ctx") {
+      ASSERT_EQ(gsec_ed25519_ctx_sign(item.seed.data(), bytes_or_null(item.msg),
+          item.msg.size(), ctx, item.context.size(), sig), GSEC_OK);
+      EXPECT_EQ(gsec_equal(sig, item.sig.data(), sizeof sig), GSEC_OK);
+      EXPECT_EQ(gsec_ed25519_ctx_verify(item.pub.data(),
+          bytes_or_null(item.msg), item.msg.size(), item.sig.data(), ctx,
+          item.context.size()), GSEC_OK);
+    } else if (item.mode == "ph") {
+      ASSERT_EQ(gsec_ed25519_ph_sign(item.seed.data(), bytes_or_null(item.msg),
+          item.msg.size(), ctx, item.context.size(), sig), GSEC_OK);
+      EXPECT_EQ(gsec_equal(sig, item.sig.data(), sizeof sig), GSEC_OK);
+      EXPECT_EQ(gsec_ed25519_ph_verify(item.pub.data(),
+          bytes_or_null(item.msg), item.msg.size(), item.sig.data(), ctx,
+          item.context.size()), GSEC_OK);
+    } else {
+      ASSERT_EQ(gsec_ed25519_sign(item.seed.data(), bytes_or_null(item.msg),
+          item.msg.size(), sig), GSEC_OK);
+      EXPECT_EQ(gsec_equal(sig, item.sig.data(), sizeof sig), GSEC_OK);
+      EXPECT_EQ(gsec_ed25519_verify(item.pub.data(), bytes_or_null(item.msg),
+          item.msg.size(), item.sig.data()), GSEC_OK);
+      std::memcpy(inplace, item.seed.data(), GSEC_ED25519_LEN);
+      ASSERT_EQ(gsec_ed25519_sign(inplace, bytes_or_null(item.msg),
+          item.msg.size(), inplace), GSEC_OK);
+      EXPECT_EQ(gsec_equal(inplace, item.sig.data(), sizeof inplace), GSEC_OK);
+    }
     EXPECT_EQ(gsec_wipe(pub, sizeof pub), GSEC_OK);
     EXPECT_EQ(gsec_wipe(sig, sizeof sig), GSEC_OK);
     EXPECT_EQ(gsec_wipe(inplace, sizeof inplace), GSEC_OK);
@@ -243,6 +273,10 @@ TEST(Ed25519, NullArgumentsAreInvalid) {
   EXPECT_EQ(gsec_ed25519_verify(nullptr, nullptr, 0, buf), GSEC_ERR_INVALID);
   EXPECT_EQ(gsec_ed25519_verify(buf, nullptr, 0, nullptr), GSEC_ERR_INVALID);
   EXPECT_EQ(gsec_ed25519_verify(buf, nullptr, 1, buf), GSEC_ERR_INVALID);
+  EXPECT_EQ(gsec_ed25519_ctx_sign(buf, nullptr, 0, buf, 256, buf),
+      GSEC_ERR_INVALID);
+  EXPECT_EQ(gsec_ed25519_ph_sign(buf, nullptr, 0, nullptr, 1, buf),
+      GSEC_ERR_INVALID);
 }
 
 int main(int argc, char ** argv) {

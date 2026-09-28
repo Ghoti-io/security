@@ -24,10 +24,10 @@
  * RSA decryption on the command line.
  *
  * `rsa_crypt decrypt-pkcs1 <hexn> <hexe> <hexd> <hexcipher>` and
- * `rsa_crypt decrypt-oaep <hash> <hexn> <hexe> <hexd> <hexlabel|->
- * <hexcipher>` print the message as lowercase hex. hash is md5, sha1,
- * sha256, sha384, or sha512, and it is both the label hash and MGF1.
- * A bad ciphertext exits 1 and prints nothing. Bad hex exits 2.
+ * `rsa_crypt decrypt-oaep <hash> <mgf> <hexn> <hexe> <hexd> <hexlabel|->
+ * <hexcipher>` print the message as lowercase hex. hash and mgf are
+ * md5, sha1, sha256, sha384, or sha512. hash is the label hash. mgf is
+ * MGF1. A bad ciphertext exits 1 and prints nothing. Bad hex exits 2.
  */
 
 #include <ghoti.io/security/macros.h>
@@ -119,6 +119,7 @@ int main(int argc, char ** argv) {
   size_t ln = 0;
   size_t mn = 0;
   uint32_t hash = 0;
+  uint32_t mgf = 0;
   int oaep;
   int rc;
   GSEC_Result result;
@@ -133,30 +134,30 @@ int main(int argc, char ** argv) {
     return 2;
   }
   if (oaep) {
-    if (argc != 8 || !hash_id(argv[2], &hash)) {
+    if (argc != 9 || !hash_id(argv[2], &hash) || !hash_id(argv[3], &mgf)) {
       return 2;
     }
-    rc = parse_hex(argv[3], nbuf, sizeof nbuf, &nn);
+    rc = parse_hex(argv[4], nbuf, sizeof nbuf, &nn);
     if (rc != 0) {
       return rc;
     }
-    rc = parse_hex(argv[4], ebuf, sizeof ebuf, &en);
+    rc = parse_hex(argv[5], ebuf, sizeof ebuf, &en);
     if (rc != 0) {
       return rc;
     }
-    rc = parse_hex(argv[5], dbuf, sizeof dbuf, &dn);
+    rc = parse_hex(argv[6], dbuf, sizeof dbuf, &dn);
     if (rc != 0) {
       return rc;
     }
-    rc = parse_hex(argv[6], lbuf, sizeof lbuf, &ln);
+    rc = parse_hex(argv[7], lbuf, sizeof lbuf, &ln);
     if (rc != 0) {
       return rc;
     }
-    rc = parse_hex(argv[7], cbuf, sizeof cbuf, &cn);
+    rc = parse_hex(argv[8], cbuf, sizeof cbuf, &cn);
     if (rc != 0) {
       return rc;
     }
-    result = gsec_rsa_oaep_decrypt(hash, nbuf, nn, ebuf, en, dbuf, dn,
+    result = gsec_rsa_oaep_mgf_decrypt(hash, mgf, nbuf, nn, ebuf, en, dbuf, dn,
         ln == 0 ? NULL : lbuf, ln, cbuf, cn, mbuf, sizeof mbuf, &mn);
   } else {
     if (argc != 6) {
