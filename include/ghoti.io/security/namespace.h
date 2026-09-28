@@ -130,6 +130,7 @@
 #define gsec_ocsp_status GHOTIIO_SECURITY(gsec_ocsp_status)
 #define gsec_poison GHOTIIO_SECURITY(gsec_poison)
 #define gsec_random_bytes GHOTIIO_SECURITY(gsec_random_bytes)
+#define gsec_random_open GHOTIIO_SECURITY(gsec_random_open)
 #define gsec_rc4 GHOTIIO_SECURITY(gsec_rc4)
 #define gsec_result_string GHOTIIO_SECURITY(gsec_result_string)
 #define gsec_rsa_oaep_decrypt GHOTIIO_SECURITY(gsec_rsa_oaep_decrypt)

@@ -13,6 +13,9 @@
 
 #include "test_helpers.h"
 
+#include <ghoti.io/cutil/random.h>
+
+#include <cstdint>
 #include <cstring>
 #include <vector>
 
@@ -72,6 +75,24 @@ TEST(Random, AZeroCapRejectsAnyByte) {
   EXPECT_EQ(gsec_random_bytes(&byte, 1, &limits), GSEC_ERR_LIMIT);
   EXPECT_EQ(byte, 0xA5);
   EXPECT_EQ(gsec_random_bytes(&byte, 0, &limits), GSEC_OK);
+}
+
+TEST(Random, OpenDrawsThroughTheHandle) {
+  GCU_Random * handle = gsec_random_open();
+  ASSERT_NE(handle, nullptr);
+  unsigned char buffer[32];
+  std::memset(buffer, 0xA5, sizeof buffer);
+  ASSERT_EQ(gcu_random_bytes(handle, buffer, sizeof buffer), 0);
+  unsigned changed = 0;
+  for (unsigned char byte : buffer) {
+    changed |= static_cast<unsigned>(byte ^ 0xA5);
+  }
+  EXPECT_NE(changed, 0u);
+  uint64_t word = 0;
+  EXPECT_EQ(gcu_random_u64(handle, &word), 0);
+  EXPECT_EQ(gsec_wipe(buffer, sizeof buffer), GSEC_OK);
+  gcu_random_free(handle);
+  gcu_random_free(nullptr);
 }
 
 int main(int argc, char ** argv) {

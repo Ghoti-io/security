@@ -77,6 +77,7 @@ phases that allocate.
 | `gsec_wipe` | Overwrite `n` bytes. Returns a result so a null pointer with a positive length is `GSEC_ERR_INVALID` rather than a crash. |
 | `gsec_poison`, `gsec_unpoison` | Valgrind client requests when `GSEC_CT_TEST` is set, otherwise empty. They return void: marking is not a result the caller branches on. |
 | `gsec_random_bytes` | Fill `out` with `n` bytes from the kernel, or leave it wiped and return an error. `n` above `max_random_bytes` is `GSEC_ERR_LIMIT` and does not write. |
+| `gsec_random_open` | A `GCU_Random` over that call, with the default cap and no leftover kernel bytes. `NULL` if the handle cannot be allocated. A draw fails when the kernel call fails, and that draw's output is wiped. Release it with `gcu_random_free`. A key still uses `gsec_random_bytes`, which is the call that takes a `GSEC_Limits`. |
 | `gsec_sha256_init`, `gsec_sha256_update`, `gsec_sha256_final`, `gsec_sha256` | FIPS 180-4 SHA-256. The message length is public. Message bytes are not a branch condition and not a table index. Final wipes the context. A bit length that does not fit in 64 bits wipes it and returns `GSEC_ERR_LIMIT`. |
 | `gsec_selftest` | A known answer for each implemented primitive except RSA verification, whose known answer is the vector file. Signing's known answer is a 512-bit key. The entropy call folds the output with XOR and then wipes it, and branches on whether any byte was written, which is public. |
 | `gsec_sha512`, `gsec_sha384`, `gsec_sha1`, `gsec_md5` | The same shape as SHA-256. SHA-384 is SHA-512's compression with the FIPS 180-4 initial value. SHA-1 and MD5 do not provide collision resistance. MD5 is not a MAC. |
@@ -103,18 +104,15 @@ phases that allocate.
 
 The public umbrella is `security.h`.
 
-## 3. Entropy and wipe live here for now
+## 3. Entropy and wipe stay here
 
-The plan assigns the syscall and the explicit zero to `cutil`, with this
-library owning the contract: fail closed, no userspace generator, wipe on
-failure. `cutil` has neither. `gcu_random_mt` is a Mersenne Twister, and
-`memory.h` counts allocations. Both calls are implemented here so the
-contract is tested, and `check-secret` rejects a use of the Twister under
-`src/`.
-
-When `cutil` grows `gcu_random_bytes` and an explicit zero with this
-contract, these two functions become wrappers and the syscall leaves this
-tree. Until that commit, a caller who needs the contract uses these.
+The kernel call and the explicit zero stay in this library. CUtil has the
+seeded generators and the handle, and it does not call the kernel.
+`gsec_random_open` is the adapter: a `GCU_Random` whose fill function is
+`gsec_random_bytes` with the default cap. The handle does not keep unused
+kernel bytes. A key is still drawn with `gsec_random_bytes`, which is the
+call that takes a `GSEC_Limits`. `check-secret` rejects a use of the
+Twister under `src/`.
 
 The Windows branch calls `BCryptGenRandom` with
 `BCRYPT_USE_SYSTEM_PREFERRED_RNG` and links `bcrypt`. It has not been

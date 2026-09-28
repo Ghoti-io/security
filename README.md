@@ -51,6 +51,7 @@ as P-256 with SHA-384 and 48-byte coordinates.
 - `gsec_equal` compares two regions and returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
 - `gsec_random_bytes` reads the kernel generator. A failure wipes what was already written and returns `GSEC_ERR_IO`. There is no userspace generator behind that failure.
+- `gsec_random_open` returns a cutil `GCU_Random` whose draws call `gsec_random_bytes` with the default cap. Release it with `gcu_random_free`. A key still goes through `gsec_random_bytes`, which is the call that takes a limit. The handle does not keep unused kernel bytes.
 - `gsec_sha256` hashes a buffer. `gsec_sha256_init`, `gsec_sha256_update`, and `gsec_sha256_final` hash a message in slices. Final wipes the context. `gsec_sha512`, `gsec_sha384`, `gsec_sha1`, and `gsec_md5` are the same shape. SHA-384 is SHA-512's compression with a different initial value, not a truncation of a SHA-512 digest. MD5 is little-endian and is not a MAC.
 - `gsec_hmac` is HMAC over one of those hashes. `gsec_hmac_verify` compares the MAC with `gsec_equal` and returns `GSEC_ERR_MISMATCH` when it differs.
 - `gsec_hkdf` is HKDF over one of those hashes: extract, then expand. A salt of length zero is HashLen zero bytes. An output longer than 255 digests is `GSEC_ERR_LIMIT`. This is the high-entropy derivation.
@@ -92,7 +93,7 @@ list as implemented fails the build.
 - `gsec_result_string` returns one of a fixed set of static strings. There is no function that prints a key.
 - `NULL` for an allocator is cutil's default. `NULL` for limits is the defaults in `gsec_limits_default`, which cap one `gsec_random_bytes` call at 1 MiB.
 - A zero length is success and does not read the pointers. A null pointer with a positive length is `GSEC_ERR_INVALID`.
-- `gsec_random_bytes` waits for the kernel generator. It does not fall back to a device node or to cutil's Mersenne Twister.
+- `gsec_random_bytes` waits for the kernel generator. It does not fall back to a device node or to cutil's Mersenne Twister. `gsec_random_open` uses that same call and the default cap.
 
 ## Examples
 

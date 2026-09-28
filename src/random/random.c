@@ -138,3 +138,16 @@ GSEC_Result gsec_random_bytes(void * out, size_t n,
 #endif
   return GSEC_OK;
 }
+
+
+static int kernel_fill(void * ctx, void * out, size_t n) {
+  (void)ctx;
+  return gsec_random_bytes(out, n, NULL) == GSEC_OK ? 0 : -1;
+}
+
+
+GCU_Random * gsec_random_open(void) {
+  GCU_Random_Engine engine = { NULL, kernel_fill, NULL };
+
+  return gcu_random_from_engine(&engine);
+}
