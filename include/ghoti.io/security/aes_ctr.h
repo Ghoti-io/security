@@ -28,8 +28,10 @@
  * direction it increments are part of the call. ::GSEC_AES_CTR_BE
  * increments it as a big-endian integer, which is the NIST counter.
  * ::GSEC_AES_CTR_LE increments it as a little-endian integer, which is
- * the counter WinZip AES uses. The keystream is secret. Final, and the
- * one-shot function, wipe the schedule and any unused keystream.
+ * the counter WinZip AES uses. The mode does not authenticate. A caller
+ * that needs a tag uses AES-GCM or ChaCha20-Poly1305. The keystream is
+ * secret. Final, and the one-shot function, wipe the schedule and any
+ * unused keystream.
  *
  * A length of zero is success and does not read the buffers.
  */

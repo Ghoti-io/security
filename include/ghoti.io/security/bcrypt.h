@@ -23,29 +23,21 @@
  *
  * bcrypt, the EksBlowfish password hash.
  *
- * This is a password hash for storage. It is not PBKDF2. The salt is
- * the caller's 16 bytes. The cost is public. A password longer than
- * ::GSEC_BCRYPT_PASSWORD_MAX is ::GSEC_ERR_INVALID rather than silently
- * truncated.
+ * These functions check a hash an old system stored. Do not use bcrypt
+ * for a new password store. A new password hash is Argon2id,
+ * ::gsec_argon2 with ::GSEC_ARGON2_ID.
  *
- * The key is the password bytes followed by a zero byte.
- * ::gsec_bcrypt is the $2b$ rule, and it is also $2y$: every byte is
- * unsigned. ::gsec_bcrypt_2a is that schedule with crypt_blowfish's
- * collision tweak. When the sign-extending schedule would have produced
- * the same subkeys and a later byte in a group had its high bit set,
- * bit 16 of the first subkey is flipped before the salt is mixed in.
- * ::gsec_bcrypt_2x is the sign-extending schedule itself. A byte at or
- * above 128 is widened through a signed char, and those words are the
- * key on every mix, including the later rounds. A password whose bytes
- * are all below 128 hashes the same way under all three functions.
+ * ::gsec_bcrypt is $2b$, and it is also $2y$. ::gsec_bcrypt_2a checks a
+ * $2a$ hash. ::gsec_bcrypt_2x checks a $2x$ hash. A new bcrypt hash, when
+ * the store is already bcrypt, uses ::gsec_bcrypt. The salt is the
+ * caller's 16 bytes. A password longer than ::GSEC_BCRYPT_PASSWORD_MAX
+ * is ::GSEC_ERR_INVALID rather than silently truncated. The output is
+ * the 24-byte ciphertext. A modular-crypt string stores 23 of those
+ * bytes. This function does not format that string.
  *
- * EksBlowfish indexes its S-boxes with bytes that depend on the
- * password. That is not constant-time, and this function is not in the
- * constant-time gate. The hash is broken for a new system. Old hashes
- * still name it.
- *
- * The output is the 24-byte ciphertext. A modular-crypt string stores
- * 23 of those bytes. This function does not format that string.
+ * The key schedule indexes its S-boxes with bytes that depend on the
+ * password, so this is not constant-time and it is not in the
+ * constant-time gate.
  */
 
 #ifndef GHOTI_IO_GSEC_BCRYPT_H
@@ -80,7 +72,10 @@ extern "C" {
 #define GSEC_BCRYPT_COST_MAX 31u
 
 /**
- * @brief Hash a password with bcrypt ($2b$).
+ * @brief Hash a password with bcrypt ($2b$ and $2y$).
+ *
+ * A new password store uses Argon2id. This is for a store that already
+ * uses bcrypt.
  *
  * @param password Password bytes. NULL only when @p password_len is 0.
  * @param password_len Length of @p password. At most
@@ -98,21 +93,22 @@ GSEC_API GSEC_Result gsec_bcrypt(const void * password, size_t password_len,
     size_t hash_len);
 
 /**
- * @brief Hash a password with bcrypt ($2a$).
+ * @brief Check a password against a $2a$ hash.
  *
- * The arguments are the same as ::gsec_bcrypt. The difference is the
- * collision tweak described in the file comment.
+ * Do not use this for a new hash. A store that is already bcrypt uses
+ * ::gsec_bcrypt. A new password store uses Argon2id. The arguments are
+ * the same as ::gsec_bcrypt.
  */
 GSEC_API GSEC_Result gsec_bcrypt_2a(const void * password, size_t password_len,
     const void * salt, size_t salt_len, uint32_t cost, void * hash,
     size_t hash_len);
 
 /**
- * @brief Hash a password with bcrypt ($2x$).
+ * @brief Check a password against a $2x$ hash.
  *
- * The arguments are the same as ::gsec_bcrypt. The key words are the
- * sign-extended ones described in the file comment. This exists to check
- * a hash the old code produced. A new hash should not use it.
+ * Do not use this for a new hash. A store that is already bcrypt uses
+ * ::gsec_bcrypt. A new password store uses Argon2id. The arguments are
+ * the same as ::gsec_bcrypt.
  */
 GSEC_API GSEC_Result gsec_bcrypt_2x(const void * password, size_t password_len,
     const void * salt, size_t salt_len, uint32_t cost, void * hash,

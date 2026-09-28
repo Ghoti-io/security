@@ -24,7 +24,8 @@
  * RC4, as it was specified for TLS and for the formats that still name it.
  *
  * The cipher is broken. It is here because those formats still use it.
- * Do not use it for a new design. The permutation is indexed by secret
+ * Do not use it for a new design. A new cipher is AES-GCM or
+ * ChaCha20-Poly1305. The permutation is indexed by secret
  * bytes, so this is not a constant-time implementation and it is not in
  * the constant-time gate.
  *

@@ -29,7 +29,8 @@
  * zeroed, and because a certificate signed with it still has to be hashed
  * so a validator can reject the algorithm for that reason rather than
  * because it cannot compute the digest. Do not use it for a new signature,
- * a new MAC, or a password. HMAC does not take it.
+ * a new MAC, or a password. A new digest is SHA-256. A new MAC is
+ * HMAC-SHA-256. A new password hash is Argon2id. HMAC does not take MD5.
  *
  * The message length is public. A length that does not fit in the 64-bit
  * bit counter wipes the context and returns ::GSEC_ERR_LIMIT.

@@ -23,9 +23,10 @@
  *
  * scrypt, as RFC 7914 specifies it.
  *
- * This is a password hash for storage. It is not PBKDF2 and it is not
- * HKDF. The salt is the caller's. N, r, and p are public: the cost is
- * the point of the function. The memory those parameters ask for does
+ * This is for a store that already uses scrypt. A new password store
+ * uses Argon2id. It is not PBKDF2 and it is not HKDF. The salt is the
+ * caller's. N, r, and p are public: the cost is the point of the
+ * function. The memory those parameters ask for does
  * not depend on the password. ROMix then reads that memory at an index
  * derived from the password. That read is not constant-time, and this
  * function is not in the constant-time gate.

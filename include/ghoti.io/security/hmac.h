@@ -31,7 +31,8 @@
  * it differs. There is no function that prints a key or a MAC.
  *
  * SHA-1 here has the same limit as ::gsec_sha1: the digest can be computed,
- * and it is not collision resistant.
+ * and it is not collision resistant. A new MAC uses SHA-256 or stronger.
+ * SHA-1 is for checking an old MAC.
  */
 
 #ifndef GHOTI_IO_GSEC_HMAC_H

@@ -27,7 +27,9 @@
  * This is the derivation WinZip AES uses, and it is deliberately slow: the
  * iteration count is the cost. It is for a low-entropy password. It is not
  * HKDF. HKDF is for high-entropy input and does not iterate to waste time.
- * Substituting one for the other is a different function.
+ * Substituting one for the other is a different function. HMAC-SHA-1 is
+ * for an old derivation. A new one uses SHA-256 or stronger. A password
+ * hash for storage is Argon2id, not this function.
  *
  * An iteration count of zero is ::GSEC_ERR_INVALID. A derived-key length
  * that needs more than 2^32-1 blocks is ::GSEC_ERR_LIMIT. There is no
