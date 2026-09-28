@@ -371,8 +371,51 @@ static void expand0(State *st, const unsigned char *key, size_t key_len) {
   }
 }
 
+/*
+ * crypt_blowfish's $2a$ prefix. The key bytes stay unsigned. When the
+ * sign-extending schedule would have written the same 18 subkey words,
+ * and a byte after the first of a group had its high bit set, bit 16 of
+ * the first subkey is flipped before the salt is mixed. $2b$ passes 0.
+ */
+static uint32_t collision_tweak(const unsigned char *key, size_t key_len) {
+  size_t off = 0;
+  uint32_t sign = 0;
+  uint32_t diff = 0;
+  unsigned i;
+  unsigned j;
+
+  for (i = 0; i < 18; i++) {
+    uint32_t correct = 0;
+    uint32_t buggy = 0;
+
+    for (j = 0; j < 4; j++) {
+      unsigned char byte;
+      uint32_t extended;
+
+      if (off >= key_len) {
+        off = 0;
+      }
+      byte = key[off];
+      off++;
+      correct = (correct << 8) | byte;
+      extended = byte >= 0x80u ? (0xffffff00u | byte) : byte;
+      buggy = (buggy << 8) | extended;
+      if (j != 0) {
+        sign |= buggy & 0x80u;
+      }
+    }
+    diff |= correct ^ buggy;
+  }
+  diff |= diff >> 16;
+  diff &= 0xffffu;
+  diff += 0xffffu;
+  sign <<= 9;
+  sign &= ~diff & 0x10000u;
+  return sign;
+}
+
 static void expand(State *st, const unsigned char *data, size_t data_len,
-    const unsigned char *key, size_t key_len) {
+    const unsigned char *key, size_t key_len, uint32_t tweak) {
   size_t off = 0;
   uint32_t left = 0;
   uint32_t right = 0;
@@ -382,6 +425,7 @@ static void expand(State *st, const unsigned char *data, size_t data_len,
   for (i = 0; i < 18; i++) {
     st->P[i] ^= stream_word(key, key_len, &off);
   }
+  st->P[0] ^= tweak;
   off = 0;
   for (i = 0; i < 18; i += 2) {
     left ^= stream_word(data, data_len, &off);
@@ -417,9 +461,9 @@ static void store_words(unsigned char out[24], const uint32_t words[6]) {
   }
 }
 
-GSEC_Result gsec_bcrypt(const void *password, size_t password_len,
+static GSEC_Result bcrypt_hash(const void *password, size_t password_len,
     const void *salt, size_t salt_len, uint32_t cost, void *hash,
-    size_t hash_len) {
+    size_t hash_len, int safety) {
   State st;
   unsigned char key[73];
   uint32_t words[6];
@@ -446,7 +490,8 @@ GSEC_Result gsec_bcrypt(const void *password, size_t password_len,
   key_len = password_len + 1;
   memcpy(st.S, initial_s, sizeof st.S);
   memcpy(st.P, initial_p, sizeof st.P);
-  expand(&st, (const unsigned char *)salt, salt_len, key, key_len);
+  expand(&st, (const unsigned char *)salt, salt_len, key, key_len,
+      safety ? collision_tweak(key, key_len) : 0);
   rounds = 1u << cost;
   for (k = 0; k < rounds; k++) {
     expand0(&st, key, key_len);
@@ -465,4 +510,18 @@ GSEC_Result gsec_bcrypt(const void *password, size_t password_len,
   gsec_wipe(&st, sizeof st);
   gsec_wipe(words, sizeof words);
   return GSEC_OK;
+}
+
+GSEC_Result gsec_bcrypt(const void *password, size_t password_len,
+    const void *salt, size_t salt_len, uint32_t cost, void *hash,
+    size_t hash_len) {
+  return bcrypt_hash(password, password_len, salt, salt_len, cost, hash,
+      hash_len, 0);
+}
+
+GSEC_Result gsec_bcrypt_2a(const void *password, size_t password_len,
+    const void *salt, size_t salt_len, uint32_t cost, void *hash,
+    size_t hash_len) {
+  return bcrypt_hash(password, password_len, salt, salt_len, cost, hash,
+      hash_len, 1);
 }

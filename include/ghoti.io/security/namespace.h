@@ -74,6 +74,7 @@
 #define gsec_aes_cbc_decrypt GHOTIIO_SECURITY(gsec_aes_cbc_decrypt)
 #define gsec_argon2 GHOTIIO_SECURITY(gsec_argon2)
 #define gsec_bcrypt GHOTIIO_SECURITY(gsec_bcrypt)
+#define gsec_bcrypt_2a GHOTIIO_SECURITY(gsec_bcrypt_2a)
 #define gsec_aes_cbc_encrypt GHOTIIO_SECURITY(gsec_aes_cbc_encrypt)
 #define gsec_aes_gcm_decrypt GHOTIIO_SECURITY(gsec_aes_gcm_decrypt)
 #define gsec_aes_gcm_encrypt GHOTIIO_SECURITY(gsec_aes_gcm_encrypt)

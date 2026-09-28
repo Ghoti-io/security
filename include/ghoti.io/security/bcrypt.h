@@ -29,8 +29,14 @@
  * truncated.
  *
  * The key is the password bytes followed by a zero byte, and every byte
- * is unsigned. That is the $2b$ rule. $2a$ is not implemented: it
- * sign-extends a byte at or above 128.
+ * is unsigned. That is the $2b$ rule, which ::gsec_bcrypt implements.
+ * ::gsec_bcrypt_2a is the same schedule with crypt_blowfish's $2a$
+ * collision tweak: when the old sign-extending schedule would have
+ * produced the same subkeys and a later byte in a group had its high
+ * bit set, bit 16 of the first subkey is flipped before the salt is
+ * mixed in. The sign-extending schedule itself is $2x$, and it is not
+ * implemented. $2y$ is the $2b$ rule. A password whose bytes are all
+ * below 128 hashes the same way under both functions.
  *
  * EksBlowfish indexes its S-boxes with bytes that depend on the
  * password. That is not constant-time, and this function is not in the
@@ -87,6 +93,16 @@ extern "C" {
  * @return ::GSEC_OK or ::GSEC_ERR_INVALID.
  */
 GSEC_API GSEC_Result gsec_bcrypt(const void * password, size_t password_len,
+    const void * salt, size_t salt_len, uint32_t cost, void * hash,
+    size_t hash_len);
+
+/**
+ * @brief Hash a password with bcrypt ($2a$).
+ *
+ * The arguments are the same as ::gsec_bcrypt. The difference is the
+ * collision tweak described in the file comment.
+ */
+GSEC_API GSEC_Result gsec_bcrypt_2a(const void * password, size_t password_len,
     const void * salt, size_t salt_len, uint32_t cost, void * hash,
     size_t hash_len);
 

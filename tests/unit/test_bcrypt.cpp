@@ -49,6 +49,47 @@ TEST(Bcrypt, OpenBsd) {
   EXPECT_EQ(gsec_equal(got, high_hash, sizeof got), GSEC_OK);
 }
 
+TEST(Bcrypt, TwoA) {
+  static const unsigned char high_pass[3] = {0xff, 0xff, 0xa3};
+  static const unsigned char one_high[1] = {0xa3};
+  static const unsigned char high_salt[16] = {
+    0x05, 0x03, 0x00, 0x85, 0xd5, 0xed, 0x4c, 0x17,
+    0x6b, 0x2a, 0xc3, 0xcb, 0xee, 0x47, 0x29, 0x1c
+  };
+  static const unsigned char two_b[24] = {
+    0x10, 0x6e, 0xe0, 0x9c, 0x97, 0x1c, 0x43, 0xa1,
+    0x9d, 0x8a, 0x25, 0xc5, 0x95, 0xdf, 0x91, 0xdf,
+    0xf4, 0xf0, 0x9b, 0x56, 0x54, 0x3b, 0x98, 0x0c
+  };
+  static const unsigned char two_a[24] = {
+    0xa6, 0xc7, 0xf7, 0xcb, 0x40, 0x2b, 0x54, 0xe7,
+    0xde, 0xc6, 0xd4, 0xd8, 0xcf, 0x49, 0x08, 0x37,
+    0x88, 0x0e, 0xd4, 0x0e, 0x1c, 0xfb, 0xb0, 0x46
+  };
+  static const unsigned char stars_pass[4] = {0x55, 0x2a, 0x55, 0x2a};
+  static const unsigned char c_salt[16] = {
+    0x10, 0x41, 0x04, 0x10, 0x41, 0x04, 0x10, 0x41,
+    0x04, 0x10, 0x41, 0x04, 0x10, 0x41, 0x04, 0x10
+  };
+  unsigned char got[24];
+  unsigned char other[24];
+
+  ASSERT_EQ(gsec_bcrypt_2a(high_pass, sizeof high_pass, high_salt,
+      sizeof high_salt, 5, got, sizeof got), GSEC_OK);
+  EXPECT_EQ(gsec_equal(got, two_a, sizeof got), GSEC_OK);
+  EXPECT_EQ(gsec_equal(got, two_b, sizeof got), GSEC_ERR_MISMATCH);
+  ASSERT_EQ(gsec_bcrypt_2a(one_high, sizeof one_high, high_salt,
+      sizeof high_salt, 5, got, sizeof got), GSEC_OK);
+  ASSERT_EQ(gsec_bcrypt(one_high, sizeof one_high, high_salt,
+      sizeof high_salt, 5, other, sizeof other), GSEC_OK);
+  EXPECT_EQ(gsec_equal(got, other, sizeof got), GSEC_OK);
+  ASSERT_EQ(gsec_bcrypt_2a(stars_pass, sizeof stars_pass, c_salt,
+      sizeof c_salt, 5, got, sizeof got), GSEC_OK);
+  ASSERT_EQ(gsec_bcrypt(stars_pass, sizeof stars_pass, c_salt,
+      sizeof c_salt, 5, other, sizeof other), GSEC_OK);
+  EXPECT_EQ(gsec_equal(got, other, sizeof got), GSEC_OK);
+}
+
 TEST(Bcrypt, RejectsABadCall) {
   unsigned char salt[16];
   unsigned char hash[24];
@@ -64,6 +105,9 @@ TEST(Bcrypt, RejectsABadCall) {
   }
   hash[0] = 0xa5;
   EXPECT_EQ(gsec_bcrypt(password, 73, salt, sizeof salt, 4, hash, sizeof hash),
+      GSEC_ERR_INVALID);
+  EXPECT_EQ(hash[0], 0xa5);
+  EXPECT_EQ(gsec_bcrypt_2a(password, 73, salt, sizeof salt, 4, hash, sizeof hash),
       GSEC_ERR_INVALID);
   EXPECT_EQ(hash[0], 0xa5);
   EXPECT_EQ(gsec_bcrypt(nullptr, 0, salt, sizeof salt, 3, hash, sizeof hash),

@@ -1,5 +1,7 @@
-# bcrypt known answers. OpenBSD test vectors. ASCII matches $2a$ and $2b$.
-# The high case is the $2b$ unsigned-byte rule.
+# bcrypt known answers.
+# stars and empty are OpenBSD vectors. ASCII matches $2a$ and $2b$.
+# high is the $2b$ tag of ff ff a3. high-2a is crypt_blowfish's $2a$
+# tag of that same password: the collision tweak, not the sign extension.
 primitive bcrypt
 
 case stars
@@ -19,3 +21,9 @@ password ffffa3
 salt 05030085d5ed4c176b2ac3cbee47291c
 cost 5
 hash 106ee09c971c43a19d8a25c595df91dff4f09b56543b980c
+
+case high-2a
+password ffffa3
+salt 05030085d5ed4c176b2ac3cbee47291c
+cost 5
+hash a6c7f7cb402b54e7dec6d4d8cf490837880ed40e1cfbb046
