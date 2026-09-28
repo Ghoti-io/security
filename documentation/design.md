@@ -34,7 +34,9 @@ blinding does not change the signature bytes. The PSS salt is the
 caller's.
 A modulus past 4096 bits is rejected. The primitive
 registry in `tools/oracle/primitives.txt` is the list of what may be
-declared. The phases below are the order the rest is built in.
+declared, and it now holds no `pending` row. The phases in section 7 are
+the order this was built in, and every one of them is implemented; section
+2 is the contract each call carries.
 
 `security` is the suite's cryptographic primitives library. Certificates,
 DER, a handshake, a key file, and a trust store are other libraries. The
@@ -56,7 +58,7 @@ package is `ghoti.io-security-0`, the include path
 | A wiped buffer stays wiped | `gsec_wipe` writes through a `volatile` pointer. The compiler is not trusted to keep a `memset` of a dead buffer. |
 | Nothing in the library prints a secret | `gsec_result_string` returns one of a fixed table of static strings. There is no `_dump` for a key, a scalar, or a derived secret. |
 | A function that does not exist yet cannot be declared quietly | `check-foundation` reads the registry and the headers. `implemented` must have a declaration. `pending` and `excluded` must not. The check plants `gsec_x448` and requires that plant to be rejected, because `x448` is excluded. |
-| An outside judge, once the function exists | An `implemented` row whose judge is not `self` requires a vector file hashed in `tests/data/vectors/MANIFEST`. The container image is how that judge is run. See [oracles.md](oracles.md). |
+| An outside judge, once the function exists | An `implemented` row whose judge is not `self` requires a vector file hashed in `tests/data/vectors/MANIFEST`, and the oracle probe's coverage set must be exactly the rows whose judge is not `self` or `none`, so a primitive cannot land without a comparison. The container image is how that judge is run. See [oracles.md](oracles.md). |
 
 `GSEC_Limits` has one field, `max_random_bytes`, default 1 MiB, because that
 is the only call phase 0 can be asked to run without a bound the caller
@@ -88,16 +90,33 @@ phases that allocate.
 | `gsec_aes_encrypt`, `gsec_aes_decrypt` | One AES block at 128, 192, or 256 bits. The schedule from encrypt init serves both directions. A key byte is not a table index. |
 | `gsec_aes_ctr` | That block cipher in CTR. `GSEC_AES_CTR_BE` is the NIST counter. `GSEC_AES_CTR_LE` is the WinZip counter. |
 | `gsec_aes_gcm_encrypt`, `gsec_aes_gcm_decrypt` | AES-GCM, one shot. Decrypt wipes the plaintext when the tag does not match. Nonce reuse under one key destroys authentication. |
+| `gsec_aes_cbc_encrypt`, `gsec_aes_cbc_decrypt` | AES-CBC. No padding, so the length is a multiple of the block, and the initialization vector is the caller's. The mode does not authenticate, and a repeated vector under one key leaks prefix equality. |
 | `gsec_chacha20_poly1305_encrypt`, `gsec_chacha20_poly1305_decrypt` | AEAD_CHACHA20_POLY1305. The key is 32 bytes, the nonce 12, the tag 16. Decrypt wipes the plaintext when the tag does not match. |
+| `gsec_des_encrypt`, `gsec_des_decrypt`, and the EDE2, EDE3, and CBC forms | DES, two-key Triple DES, and three-key Triple DES, with no padding. All are broken, and none is constant-time. They are here because an old archive, PKCS#12, and PBES1 name them. |
+| `gsec_rc2_encrypt`, `gsec_rc2_decrypt`, `gsec_rc2_cbc_encrypt`, `gsec_rc2_cbc_decrypt` | RC2, RFC 2268, with the effective key length in bits as its own parameter. Broken, and not constant-time: the key expansion indexes a substitution table with key bytes. It is here because PKCS#12 and PBES1 name it. |
+| `gsec_rc4` | RC4. One call either way, since the operation is its own inverse. `out` may be `in`, and a partial overlap is `GSEC_ERR_INVALID`. Broken, and not constant-time. |
 | `gsec_x25519`, `gsec_x25519_public` | RFC 7748. The scalar is clamped inside the function. The all-zero shared secret is rejected and the output is wiped. |
-| `gsec_ed25519_public`, `gsec_ed25519_sign`, `gsec_ed25519_verify` | RFC 8032, pure, with no context string. Verification rejects a non-canonical point and an S that is not strictly less than the group order. |
+| `gsec_ed25519_public`, `gsec_ed25519_sign`, `gsec_ed25519_verify`, `gsec_ed25519_ctx_sign`, `gsec_ed25519_ctx_verify`, `gsec_ed25519_ph_sign`, `gsec_ed25519_ph_verify` | RFC 8032. Signing is pure with an empty domain string; the `ctx` pair binds a context of at most 255 bytes, and the `ph` pair signs SHA-512 of the message. Verification rejects a non-canonical point and an S that is not strictly less than the group order. |
 | `gsec_ecdh_p256`, `gsec_ecdh_p256_public` | A 32-byte scalar and a 64-byte point, x then y. A non-canonical coordinate, an off-curve point, and infinity are rejected and the output is wiped. A shared x of zero is a result. |
 | `gsec_ecdh_p384`, `gsec_ecdh_p384_public` | The same contract on P-384: a 48-byte scalar and a 96-byte point. TLS 1.2 and TLS 1.3 both name this curve for key agreement. |
 | `gsec_ecdsa_p256_public`, `gsec_ecdsa_p256_sign`, `gsec_ecdsa_p256_verify` | SHA-256 of the message and an RFC 6979 nonce. The signature is 64 bytes, r then s. Signing emits the low s. Verification accepts a high s. An r or s of zero, or one that is not strictly less than the group order, is `GSEC_ERR_MISMATCH`. |
+| `gsec_ecdsa_p384_public`, `gsec_ecdsa_p384_sign`, `gsec_ecdsa_p384_verify` | The same contract on P-384: SHA-384 of the message, an RFC 6979 nonce, and a 96-byte signature, r then s. |
 | `gsec_rsa_pkcs1_v15_verify`, `gsec_rsa_pss_verify` | The public exponent. PKCS#1 v1.5 accepts the DER DigestInfo, including the NULL, and at least eight 0xff bytes. PSS takes the salt length and encodes one bit shorter than the modulus. A modulus past 4096 bits is `GSEC_ERR_LIMIT`. |
 | `gsec_rsa_private_pkcs1_v15_sign`, `gsec_rsa_private_pss_sign` | The same encodings, raised to the private exponent. The exponentiation does not branch on that exponent. The base is blinded with a value from the kernel generator, and the signature bytes are still the unblinded result. The PSS salt is the caller's. A failure wipes the signature. |
 | `gsec_rsa_pkcs1_v15_encrypt`, `gsec_rsa_pkcs1_v15_decrypt` | RSAES-PKCS1-v1_5. Decrypt is the blinded private operation. The padding scan does not branch on the encoded message. This is the TLS 1.2 RSA key-transport primitive. |
 | `gsec_rsa_oaep_encrypt`, `gsec_rsa_oaep_decrypt` | RSAES-OAEP. The hash is the label hash and MGF1. A bad label and bad padding are both `GSEC_ERR_MISMATCH`. |
+| `gsec_scrypt` | RFC 7914. N is a power of two and at least 2; the working set is 128*r*(N+p) bytes, and more than `GSEC_SCRYPT_MEMORY_MAX` is `GSEC_ERR_LIMIT` and allocates nothing. ROMix reads memory at an index derived from the password, so this is not in the constant-time gate. |
+| `gsec_bcrypt`, `gsec_bcrypt_2a`, `gsec_bcrypt_2x` | `$2b$`, which is also `$2y$`; the other two check a `$2a$` and a `$2x$` hash. The salt is the caller's 16 bytes and the cost is log2 of the round count. A password past 72 bytes is `GSEC_ERR_INVALID` rather than silently truncated. The output is the 24-byte ciphertext, not a modular-crypt string. The key schedule indexes from the password, so this is not in the gate. |
+| `gsec_argon2`, `gsec_argon2_version`, `gsec_argon2_phc`, `gsec_argon2_phc_verify` | RFC 9106 at version 0x13, with Argon2id the type for a new store. `gsec_argon2_version` also takes 0x10 to check an old hash, and a PHC string with no version is read as that version. The salt is at least 8 bytes, and the cost parameters are public. Argon2d, and Argon2id after the first half of the first pass, index from the password, so none of the three is in the gate. |
+| `gsec_der_tlv` | One DER value, viewed inside the caller's buffer, with no allocation. An indefinite length, a non-minimal length or tag, and a truncated value are `GSEC_ERR_CORRUPT`. Bytes after the value are not an error; the caller advances by `total_len`. |
+| `gsec_pem_decode`, `gsec_pem_encode` | The first PEM block in, and one block out at 64 characters to the line. Neither output is NUL-terminated, and the decoded bytes are not a string. |
+| `gsec_pkcs8_parse`, `gsec_pkcs8_decrypt` | An unencrypted PrivateKeyInfo, and an EncryptedPrivateKeyInfo under PBES2 or PBES1. The result is the RSA factors or the elliptic scalar. An Ed25519 seed is the raw 32 bytes or one octet string around them, which is what OpenSSL and RFC 8410 write. The password bytes are used as given. |
+| `gsec_pkcs12_open` | A PFX, RFC 7292. The MAC turns the UTF-8 password into the BMP string with the trailing two zero bytes; a PBES2 or PBES1 bag uses the UTF-8 bytes themselves. A wrong password fails the MAC. The key and the certificates are views of the caller's scratch buffer, or of the input where a bag was not encrypted. |
+| `gsec_x509_parse`, `gsec_x509_signed_by` | One certificate, viewed in the caller's buffer, and its signature checked with the primitives above. A critical extension this parser does not understand is rejected. certificatePolicies is read and not enforced. |
+| `gsec_x509_path`, `gsec_x509_hostname` | A chain the caller arranged leaf, intermediates, anchor, at a Unix second, with both ends of each validity period inclusive. An anchor with no basicConstraints is trusted as a CA, and one that says it is not a CA is rejected. Name constraints on dNSName and directoryName are applied and any other type is `GSEC_ERR_UNSUPPORTED`. The path does not check revocation. A wildcard is only the entire leftmost label. |
+| `gsec_x509_issue` | A certificate built and signed with P-256, P-384, Ed25519, or RSA. The result parses with `gsec_x509_parse`. A failure wipes the output. |
+| `gsec_crl_parse`, `gsec_crl_signed_by`, `gsec_crl_contains` | A revocation list, its signature, and a serial lookup where a hit is `GSEC_OK` and an absent serial is `GSEC_ERR_MISMATCH`. Fetching the list stays with the caller. |
+| `gsec_ocsp_parse`, `gsec_ocsp_signed_by`, `gsec_ocsp_status` | A basic response, RFC 6960. The caller supplies the issuer-name and issuer-key hashes; a CertID that is not in the response is `GSEC_ERR_MISMATCH`. Fetching the response stays with the caller. |
 | `gsec_allocator_default` | cutil's default allocator. |
 | `gsec_limits_default` | Fills the default caps. NULL is ignored. |
 | `gsec_result_string` | Static string, including for a value outside the enum. |
@@ -140,6 +159,12 @@ traps if a byte of the wiped region is not zero. `fuzz_sha256` traps if a
 one-shot digest and a streaming digest of the same bytes differ. `make test`
 does not run the fuzzers.
 
+Each harness has one hand-built seed, named `*.seed` and derived from the
+vectors and the certificate fixtures. `make fuzz-run-<name>` hands that
+directory to libFuzzer as its corpus, so a campaign writes its own units
+there too; `tests/fuzz/corpus/.gitignore` tracks the seeds and ignores
+everything else.
+
 ## 5. Departures from the suite conventions
 
 Recorded in `CONVENTIONS.md` section 13.
@@ -178,6 +203,9 @@ an RSA key, and a client certificate whose key is RSA, need phase 9.
 | 11 | AES-CBC is implemented | No padding. The initialization vector is the caller's. The mode does not authenticate. A repeated vector under one key leaks prefix equality |
 | 12 | DES, RC2, and RC4 are implemented | All three are broken. Old formats still name them. RC2 and two-key Triple DES are here because PKCS#12 and PBES1 name them. None is constant-time |
 | 13 | scrypt, bcrypt, and Argon2 are implemented | Password hashes for storage. Not PBKDF2. The salt is the caller's. The cost parameters are public. bcrypt is the $2b$ rule, which is also $2y$. $2a$ adds crypt_blowfish's collision tweak, and $2x$ is the sign-extending key schedule. `gsec_argon2` is version 0x13. `gsec_argon2_version` also accepts 0x10, which overwrites a block on later passes. A PHC string is `gsec_argon2_phc`. BLAKE2b stays inside Argon2 |
+| 14 | Strict DER, PEM, unencrypted PKCS#8, and X.509 are implemented | A certificate is what phase 8 was for. The reader does not allocate and the parsed pointers address the caller's buffer. They live here until a certificates library takes them |
+| 15 | P-384 ECDH and RSA encryption are implemented | TLS 1.2 names both: the curve for key agreement, and RSA key transport for a peer that offers no ECDHE. RSAES-PKCS1-v1_5 and RSAES-OAEP. A new encryption is OAEP, and a new key agreement is X25519 or P-256 |
+| 16 | Encrypted PKCS#8, PKCS#12, a CRL, a basic OCSP response, and certificate issuance are implemented | What a caller holding a key file and checking a chain needs. PBES2 with AES for a new key or bag; PBES1 and the PKCS#12 PBE schemes are opened so an old file can be read, which is why RC2 and two-key Triple DES are public. Fetching a list or a response, and the operating system's trust store, stay with the caller |
 
 Nonces are the caller's. The GCM and ChaCha20-Poly1305 declarations say what a repeated nonce
 does. ECDSA signing uses RFC 6979 so the nonce is a
