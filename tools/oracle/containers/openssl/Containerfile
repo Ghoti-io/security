@@ -3,7 +3,7 @@
 # Built here, so the finished image has no digest to pin. Everything the build
 # reads is pinned instead: the Debian base by digest, the openssl and libxcrypt
 # packages by full apt version, Wycheproof by commit. The pinned gcc compiles
-# crypt-bcrypt and rc4-evp; those programs call the pinned libraries. The run-time checks —
+# crypt-bcrypt, rc4-evp, rc2-evp, and ed25519-evp; those programs call the pinned libraries. The run-time checks —
 # openssl-version, libcrypt-version, and the SHA-256 of aes_gcm_test.json —
 # are what a second build has to satisfy.
 # documentation/oracles.md.
@@ -31,9 +31,11 @@ RUN apt-get update -qq \
       git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY crypt-bcrypt.c rc4-evp.c /tmp/oracle-helpers/
+COPY crypt-bcrypt.c rc4-evp.c rc2-evp.c ed25519-evp.c /tmp/oracle-helpers/
 RUN gcc -O2 -o /usr/local/bin/crypt-bcrypt /tmp/oracle-helpers/crypt-bcrypt.c -lcrypt \
     && gcc -O2 -o /usr/local/bin/rc4-evp /tmp/oracle-helpers/rc4-evp.c -lcrypto \
+    && gcc -O2 -o /usr/local/bin/rc2-evp /tmp/oracle-helpers/rc2-evp.c -lcrypto \
+    && gcc -O2 -o /usr/local/bin/ed25519-evp /tmp/oracle-helpers/ed25519-evp.c -lcrypto \
     && rm -rf /tmp/oracle-helpers
 
 RUN git init /opt/wycheproof \

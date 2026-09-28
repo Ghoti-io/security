@@ -21,9 +21,12 @@
 /**
  * @file
  *
- * Read an unencrypted PKCS#8 file and print the key kind.
+ * Read a PKCS#8 file and print the key kind.
  *
- * The key bytes are not printed. A password-encrypted key exits 1.
+ * `pkcs8 <file>` reads an unencrypted key. `pkcs8 decrypt <password>
+ * <file>` opens a PBES2 or PBES1 EncryptedPrivateKeyInfo first. The key
+ * bytes are not printed. A password-encrypted file given to the first
+ * form exits 1.
  */
 
 #include <ghoti.io/security/macros.h>
@@ -33,6 +36,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define KEY_MAX 8192u
 
@@ -43,25 +47,50 @@ int main(int argc, char ** argv) {
   GSEC_Pkcs8 key;
   const char * name;
 
-  if (argc != 2) {
-    fprintf(stderr, "usage: pkcs8 <file>\n");
-    return 2;
-  }
-  in = fopen(argv[1], "rb");
-  if (in == NULL) {
-    return 2;
-  }
-  n = fread(buf, 1, sizeof buf, in);
-  if (!feof(in)) {
+  if (argc == 4 && strcmp(argv[1], "decrypt") == 0) {
+    unsigned char plain[KEY_MAX];
+    size_t plain_len = 0;
+    GSEC_Result opened;
+
+    in = fopen(argv[3], "rb");
+    if (in == NULL) {
+      return 2;
+    }
+    n = fread(buf, 1, sizeof buf, in);
+    if (!feof(in)) {
+      fclose(in);
+      gsec_wipe(buf, sizeof buf);
+      return 1;
+    }
     fclose(in);
-    return 1;
-  }
-  fclose(in);
-  if (gsec_pkcs8_parse(buf, n, &key) != GSEC_OK) {
+    opened = gsec_pkcs8_decrypt(buf, n, argv[2], strlen(argv[2]), plain,
+        sizeof plain, &plain_len);
     gsec_wipe(buf, sizeof buf);
-    return 1;
+    if (opened != GSEC_OK || gsec_pkcs8_parse(plain, plain_len, &key) != GSEC_OK) {
+      gsec_wipe(plain, sizeof plain);
+      return 1;
+    }
+    gsec_wipe(plain, sizeof plain);
+  } else if (argc == 2) {
+    in = fopen(argv[1], "rb");
+    if (in == NULL) {
+      return 2;
+    }
+    n = fread(buf, 1, sizeof buf, in);
+    if (!feof(in)) {
+      fclose(in);
+      return 1;
+    }
+    fclose(in);
+    if (gsec_pkcs8_parse(buf, n, &key) != GSEC_OK) {
+      gsec_wipe(buf, sizeof buf);
+      return 1;
+    }
+    gsec_wipe(buf, sizeof buf);
+  } else {
+    fprintf(stderr, "usage: pkcs8 <file> | pkcs8 decrypt <password> <file>\n");
+    return 2;
   }
-  gsec_wipe(buf, sizeof buf);
   if (key.kind == GSEC_PKCS8_RSA) {
     name = "rsa";
   } else if (key.kind == GSEC_PKCS8_P256) {

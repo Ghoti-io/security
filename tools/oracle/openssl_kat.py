@@ -70,6 +70,64 @@ HASH_NAME = {
     "SHA-512": "sha512",
 }
 
+# Every implemented primitive with an outside judge. check_foundation
+# requires this set to match primitives.txt. Each name is passed to saw()
+# when that comparison actually runs, and finish() fails if one did not.
+COVERED = (
+    "sha256", "sha384", "sha512", "sha1", "md5",
+    "hmac", "hkdf", "pbkdf2",
+    "aes_encrypt", "aes_decrypt", "aes_ctr", "aes_cbc", "aes_gcm",
+    "chacha20_poly1305", "des", "rc2", "rc4",
+    "x25519", "ed25519", "ecdh_p256", "ecdh_p384",
+    "ecdsa_p256", "ecdsa_p384",
+    "rsa_pss", "rsa_pkcs1_v15_verify", "rsa_private",
+    "rsa_pkcs1_v15", "rsa_oaep",
+    "scrypt", "bcrypt", "argon2",
+    "der", "pem", "pkcs8", "x509", "crl", "ocsp", "pkcs12",
+)
+SEEN = set()
+
+
+def saw(*idents):
+    SEEN.update(idents)
+
+
+def finish():
+    missing = [name for name in COVERED if name not in SEEN]
+    extra = sorted(name for name in SEEN if name not in COVERED)
+    if missing or extra:
+        sys.stderr.write(
+            "oracle coverage missing %s extra %s\n" % (missing, extra))
+        return 1
+    return 0
+
+
+def load_cases(path):
+    """Read a known-answer file. A version field is hexadecimal."""
+    cases = []
+    current = None
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.split("#", 1)[0].strip()
+            if not line:
+                continue
+            key, value = line.split(None, 1)
+            if key == "primitive":
+                continue
+            if key == "case":
+                if current:
+                    cases.append(current)
+                current = {"name": value}
+                continue
+            if current is None:
+                raise SystemExit("%s has %s before a case" % (path, key))
+            current[key] = value
+    if current:
+        cases.append(current)
+    if not cases:
+        raise SystemExit("%s has no cases" % path)
+    return cases
+
 
 def corpus_digest(filename):
     path = os.path.join(HERE, "containers", "CORPUS")
@@ -272,6 +330,7 @@ def library_digest(binary, data, chunk):
 
 
 def diff_library():
+    saw("sha256")
     binary = os.environ.get("GSEC_SHA256_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_SHA256_BIN is not set\n")
@@ -327,6 +386,7 @@ def library_wide(binary, alg, data, chunk, hexlen):
 
 
 def diff_wide():
+    saw("sha384", "sha512")
     binary = os.environ.get("GSEC_HASH_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_HASH_BIN is not set\n")
@@ -361,6 +421,7 @@ def diff_wide():
 
 
 def diff_sha1():
+    saw("sha1")
     binary = os.environ.get("GSEC_HASH_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_HASH_BIN is not set\n")
@@ -392,6 +453,7 @@ def diff_sha1():
 
 
 def diff_md5():
+    saw("md5")
     binary = os.environ.get("GSEC_HASH_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_HASH_BIN is not set\n")
@@ -451,6 +513,7 @@ def library_hmac(binary, alg, key_hex, data, chunk, hexlen):
 
 
 def diff_hmac():
+    saw("hmac")
     binary = os.environ.get("GSEC_HMAC_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_HMAC_BIN is not set\n")
@@ -522,6 +585,7 @@ def library_hkdf(binary, alg, ikm, salt, info, n):
 
 
 def diff_hkdf():
+    saw("hkdf")
     binary = os.environ.get("GSEC_HKDF_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_HKDF_BIN is not set\n")
@@ -583,6 +647,7 @@ def library_pbkdf2(binary, alg, password, salt, iterations, n):
 
 
 def diff_pbkdf2():
+    saw("pbkdf2")
     binary = os.environ.get("GSEC_PBKDF2_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_PBKDF2_BIN is not set\n")
@@ -643,6 +708,7 @@ def library_aes_block(binary, direction, bits, key_hex, block_hex):
 
 
 def diff_aes():
+    saw("aes_encrypt", "aes_decrypt")
     binary = os.environ.get("GSEC_AES_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_AES_BIN is not set\n")
@@ -708,6 +774,7 @@ def library_aes_ctr(binary, bits, key_hex, counter_hex, message):
 
 
 def diff_ctr():
+    saw("aes_ctr")
     binary = os.environ.get("GSEC_AES_CTR_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_AES_CTR_BIN is not set\n")
@@ -751,6 +818,7 @@ def library_gcm(binary, direction, bits, key_hex, iv_hex, aad_hex, tag_hex,
 
 
 def diff_gcm():
+    saw("aes_gcm")
     binary = os.environ.get("GSEC_AES_GCM_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_AES_GCM_BIN is not set\n")
@@ -822,6 +890,7 @@ def library_chacha(binary, direction, key_hex, nonce_hex, aad_hex, tag_hex,
 
 
 def diff_chacha():
+    saw("chacha20_poly1305")
     binary = os.environ.get("GSEC_CHACHA20_POLY1305_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_CHACHA20_POLY1305_BIN is not set\n")
@@ -891,6 +960,7 @@ def library_x25519(binary, scalar_hex, point_hex):
 
 
 def diff_x25519():
+    saw("x25519")
     binary = os.environ.get("GSEC_X25519_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_X25519_BIN is not set\n")
@@ -943,6 +1013,7 @@ def library_ed25519(binary, pk_hex, sig_hex, msg_hex):
 
 
 def diff_ed25519():
+    saw("ed25519")
     binary = os.environ.get("GSEC_ED25519_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_ED25519_BIN is not set\n")
@@ -983,6 +1054,8 @@ def diff_ed25519():
         sys.stderr.write("ed25519 checked %s wycheproof cases\n" % checked)
         return 1
     print("ed25519 wycheproof %s" % checked)
+    if diff_ed25519_file(binary) != 0:
+        return 1
     return diff_ecdh_p256()
 
 
@@ -994,6 +1067,7 @@ def library_ecdh_p256(binary, scalar_hex, peer_hex):
 
 
 def diff_ecdh_p256():
+    saw("ecdh_p256")
     binary = os.environ.get("GSEC_ECDH_P256_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_ECDH_P256_BIN is not set\n")
@@ -1045,6 +1119,7 @@ def library_ecdsa_p256(binary, pub_hex, msg_hex, sig_hex):
 
 
 def diff_ecdsa_p256():
+    saw("ecdsa_p256")
     binary = os.environ.get("GSEC_ECDSA_P256_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_ECDSA_P256_BIN is not set\n")
@@ -1097,6 +1172,7 @@ def library_ecdsa_p384(binary, pub_hex, msg_hex, sig_hex):
 
 
 def diff_ecdsa_p384():
+    saw("ecdsa_p384")
     binary = os.environ.get("GSEC_ECDSA_P384_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_ECDSA_P384_BIN is not set\n")
@@ -1208,6 +1284,7 @@ def load_wycheproof(name):
 
 
 def diff_rsa():
+    saw("rsa_pkcs1_v15_verify", "rsa_pss")
     binary = os.environ.get("GSEC_RSA_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_RSA_BIN is not set\n")
@@ -1322,6 +1399,7 @@ def rsa_text_block(text, label):
 
 
 def diff_rsa_sign():
+    saw("rsa_private")
     """Sign with this library and ask the pinned OpenSSL to verify.
 
     A round trip through our own verifier would share a bug. The key is
@@ -1429,6 +1507,7 @@ def library_aes_cbc(binary, direction, bits, key_hex, iv_hex, message_hex):
 
 
 def diff_cbc():
+    saw("aes_cbc")
     binary = os.environ["GSEC_AES_CBC_BIN"]
     cases = [
         ("128", "000102030405060708090a0b0c0d0e0f",
@@ -1470,6 +1549,9 @@ def openssl_des(mode, key_hex, iv_hex, message):
         "ecb": "-des-ecb",
         "cbc": "-des-cbc",
         "ede3": "-des-ede3",
+        "ede3-cbc": "-des-ede3-cbc",
+        "ede2": "-des-ede",
+        "ede2-cbc": "-des-ede-cbc",
     }[mode]
     command = [
         "openssl", "enc", "-provider", "legacy", "-provider", "default",
@@ -1497,24 +1579,26 @@ def library_des(binary, mode, direction, key_hex, iv_hex, message_hex):
 
 
 def diff_des():
+    saw("des")
     binary = os.environ["GSEC_DES_BIN"]
-    cases = [
-        ("ecb", "133457799bbcdff1", "-",
-         bytes.fromhex("0123456789abcdef")),
-        ("cbc", "133457799bbcdff1", "0000000000000000",
-         bytes.fromhex("0123456789abcdef" * 2)),
-        ("ede3", "0123456789abcdef5555555555555555fedcba9876543210", "-",
-         bytes.fromhex("0123456789abcdef")),
-    ]
-    for mode, key, iv, message in cases:
+    path = os.path.join(oracle_env.ROOT, "tests", "data", "vectors", "des.vec")
+    cases = load_cases(path)
+    if len(cases) < 4:
+        sys.stderr.write("des.vec has %s cases\n" % len(cases))
+        return 1
+    for case in cases:
+        mode = case["mode"]
+        iv = case["iv"]
+        message = bytes.fromhex(case["pt"])
         iv_arg = None if iv == "-" else iv
-        want = openssl_des(mode, key, iv_arg, message)
-        got = library_des(binary, mode, "encrypt", key, iv, message.hex())
-        if not compare.hex_equal(got, want):
-            sys.stderr.write("des %s is %s, openssl says %s\n" % (mode, got, want))
+        want = openssl_des(mode, case["key"], iv_arg, message)
+        got = library_des(binary, mode, "encrypt", case["key"], iv, case["pt"])
+        if not compare.hex_equal(got, want) or not compare.hex_equal(want, case["ct"]):
+            sys.stderr.write("des %s is %s, openssl says %s, file says %s\n" % (
+                case["name"], got, want, case["ct"]))
             return 1
-        print("des %s %s" % (mode, want))
-    return diff_rc4()
+        print("des %s %s" % (case["name"], want))
+    return diff_rc2()
 
 
 def openssl_rc4(key_hex, message):
@@ -1540,6 +1624,7 @@ def library_rc4(binary, key_hex, message_hex):
 
 
 def diff_rc4():
+    saw("rc4")
     binary = os.environ["GSEC_RC4_BIN"]
     message = bytes.fromhex("61" * 16)
     key = "0102030405060708090a0b0c0d0e0f10"
@@ -1588,6 +1673,7 @@ def library_scrypt(binary, password_hex, salt_hex, n, r, p, dk_len):
 
 
 def diff_scrypt():
+    saw("scrypt")
     binary = os.environ["GSEC_SCRYPT_BIN"]
     want = openssl_scrypt("password", "NaCl", 1024, 8, 16, 64)
     got = library_scrypt(binary, "70617373776f7264", "4e61436c", 1024, 8, 16, 64)
@@ -1599,23 +1685,29 @@ def diff_scrypt():
 
 
 def diff_argon2():
+    saw("argon2")
     binary = os.environ["GSEC_ARGON2_BIN"]
-    password = "01" * 32
-    salt = "02" * 16
-    secret = "03" * 8
-    ad = "04" * 12
-    kinds = (("d", "ARGON2D"), ("i", "ARGON2I"), ("id", "ARGON2ID"))
-    for name, openssl_name in kinds:
+    names = {0: ("d", "ARGON2D"), 1: ("i", "ARGON2I"), 2: ("id", "ARGON2ID")}
+    path = os.path.join(oracle_env.ROOT, "tests", "data", "vectors", "argon2.vec")
+    cases = load_cases(path)
+    if len(cases) < 6:
+        sys.stderr.write("argon2.vec has %s cases\n" % len(cases))
+        return 1
+    for case in cases:
+        version = int(case.get("version", "13"), 16)
+        kind, openssl_name = names[int(case["type"])]
+        prefix = "v10" if version == 0x10 else "v13"
         command = [
-            "openssl", "kdf", "-keylen", "32",
-            "-kdfopt", "hexpass:" + password,
-            "-kdfopt", "hexsalt:" + salt,
-            "-kdfopt", "hexsecret:" + secret,
-            "-kdfopt", "hexad:" + ad,
-            "-kdfopt", "iter:3",
-            "-kdfopt", "memcost:32",
-            "-kdfopt", "lanes:4",
+            "openssl", "kdf", "-keylen", str(len(case["tag"]) // 2),
+            "-kdfopt", "hexpass:" + case["password"],
+            "-kdfopt", "hexsalt:" + case["salt"],
+            "-kdfopt", "hexsecret:" + case["secret"],
+            "-kdfopt", "hexad:" + case["ad"],
+            "-kdfopt", "iter:" + case["passes"],
+            "-kdfopt", "memcost:" + case["memory"],
+            "-kdfopt", "lanes:" + case["lanes"],
             "-kdfopt", "threads:1",
+            "-kdfopt", "version:" + str(version),
             openssl_name]
         proc = subprocess.run(
             oracle_env.command("openssl", command), capture_output=True, text=True)
@@ -1623,14 +1715,17 @@ def diff_argon2():
             sys.stderr.write(proc.stderr)
             return 1
         want = proc.stdout.strip().replace(":", "").lower()
-        got = subprocess.run(
-            [binary, name, password, salt, "32", "3", "4", "32", secret, ad],
+        got = subprocess.run([
+            binary, prefix, kind, case["password"], case["salt"],
+            case["memory"], case["passes"], case["lanes"],
+            str(len(case["tag"]) // 2), case["secret"], case["ad"]],
             capture_output=True, text=True)
-        if got.returncode != 0 or not compare.hex_equal(got.stdout.strip(), want):
-            sys.stderr.write("argon2%s is %s, openssl says %s\n" % (
-                name, got.stdout.strip(), want))
+        if got.returncode != 0 or not compare.hex_equal(got.stdout.strip(), want) \
+                or not compare.hex_equal(want, case["tag"]):
+            sys.stderr.write("argon2 %s is %s, openssl says %s, file says %s\n" % (
+                case["name"], got.stdout.strip(), want, case["tag"]))
             return 1
-        print("argon2%s %s" % (name, want))
+        print("argon2 %s %s" % (case["name"], want))
     return diff_bcrypt()
 
 
@@ -1681,6 +1776,7 @@ def bcrypt_decode(text, nbytes):
 
 
 def diff_bcrypt():
+    saw("bcrypt")
     """Compare the first 23 ciphertext bytes with libxcrypt.
 
     A modular-crypt string stores 23 of the 24 bytes. The function
@@ -1731,6 +1827,7 @@ def diff_bcrypt():
 
 
 def diff_ecdh_p384():
+    saw("ecdh_p384")
     binary = os.environ.get("GSEC_ECDH_P384_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_ECDH_P384_BIN is not set\n")
@@ -1783,6 +1880,7 @@ def library_oaep(binary, hash_name, mgf_name, private, label, cipher):
 
 
 def diff_oaep():
+    saw("rsa_oaep")
     binary = os.environ.get("GSEC_RSA_CRYPT_BIN", "")
     if not binary:
         sys.stderr.write("GSEC_RSA_CRYPT_BIN is not set\n")
@@ -1804,7 +1902,9 @@ def diff_oaep():
             hash_name = HASH_NAME.get(group["sha"])
             mgf_name = HASH_NAME.get(group["mgfSha"])
             if hash_name is None or mgf_name is None:
-                continue
+                sys.stderr.write("oaep %s has hash %s mgf %s\n" % (
+                    filename, group.get("sha"), group.get("mgfSha")))
+                return 1
             private = group["privateKey"]
             for case in group["tests"]:
                 checked += 1
@@ -1836,6 +1936,7 @@ def diff_oaep():
 
 
 def diff_rsaes():
+    saw("rsa_pkcs1_v15")
     """Encrypt with OpenSSL and decrypt here. PKCS#1 v1.5 has no Wycheproof cases."""
     binary = os.environ["GSEC_RSA_CRYPT_BIN"]
     scratch = tempfile.mkdtemp(prefix="gsec-rsaes-")
@@ -1953,6 +2054,7 @@ def openssl_unix(text):
 
 
 def diff_certs():
+    saw("der", "pem", "pkcs8", "x509")
     """OpenSSL writes a certificate, a PEM block, and a PKCS#8 key. This library reads them."""
     x509_bin = os.environ["GSEC_X509_BIN"]
     pem_bin = os.environ["GSEC_PEM_BIN"]
@@ -2066,6 +2168,306 @@ def diff_certs():
             print("cert %s %s %s" % (kind, start, end))
         finally:
             shutil.rmtree(scratch)
+    if diff_pkcs8_encrypted() != 0 or diff_pkcs12() != 0 \
+            or diff_crl() != 0 or diff_ocsp() != 0:
+        return 1
+    return finish()
+
+
+def diff_ed25519_file(binary):
+    """Ask OpenSSL to accept the committed RFC 8032 signatures.
+
+    Wycheproof's file is pure Ed25519. The context and prehash cases
+    live in ed25519.vec. `ed25519-evp` is the judge because
+    `openssl pkeyutl -rawin` refuses a zero-length message.
+    """
+    path = os.path.join(oracle_env.ROOT, "tests", "data", "vectors", "ed25519.vec")
+    cases = load_cases(path)
+    saw_mode = set()
+    for case in cases:
+        mode = case.get("mode", "pure")
+        saw_mode.add(mode)
+        context = case.get("context", "-")
+        message = "-" if case["msg"] == "-" else case["msg"]
+        if mode == "pure":
+            command = [binary, "verify", case["public"], case["sig"], message]
+        elif mode in ("ctx", "ph"):
+            command = [binary, "verify-" + mode, case["public"], case["sig"],
+                context, message]
+        else:
+            sys.stderr.write("ed25519 %s has mode %s\n" % (case["name"], mode))
+            return 1
+        checked = subprocess.run(oracle_env.command("openssl", [
+            "ed25519-evp", mode, case["public"], case["sig"], context, message,
+        ]), capture_output=True)
+        library = subprocess.run(command, capture_output=True)
+        if checked.returncode != 0 or library.returncode != 0:
+            sys.stderr.write("ed25519 %s openssl %s library %s\n" % (
+                case["name"], checked.returncode, library.returncode))
+            sys.stderr.write(checked.stderr.decode("utf-8", "replace"))
+            return 1
+        print("ed25519 %s" % case["name"])
+    if saw_mode != {"pure", "ctx", "ph"}:
+        sys.stderr.write("ed25519.vec modes are %s\n" % sorted(saw_mode))
+        return 1
+    return 0
+
+
+def diff_rc2():
+    saw("rc2")
+    binary = os.environ["GSEC_RC2_BIN"]
+    path = os.path.join(oracle_env.ROOT, "tests", "data", "vectors", "rc2.vec")
+    cases = load_cases(path)
+    if len(cases) < 7:
+        sys.stderr.write("rc2.vec has %s cases\n" % len(cases))
+        return 1
+    for case in cases:
+        reference = subprocess.run(oracle_env.command("openssl", [
+            "rc2-evp", "ecb", case["effective"], case["key"], "-", case["pt"],
+        ]), capture_output=True, text=True)
+        got = subprocess.run([
+            binary, "ecb", case["effective"], case["key"], "-", case["pt"]],
+            capture_output=True, text=True)
+        want = reference.stdout.strip()
+        if reference.returncode != 0 or got.returncode != 0 \
+                or not compare.hex_equal(got.stdout.strip(), want) \
+                or not compare.hex_equal(want, case["ct"]):
+            sys.stderr.write("rc2 %s is %s, openssl says %s, file says %s\n" % (
+                case["name"], got.stdout.strip(), want, case["ct"]))
+            return 1
+        print("rc2 %s %s" % (case["name"], want))
+    return diff_rc4()
+
+
+def diff_pkcs8_encrypted():
+    """OpenSSL encrypts a key. This library decrypts it and names the kind."""
+    binary = os.environ["GSEC_PKCS8_BIN"]
+    scratch = tempfile.mkdtemp(prefix="gsec-p8-")
+    try:
+        key = os.path.join(scratch, "key.pem")
+        made = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "genpkey", "-algorithm", "EC",
+            "-pkeyopt", "ec_paramgen_curve:prime256v1", "-out", key,
+        ], scratch=scratch), capture_output=True)
+        if made.returncode != 0:
+            sys.stderr.write(made.stderr.decode("utf-8", "replace"))
+            return 1
+        schemes = (
+            ("pbes2", ["-v2", "aes-256-cbc"]),
+            ("pbes1", ["-provider", "legacy", "-provider", "default",
+                "-v1", "PBE-SHA1-3DES"]),
+        )
+        for name, arguments in schemes:
+            out = os.path.join(scratch, name + ".p8")
+            written = subprocess.run(oracle_env.command("openssl", [
+                "openssl", "pkcs8", "-topk8", "-in", key, "-outform", "DER",
+                "-out", out, "-passout", "pass:secret"] + arguments,
+                scratch=scratch), capture_output=True)
+            if written.returncode != 0:
+                sys.stderr.write(written.stderr.decode("utf-8", "replace"))
+                return 1
+            named = subprocess.run(
+                [binary, "decrypt", "secret", out], capture_output=True, text=True)
+            if named.returncode != 0 or named.stdout.strip() != "p256":
+                sys.stderr.write("pkcs8 %s is %r\n" % (name, named.stdout.strip()))
+                return 1
+            print("pkcs8 %s p256" % name)
+    finally:
+        shutil.rmtree(scratch)
+    return 0
+
+
+def diff_pkcs12():
+    saw("pkcs12")
+    binary = os.environ["GSEC_PKCS12_BIN"]
+    scratch = tempfile.mkdtemp(prefix="gsec-p12-")
+    try:
+        key = os.path.join(scratch, "key.pem")
+        cert = os.path.join(scratch, "cert.pem")
+        der = os.path.join(scratch, "cert.der")
+        archive = os.path.join(scratch, "out.p12")
+        made = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "req", "-x509", "-newkey", "ec",
+            "-pkeyopt", "ec_paramgen_curve:prime256v1", "-keyout", key,
+            "-out", cert, "-nodes", "-days", "2", "-subj", "/CN=oracle",
+        ], scratch=scratch), capture_output=True)
+        if made.returncode != 0:
+            sys.stderr.write(made.stderr.decode("utf-8", "replace"))
+            return 1
+        written = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "x509", "-in", cert, "-outform", "DER", "-out", der,
+        ], scratch=scratch), capture_output=True)
+        if written.returncode != 0:
+            sys.stderr.write(written.stderr.decode("utf-8", "replace"))
+            return 1
+        with open(der, "rb") as handle:
+            cert_hex = handle.read().hex()
+        exported = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "pkcs12", "-export", "-inkey", key, "-in", cert,
+            "-out", archive, "-passout", "pass:secret",
+            "-keypbe", "AES-256-CBC", "-certpbe", "AES-256-CBC",
+        ], scratch=scratch), capture_output=True)
+        if exported.returncode != 0:
+            sys.stderr.write(exported.stderr.decode("utf-8", "replace"))
+            return 1
+        opened = subprocess.run(
+            [binary, "secret", archive], capture_output=True, text=True)
+        lines = opened.stdout.splitlines()
+        if opened.returncode != 0 or len(lines) != 2 or lines[0] != "p256 1" \
+                or not compare.hex_equal(lines[1], cert_hex):
+            sys.stderr.write("pkcs12 is %r\n" % opened.stdout.strip())
+            return 1
+        print("pkcs12 p256 1")
+    finally:
+        shutil.rmtree(scratch)
+    return 0
+
+
+def diff_crl():
+    saw("crl")
+    binary = os.environ["GSEC_CRL_BIN"]
+    scratch = tempfile.mkdtemp(prefix="gsec-crl-")
+    try:
+        key = os.path.join(scratch, "ca.key")
+        cert = os.path.join(scratch, "ca.pem")
+        der = os.path.join(scratch, "ca.der")
+        crl_pem = os.path.join(scratch, "crl.pem")
+        crl_der = os.path.join(scratch, "crl.der")
+        config = os.path.join(scratch, "ca.cnf")
+        made = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "req", "-x509", "-newkey", "ec",
+            "-pkeyopt", "ec_paramgen_curve:prime256v1", "-keyout", key,
+            "-out", cert, "-nodes", "-days", "2", "-subj", "/CN=ca",
+        ], scratch=scratch), capture_output=True)
+        if made.returncode != 0:
+            sys.stderr.write(made.stderr.decode("utf-8", "replace"))
+            return 1
+        with open(config, "w", encoding="utf-8") as handle:
+            handle.write(
+                "[ca]\ndefault_ca = CA_default\n"
+                "[CA_default]\ndatabase = %s\ncrlnumber = %s\n"
+                "default_md = sha256\ndefault_crl_days = 1\n" % (
+                    os.path.join(scratch, "index.txt"),
+                    os.path.join(scratch, "crlnumber")))
+        with open(os.path.join(scratch, "index.txt"), "w", encoding="utf-8") as handle:
+            handle.write("R\t270101120000Z\t260101120000Z\t01\tunknown\t/CN=leaf\n")
+        with open(os.path.join(scratch, "crlnumber"), "w", encoding="utf-8") as handle:
+            handle.write("02\n")
+        issued = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "ca", "-gencrl", "-config", config,
+            "-keyfile", key, "-cert", cert, "-out", crl_pem,
+        ], scratch=scratch), capture_output=True)
+        if issued.returncode != 0:
+            sys.stderr.write(issued.stderr.decode("utf-8", "replace"))
+            return 1
+        written = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "crl", "-in", crl_pem, "-outform", "DER", "-out", crl_der,
+        ], scratch=scratch), capture_output=True)
+        if written.returncode != 0:
+            sys.stderr.write(written.stderr.decode("utf-8", "replace"))
+            return 1
+        shown = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "x509", "-in", cert, "-outform", "DER", "-out", der,
+        ], scratch=scratch), capture_output=True)
+        dated = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "crl", "-in", crl_der, "-inform", "DER",
+            "-noout", "-lastupdate",
+        ], scratch=scratch), capture_output=True, text=True)
+        if shown.returncode != 0 or dated.returncode != 0:
+            sys.stderr.write(dated.stderr)
+            return 1
+        stamp = openssl_unix(dated.stdout.split("=", 1)[1].strip())
+        opened = subprocess.run(
+            [binary, crl_der, der, "01"], capture_output=True, text=True)
+        if opened.returncode != 0 or opened.stdout.strip() != "signed %s" % stamp:
+            sys.stderr.write("crl is %r, openssl says %s\n" % (
+                opened.stdout.strip(), stamp))
+            return 1
+        print("crl signed %s" % stamp)
+    finally:
+        shutil.rmtree(scratch)
+    return 0
+
+
+def diff_ocsp():
+    saw("ocsp")
+    binary = os.environ["GSEC_OCSP_BIN"]
+    scratch = tempfile.mkdtemp(prefix="gsec-ocsp-")
+    try:
+        key = os.path.join(scratch, "ca.key")
+        cert = os.path.join(scratch, "ca.pem")
+        der = os.path.join(scratch, "ca.der")
+        leaf_key = os.path.join(scratch, "leaf.key")
+        leaf_csr = os.path.join(scratch, "leaf.csr")
+        leaf = os.path.join(scratch, "leaf.pem")
+        request = os.path.join(scratch, "req.der")
+        response = os.path.join(scratch, "resp.der")
+        made = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "req", "-x509", "-newkey", "ec",
+            "-pkeyopt", "ec_paramgen_curve:prime256v1", "-keyout", key,
+            "-out", cert, "-nodes", "-days", "2", "-subj", "/CN=ca",
+        ], scratch=scratch), capture_output=True)
+        if made.returncode != 0:
+            sys.stderr.write(made.stderr.decode("utf-8", "replace"))
+            return 1
+        asked = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "req", "-newkey", "ec",
+            "-pkeyopt", "ec_paramgen_curve:prime256v1", "-keyout", leaf_key,
+            "-out", leaf_csr, "-nodes", "-subj", "/CN=leaf",
+        ], scratch=scratch), capture_output=True)
+        if asked.returncode != 0:
+            sys.stderr.write(asked.stderr.decode("utf-8", "replace"))
+            return 1
+        signed = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "x509", "-req", "-in", leaf_csr, "-CA", cert,
+            "-CAkey", key, "-set_serial", "01", "-out", leaf, "-days", "1",
+        ], scratch=scratch), capture_output=True)
+        if signed.returncode != 0:
+            sys.stderr.write(signed.stderr.decode("utf-8", "replace"))
+            return 1
+        requested = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "ocsp", "-issuer", cert, "-cert", leaf,
+            "-reqout", request, "-no_nonce",
+        ], scratch=scratch), capture_output=True)
+        if requested.returncode != 0:
+            sys.stderr.write(requested.stderr.decode("utf-8", "replace"))
+            return 1
+        with open(os.path.join(scratch, "index.txt"), "w", encoding="utf-8") as handle:
+            handle.write("R\t270101120000Z\t260101120000Z\t01\tunknown\t/CN=leaf\n")
+        answered = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "ocsp", "-index", os.path.join(scratch, "index.txt"),
+            "-CA", cert, "-rsigner", cert, "-rkey", key,
+            "-reqin", request, "-respout", response, "-no_nonce",
+        ], scratch=scratch), capture_output=True)
+        if answered.returncode != 0:
+            sys.stderr.write(answered.stderr.decode("utf-8", "replace"))
+            return 1
+        shown = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "x509", "-in", cert, "-outform", "DER", "-out", der,
+        ], scratch=scratch), capture_output=True)
+        text = subprocess.run(oracle_env.command("openssl", [
+            "openssl", "ocsp", "-respin", response, "-text", "-noverify",
+        ], scratch=scratch), capture_output=True, text=True)
+        if shown.returncode != 0 or text.returncode != 0:
+            sys.stderr.write(text.stderr)
+            return 1
+        when = None
+        for line in text.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("Revocation Time:"):
+                when = openssl_unix(line.split(":", 1)[1].strip())
+        if when is None:
+            sys.stderr.write(text.stdout)
+            return 1
+        opened = subprocess.run(
+            [binary, response, der, "01"], capture_output=True, text=True)
+        if opened.returncode != 0 or opened.stdout.strip() != "revoked %s" % when:
+            sys.stderr.write("ocsp is %r, openssl says %s\n" % (
+                opened.stdout.strip(), when))
+            return 1
+        print("ocsp revoked %s" % when)
+    finally:
+        shutil.rmtree(scratch)
     return 0
 
 

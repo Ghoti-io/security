@@ -21,9 +21,10 @@
 /**
  * @file
  *
- * Encrypt or decrypt with DES or three-key Triple DES.
+ * Encrypt or decrypt with DES or Triple DES.
  *
- * `des ecb|cbc|ede3|ede3-cbc encrypt|decrypt <hexkey> <hexiv|-> <hexmsg>`
+ * `des ecb|cbc|ede2|ede2-cbc|ede3|ede3-cbc encrypt|decrypt <hexkey>
+ * <hexiv|-> <hexmsg>`
  * ECB ignores the vector and expects `-`. The message length is a
  * multiple of 8 bytes. Prints lowercase hex and a newline.
  */
@@ -102,7 +103,7 @@ int main(int argc, char ** argv) {
   size_t key_len;
   size_t msg_len = 0;
   size_t i;
-  int ede3;
+  int keys;
   int cbc;
   int decrypt;
   GSEC_Result result;
@@ -110,19 +111,37 @@ int main(int argc, char ** argv) {
 
   if (argc != 6) {
     fprintf(stderr,
-        "usage: des ecb|cbc|ede3|ede3-cbc encrypt|decrypt hexkey hexiv|- hexmsg\n");
+        "usage: des ecb|cbc|ede2|ede2-cbc|ede3|ede3-cbc encrypt|decrypt"
+        " hexkey hexiv|- hexmsg\n");
     return 2;
   }
-  ede3 = strcmp(argv[1], "ede3") == 0 || strcmp(argv[1], "ede3-cbc") == 0;
-  cbc = strcmp(argv[1], "cbc") == 0 || strcmp(argv[1], "ede3-cbc") == 0;
-  if (!ede3 && strcmp(argv[1], "ecb") != 0 && strcmp(argv[1], "cbc") != 0) {
+  if (strcmp(argv[1], "ecb") == 0) {
+    keys = 1;
+    cbc = 0;
+  } else if (strcmp(argv[1], "cbc") == 0) {
+    keys = 1;
+    cbc = 1;
+  } else if (strcmp(argv[1], "ede2") == 0) {
+    keys = 2;
+    cbc = 0;
+  } else if (strcmp(argv[1], "ede2-cbc") == 0) {
+    keys = 2;
+    cbc = 1;
+  } else if (strcmp(argv[1], "ede3") == 0) {
+    keys = 3;
+    cbc = 0;
+  } else if (strcmp(argv[1], "ede3-cbc") == 0) {
+    keys = 3;
+    cbc = 1;
+  } else {
     return 2;
   }
   decrypt = strcmp(argv[2], "decrypt") == 0;
   if (!decrypt && strcmp(argv[2], "encrypt") != 0) {
     return 2;
   }
-  key_len = ede3 ? GSEC_DES_EDE3_KEY_LEN : GSEC_DES_KEY_LEN;
+  key_len = keys == 3 ? GSEC_DES_EDE3_KEY_LEN
+      : keys == 2 ? GSEC_DES_EDE2_KEY_LEN : GSEC_DES_KEY_LEN;
   if (!parse_exact(argv[3], key, key_len) ||
       !parse_exact(argv[4], iv, cbc ? GSEC_DES_BLOCK_LEN : 0) ||
       !parse_msg(argv[5], msg, &msg_len)) {
@@ -131,15 +150,22 @@ int main(int argc, char ** argv) {
   if (!cbc && msg_len != GSEC_DES_BLOCK_LEN) {
     return 2;
   }
-  if (strcmp(argv[1], "ecb") == 0 || strcmp(argv[1], "ede3") == 0) {
-    if (ede3) {
-      result = decrypt ? gsec_des_ede3_decrypt(key, msg, out)
-                       : gsec_des_ede3_encrypt(key, msg, out);
-    } else {
-      result = decrypt ? gsec_des_decrypt(key, msg, out)
-                       : gsec_des_encrypt(key, msg, out);
-    }
-  } else if (ede3) {
+  if (!cbc && keys == 1) {
+    result = decrypt ? gsec_des_decrypt(key, msg, out)
+                     : gsec_des_encrypt(key, msg, out);
+  } else if (!cbc && keys == 2) {
+    result = decrypt ? gsec_des_ede2_decrypt(key, msg, out)
+                     : gsec_des_ede2_encrypt(key, msg, out);
+  } else if (!cbc && keys == 3) {
+    result = decrypt ? gsec_des_ede3_decrypt(key, msg, out)
+                     : gsec_des_ede3_encrypt(key, msg, out);
+  } else if (keys == 2) {
+    result = decrypt
+        ? gsec_des_ede2_cbc_decrypt(key, iv, msg_len == 0 ? NULL : msg,
+            msg_len, msg_len == 0 ? NULL : out)
+        : gsec_des_ede2_cbc_encrypt(key, iv, msg_len == 0 ? NULL : msg,
+            msg_len, msg_len == 0 ? NULL : out);
+  } else if (keys == 3) {
     result = decrypt
         ? gsec_des_ede3_cbc_decrypt(key, iv, msg_len == 0 ? NULL : msg,
             msg_len, msg_len == 0 ? NULL : out)

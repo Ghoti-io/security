@@ -5,14 +5,17 @@ not this library. `make check-oracle` first checks that the image still
 produces the published SHA-256 of `abc` and the Wycheproof file the pin
 names. It then judges every implemented primitive that has an outside
 judge: the hashes, including MD5, HMAC, HKDF, PBKDF2, AES, AES-CTR, AES-CBC,
-DES, RC4, scrypt, and Argon2, against OpenSSL in the image. RC2 is
-the committed RFC 2268 file. The AEAD
+DES (including two-key EDE), RC2, RC4, scrypt, and Argon2 (versions
+`0x10` and `0x13`), against OpenSSL in the image. The AEAD
 algorithms, the curves, including P-384, ECDSA, RSA verification, and
 RSAES-OAEP are judged against the pinned Wycheproof files. bcrypt is judged by
 libxcrypt in the same image. RSA signing, and RSAES-PKCS1-v1_5, are judged
 by a 2048-bit key the image generates. OpenSSL also writes a certificate,
-its PEM, and an unencrypted PKCS#8 key, and this library reads them. A
-difference fails the target.
+its PEM, an unencrypted PKCS#8 key, a PBES2 key, a PBES1 key, a
+PKCS#12 archive, a CRL, and an OCSP response, and this library reads
+them. A difference fails the target. A comparison the probe skips is
+a failure, and a primitive with an outside judge that the probe never
+asks about is a failure.
 
 `make test` does not run a container. A checkout with no container runtime
 still builds and tests. The differential is a separate target, and that
@@ -40,7 +43,7 @@ container or on the host (`GHOTI_ORACLE=host`).
 | What | Pin |
 | --- | --- |
 | Base | `docker.io/library/debian:13-slim` at `sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c` |
-| Package | `openssl=3.5.7-1~deb13u2` and `libssl-dev` at the same version, from the `trixie-security` suite the base image already lists. `libcrypt-dev=1:4.4.38-1` is libxcrypt, for bcrypt. `libc6-dev=2.41-12+deb13u4` and `gcc=4:14.2.0-1` compile the two helpers in the image. A second source line for that suite is rejected, because the image signs it with `debian-archive-keyring.pgp`. Main may still be on an older openssl, and an unpinned install would take it. |
+| Package | `openssl=3.5.7-1~deb13u2` and `libssl-dev` at the same version, from the `trixie-security` suite the base image already lists. `libcrypt-dev=1:4.4.38-1` is libxcrypt, for bcrypt. `libc6-dev=2.41-12+deb13u4` and `gcc=4:14.2.0-1` compile the four helpers in the image. A second source line for that suite is rejected, because the image signs it with `debian-archive-keyring.pgp`. Main may still be on an older openssl, and an unpinned install would take it. |
 | Reported version | `OpenSSL 3.5.7` followed by a space. `OpenSSL 3.5.70` does not match. |
 | Wycheproof | C2SP commit `3fa63dd0344abb611f1fb1d77e119938603ea230` |
 | Corpus | SHA-256 of `testvectors_v1/aes_gcm_test.json` at that commit, in `tools/oracle/containers/CORPUS` |
@@ -83,6 +86,9 @@ case may be rejected, which is how the all-zero shared secret is handled,
 or it must match. Ed25519 is the same shape: the committed vector is RFC 8032,
 and the oracle runs the pinned Wycheproof file. A `valid` case must be
 accepted. An `invalid` case, including a non-canonical S, must be rejected.
+The context and prehash cases in `ed25519.vec` are asked of `ed25519-evp`
+as well. That helper is the judge for the pure cases too, because
+`openssl pkeyutl -rawin` refuses a zero-length message.
 P-256 ECDH is judged by the pinned Wycheproof ecpoint file. The committed
 vector is one of those cases. A `valid` case must match the shared x. An
 `invalid` case, and a compressed point, must be rejected. ECDSA P-256 is
@@ -105,7 +111,8 @@ compared the same way: `examples/hmac.c` (`GSEC_HMAC_BIN`) against
 against `openssl kdf HKDF`. PBKDF2 uses `examples/pbkdf2.c`
 (`GSEC_PBKDF2_BIN`) against `openssl kdf PBKDF2`. Argon2 uses
 `examples/argon2.c` against `openssl kdf ARGON2D`, `ARGON2I`, and
-`ARGON2ID`, including the secret and the associated data from RFC 9106.
+`ARGON2ID`, including the secret and the associated data from RFC 9106,
+for version `0x13` and version `0x10`.
 bcrypt uses `examples/bcrypt.c` against `crypt-bcrypt` in the image,
 which calls libxcrypt's `crypt_r`. The comparison is the 23 bytes the
 modular-crypt string stores. `$2a$`, `$2b$`, and `$2x$` each call their
@@ -115,7 +122,11 @@ including those whose MGF1 hash differs from the label hash.
 RSAES-PKCS1-v1_5 encrypts
 a fresh message with `openssl pkeyutl` and decrypts it here. RC4's short
 keys go through `rc4-evp`, because `openssl enc -rc4` zero-pads `-K`.
-DER, PEM, PKCS#8, and X.509 read objects OpenSSL just wrote.
+RC2's effective length goes through `rc2-evp`, because `openssl enc -rc2`
+treats the key length as the effective length. DES two-key CBC is
+`openssl enc -des-ede-cbc`. DER, PEM, PKCS#8, PKCS#12, X.509, CRL, and
+OCSP read objects OpenSSL just wrote. An OAEP group whose hash this
+library does not name fails the probe.
 
 A host-mode run (`GHOTI_ORACLE=host`) uses the `openssl` on `PATH` and still
 requires the version string. It is a way to run the probe without a
@@ -135,6 +146,6 @@ uppercase digit, a boolean expectation, and a length that does not match
 the bytes. `equal`, the five hashes, `hmac`, `hkdf`, `pbkdf2`, `aes`,
 `aes_ctr`, `aes_cbc`, `des`, `rc2`, `rc4`, `scrypt`, `bcrypt`, `argon2`, `aes_gcm`, `chacha20_poly1305`, `x25519`, `ed25519`,
 `ecdh_p256`, `ecdh_p384`, `ecdsa_p256`, `ecdsa_p384`, `rsa_pkcs1`, `rsa_pss`, `rsa_private`,
-`rsa_oaep`, `rsaes_pkcs1`, `der`, `pem`, `pkcs8`, and `x509` each have a file. A
+`rsa_oaep`, `rsaes_pkcs1`, `der`, `pem`, `pkcs8`, `x509`, `crl`, `ocsp`, and `pkcs12` each have a file. A
 later primitive adds a file in the same commit as the function, and names
 it on the registry row.

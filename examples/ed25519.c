@@ -25,7 +25,9 @@
  *
  * `ed25519 public <hexseed>` prints the public key. `ed25519 sign
  * <hexseed> [hexmsg|-]` prints the signature. `ed25519 verify <hexpk>
- * <hexsig> [hexmsg|-]` exits 0 when the signature is accepted. A seed or
+ * <hexsig> [hexmsg|-]` exits 0 when the signature is accepted.
+ * `verify-ctx` and `verify-ph` take the context hex before the message.
+ * An empty context is `-`. A seed or
  * public key that is not 32 bytes, or a signature that is not 64, exits 1
  * and prints nothing. A message longer than 1 MiB does the same. Bad hex
  * exits 2.
@@ -140,7 +142,7 @@ int main(int argc, char ** argv) {
   const char * command;
 
   if (argc < 2) {
-    fprintf(stderr, "usage: ed25519 public hexseed | ed25519 sign hexseed [hexmsg|-] | ed25519 verify hexpk hexsig [hexmsg|-]\n");
+    fprintf(stderr, "usage: ed25519 public hexseed | ed25519 sign hexseed [hexmsg|-] | ed25519 verify hexpk hexsig [hexmsg|-] | ed25519 verify-ctx|verify-ph hexpk hexsig hexctx|- [hexmsg|-]\n");
     return 2;
   }
   command = argv[1];
@@ -221,6 +223,56 @@ int main(int argc, char ** argv) {
     free(message);
     return result == GSEC_OK ? 0 : 1;
   }
-  fprintf(stderr, "usage: ed25519 public hexseed | ed25519 sign hexseed [hexmsg|-] | ed25519 verify hexpk hexsig [hexmsg|-]\n");
+  if (strcmp(command, "verify-ctx") == 0 || strcmp(command, "verify-ph") == 0) {
+    unsigned char context[255];
+    size_t cn = 0;
+    int prehash = strcmp(command, "verify-ph") == 0;
+
+    if (argc != 5 && argc != 6) {
+      return 2;
+    }
+    if (!parse_hex(argv[2], key, sizeof key, &n)) {
+      return 2;
+    }
+    if (n != GSEC_ED25519_LEN) {
+      gsec_wipe(key, sizeof key);
+      return 1;
+    }
+    if (!parse_hex(argv[3], sig, sizeof sig, &n)) {
+      gsec_wipe(key, sizeof key);
+      return 2;
+    }
+    if (n != GSEC_ED25519_SIG_LEN) {
+      gsec_wipe(key, sizeof key);
+      gsec_wipe(sig, sizeof sig);
+      return 1;
+    }
+    if (strcmp(argv[4], "-") != 0) {
+      if (!parse_hex(argv[4], context, sizeof context, &cn)) {
+        gsec_wipe(key, sizeof key);
+        gsec_wipe(sig, sizeof sig);
+        return 2;
+      }
+    }
+    message_rc = parse_message(argc == 6 ? argv[5] : NULL, &message, &mn);
+    if (message_rc != 0) {
+      gsec_wipe(key, sizeof key);
+      gsec_wipe(sig, sizeof sig);
+      gsec_wipe(context, sizeof context);
+      return message_rc;
+    }
+    result = prehash
+        ? gsec_ed25519_ph_verify(key, message, mn, sig,
+            cn == 0 ? NULL : context, cn)
+        : gsec_ed25519_ctx_verify(key, message, mn, sig,
+            cn == 0 ? NULL : context, cn);
+    gsec_wipe(key, sizeof key);
+    gsec_wipe(sig, sizeof sig);
+    gsec_wipe(context, sizeof context);
+    gsec_wipe(message, mn);
+    free(message);
+    return result == GSEC_OK ? 0 : 1;
+  }
+  fprintf(stderr, "usage: ed25519 public hexseed | ed25519 sign hexseed [hexmsg|-] | ed25519 verify hexpk hexsig [hexmsg|-] | ed25519 verify-ctx|verify-ph hexpk hexsig hexctx|- [hexmsg|-]\n");
   return 2;
 }

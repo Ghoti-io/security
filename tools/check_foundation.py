@@ -26,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "oracle"))
 import compare
+import openssl_kat
 
 ROOT = Path(__file__).resolve().parents[1]
 INCLUDE = ROOT / "include"
@@ -232,6 +233,14 @@ def main():
             print("check-foundation: " + problem, file=sys.stderr)
         return 1
 
+    outside = [
+        row["id"] for row in rows
+        if row["status"] == "implemented" and row["judge"] not in ("self", "none")]
+    if set(outside) != set(openssl_kat.COVERED):
+        missing = sorted(set(outside) - set(openssl_kat.COVERED))
+        extra = sorted(set(openssl_kat.COVERED) - set(outside))
+        fail("oracle coverage missing %s extra %s" % (missing, extra))
+
     listed = check_manifest()
     for row in rows:
         if row["vectors"] == "-":
@@ -246,7 +255,7 @@ def main():
     for needle in (DEBIAN_DIGEST, OPENSSL_APT, WYCHEPROOF, "LANG=C.UTF-8",
             "trixie-security", "libcrypt-dev=1:4.4.38-1",
             "libssl-dev=3.5.7-1~deb13u2", "libc6-dev=2.41-12+deb13u4",
-            "gcc=4:14.2.0-1"):
+            "gcc=4:14.2.0-1", "rc2-evp", "ed25519-evp"):
         if needle not in text:
             fail("Containerfile does not pin %s" % needle)
     images = IMAGES.read_text(encoding="utf-8")

@@ -23,10 +23,12 @@
  *
  * Hash a password with Argon2.
  *
- * `argon2 <d|i|id> <hexpass|-> <hexsalt> <memory_kib> <passes> <lanes> <taglen>
- * [hexsecret|- hexad|-]`
- * A dash is empty. Secret and associated data are omitted when those two
- * arguments are absent. Prints lowercase hex and a newline.
+ * `argon2 [v10|v13] <d|i|id> <hexpass|-> <hexsalt> <memory_kib> <passes>
+ * <lanes> <taglen> [hexsecret|- hexad|-]`
+ * The version is 0x13 when it is omitted. v10 is the old version, for
+ * checking a hash that already uses it. A dash is empty. Secret and
+ * associated data are omitted when those two arguments are absent.
+ * Prints lowercase hex and a newline.
  */
 
 #include <ghoti.io/security/macros.h>
@@ -95,54 +97,64 @@ int main(int argc, char ** argv) {
   unsigned long lanes;
   unsigned long tag_len;
   uint32_t type;
+  uint32_t version = GSEC_ARGON2_VERSION_13;
+  int base;
   size_t i;
   char * end;
   GSEC_Result result;
   static const char hex[] = "0123456789abcdef";
 
-  if (argc != 8 && argc != 10) {
+  base = 1;
+  if (argc >= 2 && strcmp(argv[1], "v10") == 0) {
+    version = GSEC_ARGON2_VERSION_10;
+    base = 2;
+  } else if (argc >= 2 && strcmp(argv[1], "v13") == 0) {
+    base = 2;
+  }
+  if (argc - base != 7 && argc - base != 9) {
     fprintf(stderr,
-        "usage: argon2 d|i|id hexpass|- hexsalt memory passes lanes taglen"
-        " [hexsecret|- hexad|-]\n");
+        "usage: argon2 [v10|v13] d|i|id hexpass|- hexsalt memory passes"
+        " lanes taglen [hexsecret|- hexad|-]\n");
     return 2;
   }
-  if (strcmp(argv[1], "d") == 0) {
+  if (strcmp(argv[base], "d") == 0) {
     type = GSEC_ARGON2_D;
-  } else if (strcmp(argv[1], "i") == 0) {
+  } else if (strcmp(argv[base], "i") == 0) {
     type = GSEC_ARGON2_I;
-  } else if (strcmp(argv[1], "id") == 0) {
+  } else if (strcmp(argv[base], "id") == 0) {
     type = GSEC_ARGON2_ID;
   } else {
     return 2;
   }
-  if (!parse_bytes(argv[2], password, PASS_MAX, &password_len) ||
-      !parse_bytes(argv[3], salt, SALT_MAX, &salt_len)) {
+  if (!parse_bytes(argv[base + 1], password, PASS_MAX, &password_len) ||
+      !parse_bytes(argv[base + 2], salt, SALT_MAX, &salt_len)) {
     return 2;
   }
-  if (argc == 10 &&
-      (!parse_bytes(argv[8], secret, SALT_MAX, &secret_len) ||
-      !parse_bytes(argv[9], ad, SALT_MAX, &ad_len))) {
+  if (argc - base == 9 &&
+      (!parse_bytes(argv[base + 7], secret, SALT_MAX, &secret_len) ||
+      !parse_bytes(argv[base + 8], ad, SALT_MAX, &ad_len))) {
     return 2;
   }
-  memory_kib = strtoul(argv[4], &end, 10);
+  memory_kib = strtoul(argv[base + 3], &end, 10);
   if (*end != '\0' || memory_kib > UINT32_MAX) {
     return 2;
   }
-  passes = strtoul(argv[5], &end, 10);
+  passes = strtoul(argv[base + 4], &end, 10);
   if (*end != '\0' || passes == 0 || passes > UINT32_MAX) {
     return 2;
   }
-  lanes = strtoul(argv[6], &end, 10);
+  lanes = strtoul(argv[base + 5], &end, 10);
   if (*end != '\0' || lanes == 0 || lanes > UINT32_MAX) {
     return 2;
   }
-  tag_len = strtoul(argv[7], &end, 10);
+  tag_len = strtoul(argv[base + 6], &end, 10);
   if (*end != '\0' || tag_len > sizeof tag) {
     return 2;
   }
-  result = gsec_argon2(type, password_len == 0 ? NULL : password,
-      password_len, salt, salt_len, secret_len == 0 ? NULL : secret,
-      secret_len, ad_len == 0 ? NULL : ad, ad_len, (uint32_t)memory_kib,
+  result = gsec_argon2_version(version, type,
+      password_len == 0 ? NULL : password, password_len, salt, salt_len,
+      secret_len == 0 ? NULL : secret, secret_len,
+      ad_len == 0 ? NULL : ad, ad_len, (uint32_t)memory_kib,
       (uint32_t)passes, (uint32_t)lanes, tag, tag_len);
   gsec_wipe(password, sizeof password);
   gsec_wipe(salt, sizeof salt);
