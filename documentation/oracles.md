@@ -107,7 +107,8 @@ against `openssl kdf HKDF`. PBKDF2 uses `examples/pbkdf2.c`
 `ARGON2ID`, including the secret and the associated data from RFC 9106.
 bcrypt uses `examples/bcrypt.c` against `crypt-bcrypt` in the image,
 which calls libxcrypt's `crypt_r`. The comparison is the 23 bytes the
-modular-crypt string stores. P-384 ECDH runs
+modular-crypt string stores. `$2a$`, `$2b$`, and `$2x$` each call their
+function. `$2y$` is asked of libxcrypt and compared with `gsec_bcrypt`. P-384 ECDH runs
 `ecdh_secp384r1_ecpoint_test.json`. RSAES-OAEP runs the pinned files
 whose label hash and MGF1 hash are the same. RSAES-PKCS1-v1_5 encrypts
 a fresh message with `openssl pkeyutl` and decrypts it here. RC4's short

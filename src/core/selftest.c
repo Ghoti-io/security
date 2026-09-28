@@ -1115,6 +1115,31 @@ GSEC_Result gsec_selftest(void) {
   }
 
   {
+    static const unsigned char password[1] = {0x80};
+    static const unsigned char salt[16] = {
+      0x05, 0x03, 0x00, 0x85, 0xd5, 0xed, 0x4c, 0x17,
+      0x6b, 0x2a, 0xc3, 0xcb, 0xee, 0x47, 0x29, 0x1c
+    };
+    static const unsigned char want[24] = {
+      0x05, 0xfa, 0x2e, 0x3d, 0x60, 0x3e, 0x07, 0xe3,
+      0xe9, 0x74, 0xc4, 0xcd, 0x46, 0x87, 0x5d, 0xcf,
+      0x84, 0xfc, 0x67, 0x9e, 0x3e, 0x13, 0x22, 0x64
+    };
+    unsigned char got[24];
+
+    result = gsec_bcrypt_2x(password, sizeof password, salt, sizeof salt, 5,
+        got, sizeof got);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_equal(got, want, sizeof got);
+    gsec_wipe(got, sizeof got);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+
+  {
     unsigned char password[32];
     unsigned char salt[16];
     unsigned char secret[8];

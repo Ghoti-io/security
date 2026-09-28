@@ -176,7 +176,7 @@ an RSA key, and a client certificate whose key is RSA, need phase 9.
 | 10 | ECDSA P-384 is implemented | SHA-384 and RFC 6979. The signature is raw r then s. Signing emits the low s. Verification accepts a high s |
 | 11 | AES-CBC is implemented | No padding. The initialization vector is the caller's. The mode does not authenticate. A repeated vector under one key leaks prefix equality |
 | 12 | DES and RC4 are implemented | Both are broken. Old formats still name them. Neither is constant-time: DES indexes substitution boxes with key-dependent bits, and RC4 indexes its permutation with secret bytes |
-| 13 | scrypt, bcrypt, and Argon2 are implemented | Password hashes for storage. Not PBKDF2. The salt is the caller's. The cost parameters are public. bcrypt is the $2b$ rule, and $2a$ adds crypt_blowfish's collision tweak. Argon2 is version 0x13, and BLAKE2b stays inside it |
+| 13 | scrypt, bcrypt, and Argon2 are implemented | Password hashes for storage. Not PBKDF2. The salt is the caller's. The cost parameters are public. bcrypt is the $2b$ rule, which is also $2y$. $2a$ adds crypt_blowfish's collision tweak, and $2x$ is the sign-extending key schedule. Argon2 is version 0x13, and BLAKE2b stays inside it |
 
 Nonces are the caller's. The GCM and ChaCha20-Poly1305 declarations say what a repeated nonce
 does. ECDSA signing uses RFC 6979 so the nonce is a

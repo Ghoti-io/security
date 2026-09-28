@@ -1676,22 +1676,29 @@ def bcrypt_decode(text, nbytes):
 def diff_bcrypt():
     """Compare the first 23 ciphertext bytes with libxcrypt.
 
-    A modular-crypt string stores 23 of the 24 bytes. $2a$ and $2b$ are
-    both asked, because they diverge on ff ff a3 and agree on ASCII.
+    A modular-crypt string stores 23 of the 24 bytes. The function
+    column is what the example runs. The prefix column is what libxcrypt
+    is asked. $2y$ is the $2b$ function.
     """
     binary = os.environ["GSEC_BCRYPT_BIN"]
     stars = bytes.fromhex("1041" * 8)
     high = bytes.fromhex("05030085d5ed4c176b2ac3cbee47291c")
     cases = (
-        ("2b", "-", stars, 5),
-        ("2a", "-", stars, 5),
-        ("2b", "552a552a", stars, 5),
-        ("2a", "552a552a", stars, 5),
-        ("2b", "ffffa3", high, 5),
-        ("2a", "ffffa3", high, 5),
+        ("2b", "2b", "-", stars, 5),
+        ("2a", "2a", "-", stars, 5),
+        ("2b", "2y", "-", stars, 5),
+        ("2b", "2b", "552a552a", stars, 5),
+        ("2a", "2a", "552a552a", stars, 5),
+        ("2x", "2x", "552a552a", stars, 5),
+        ("2b", "2b", "ffffa3", high, 5),
+        ("2a", "2a", "ffffa3", high, 5),
+        ("2x", "2x", "ffffa3", high, 5),
+        ("2b", "2y", "ffffa3", high, 5),
+        ("2b", "2b", "80", high, 5),
+        ("2x", "2x", "80", high, 5),
     )
-    for rule, password, salt, cost in cases:
-        setting = "$%s$%02d$%s" % (rule, cost, bcrypt_encode(salt))
+    for function, prefix, password, salt, cost in cases:
+        setting = "$%s$%02d$%s" % (prefix, cost, bcrypt_encode(salt))
         proc = subprocess.run(oracle_env.command("openssl", [
             "crypt-bcrypt", password, setting]), capture_output=True, text=True)
         if proc.returncode != 0:
@@ -1703,16 +1710,16 @@ def diff_bcrypt():
             return 1
         want = bcrypt_decode(text[len(setting):], 23).hex()
         got = subprocess.run(
-            [binary, rule, password, salt.hex(), str(cost)],
+            [binary, function, password, salt.hex(), str(cost)],
             capture_output=True, text=True)
         if got.returncode != 0 or not got.stdout.strip().startswith(want):
-            sys.stderr.write("bcrypt %s is %s, libcrypt says %s\n" % (
-                rule, got.stdout.strip(), want))
+            sys.stderr.write("bcrypt %s/%s is %s, libcrypt says %s\n" % (
+                function, prefix, got.stdout.strip(), want))
             return 1
         if len(got.stdout.strip()) != 48:
             sys.stderr.write("bcrypt wrote %s\n" % got.stdout.strip())
             return 1
-        print("bcrypt %s %s" % (rule, want))
+        print("bcrypt %s/%s %s" % (function, prefix, want))
     return diff_oaep()
 
 

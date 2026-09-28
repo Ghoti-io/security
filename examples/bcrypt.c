@@ -23,10 +23,10 @@
  *
  * Hash a password with bcrypt.
  *
- * `bcrypt [2a|2b] <hexpass|-> <hexsalt> <cost>`
+ * `bcrypt [2a|2b|2x] <hexpass|-> <hexsalt> <cost>`
  * A dash is an empty password. The salt is 16 bytes. The rule is $2b$
- * when the prefix is omitted. Prints the 24-byte ciphertext as lowercase
- * hex and a newline.
+ * when the prefix is omitted. $2y$ is $2b$. Prints the 24-byte ciphertext
+ * as lowercase hex and a newline.
  */
 
 #include <ghoti.io/security/macros.h>
@@ -88,18 +88,24 @@ int main(int argc, char ** argv) {
   unsigned long cost;
   size_t i;
   char * end;
-  int rule_2a;
+  int rule;
   int base;
   GSEC_Result result;
   static const char hex[] = "0123456789abcdef";
 
-  rule_2a = 0;
+  rule = 0;
   base = 1;
-  if (argc == 5 && (strcmp(argv[1], "2a") == 0 || strcmp(argv[1], "2b") == 0)) {
-    rule_2a = strcmp(argv[1], "2a") == 0;
+  if (argc == 5) {
+    if (strcmp(argv[1], "2a") == 0) {
+      rule = 1;
+    } else if (strcmp(argv[1], "2x") == 0) {
+      rule = 2;
+    } else if (strcmp(argv[1], "2b") != 0) {
+      return 2;
+    }
     base = 2;
   } else if (argc != 4) {
-    fprintf(stderr, "usage: bcrypt [2a|2b] hexpass|- hexsalt cost\n");
+    fprintf(stderr, "usage: bcrypt [2a|2b|2x] hexpass|- hexsalt cost\n");
     return 2;
   }
   if (!parse_bytes(argv[base], password, PASS_MAX, &password_len) ||
@@ -112,9 +118,16 @@ int main(int argc, char ** argv) {
       cost > GSEC_BCRYPT_COST_MAX) {
     return 2;
   }
-  result = (rule_2a ? gsec_bcrypt_2a : gsec_bcrypt)(
-      password_len == 0 ? NULL : password, password_len, salt, salt_len,
-      (uint32_t)cost, hash, sizeof hash);
+  if (rule == 1) {
+    result = gsec_bcrypt_2a(password_len == 0 ? NULL : password, password_len,
+        salt, salt_len, (uint32_t)cost, hash, sizeof hash);
+  } else if (rule == 2) {
+    result = gsec_bcrypt_2x(password_len == 0 ? NULL : password, password_len,
+        salt, salt_len, (uint32_t)cost, hash, sizeof hash);
+  } else {
+    result = gsec_bcrypt(password_len == 0 ? NULL : password, password_len,
+        salt, salt_len, (uint32_t)cost, hash, sizeof hash);
+  }
   gsec_wipe(password, sizeof password);
   gsec_wipe(salt, sizeof salt);
   if (result != GSEC_OK) {

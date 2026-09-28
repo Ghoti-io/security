@@ -21,10 +21,11 @@
 /**
  * @file
  *
- * bcrypt, the $2b$ EksBlowfish hash. The initial state is the hexadecimal
- * digits of pi. The S-boxes are indexed by bytes that depend on the
- * password, so this is not constant-time and it is not in the
- * constant-time gate.
+ * bcrypt, the EksBlowfish hash. $2b$ and $2y$ keep every key byte
+ * unsigned. $2a$ adds the collision tweak. $2x$ sign-extends the key.
+ * The initial state is the hexadecimal digits of pi. The S-boxes are
+ * indexed by bytes that depend on the password, so this is not
+ * constant-time and it is not in the constant-time gate.
  */
 
 #include <ghoti.io/security/macros.h>
@@ -346,7 +347,43 @@ static uint32_t stream_word(const unsigned char *data, size_t len,
   return word;
 }
 
-static void expand0(State *st, const unsigned char *key, size_t key_len) {
+/*
+ * crypt_blowfish's $2x$ key word. A byte at or above 128 is widened
+ * through a signed char, so the high bits overwrite what the shift had
+ * kept. The first byte of a group is shifted out of the word. $2a$ and
+ * $2b$ do not use this.
+ */
+static uint32_t stream_word_2x(const unsigned char *data, size_t len,
+    size_t *off) {
+  uint32_t word = 0;
+  unsigned i;
+
+  for (i = 0; i < 4; i++) {
+    unsigned char byte;
+    uint32_t extended;
+
+    if (*off >= len) {
+      *off = 0;
+    }
+    byte = data[*off];
+    *off += 1;
+    word <<= 8;
+    extended = byte >= 0x80u ? (0xffffff00u | byte) : byte;
+    word |= extended;
+  }
+  return word;
+}
+
+static uint32_t key_word(const unsigned char *data, size_t len, size_t *off,
+    int sign_extend) {
+  if (sign_extend) {
+    return stream_word_2x(data, len, off);
+  }
+  return stream_word(data, len, off);
+}
+
+static void expand0(State *st, const unsigned char *key, size_t key_len,
+    int sign_extend) {
   size_t off = 0;
   uint32_t left = 0;
   uint32_t right = 0;
@@ -354,7 +391,7 @@ static void expand0(State *st, const unsigned char *key, size_t key_len) {
   unsigned k;
 
   for (i = 0; i < 18; i++) {
-    st->P[i] ^= stream_word(key, key_len, &off);
+    st->P[i] ^= key_word(key, key_len, &off, sign_extend);
   }
   off = 0;
   for (i = 0; i < 18; i += 2) {
@@ -415,7 +452,7 @@ static uint32_t collision_tweak(const unsigned char *key, size_t key_len) {
 }
 
 static void expand(State *st, const unsigned char *data, size_t data_len,
-    const unsigned char *key, size_t key_len, uint32_t tweak) {
+    const unsigned char *key, size_t key_len, uint32_t tweak, int sign_extend) {
   size_t off = 0;
   uint32_t left = 0;
   uint32_t right = 0;
@@ -423,7 +460,7 @@ static void expand(State *st, const unsigned char *data, size_t data_len,
   unsigned k;
 
   for (i = 0; i < 18; i++) {
-    st->P[i] ^= stream_word(key, key_len, &off);
+    st->P[i] ^= key_word(key, key_len, &off, sign_extend);
   }
   st->P[0] ^= tweak;
   off = 0;
@@ -463,7 +500,7 @@ static void store_words(unsigned char out[24], const uint32_t words[6]) {
 
 static GSEC_Result bcrypt_hash(const void *password, size_t password_len,
     const void *salt, size_t salt_len, uint32_t cost, void *hash,
-    size_t hash_len, int safety) {
+    size_t hash_len, int rule) {
   State st;
   unsigned char key[73];
   uint32_t words[6];
@@ -491,11 +528,11 @@ static GSEC_Result bcrypt_hash(const void *password, size_t password_len,
   memcpy(st.S, initial_s, sizeof st.S);
   memcpy(st.P, initial_p, sizeof st.P);
   expand(&st, (const unsigned char *)salt, salt_len, key, key_len,
-      safety ? collision_tweak(key, key_len) : 0);
+      rule == 1 ? collision_tweak(key, key_len) : 0, rule == 2);
   rounds = 1u << cost;
   for (k = 0; k < rounds; k++) {
-    expand0(&st, key, key_len);
-    expand0(&st, (const unsigned char *)salt, salt_len);
+    expand0(&st, key, key_len, rule == 2);
+    expand0(&st, (const unsigned char *)salt, salt_len, 0);
   }
   for (i = 0; i < 6; i++) {
     words[i] = stream_word(magic, 24, &off);
@@ -524,4 +561,11 @@ GSEC_Result gsec_bcrypt_2a(const void *password, size_t password_len,
     size_t hash_len) {
   return bcrypt_hash(password, password_len, salt, salt_len, cost, hash,
       hash_len, 1);
+}
+
+GSEC_Result gsec_bcrypt_2x(const void *password, size_t password_len,
+    const void *salt, size_t salt_len, uint32_t cost, void *hash,
+    size_t hash_len) {
+  return bcrypt_hash(password, password_len, salt, salt_len, cost, hash,
+      hash_len, 2);
 }

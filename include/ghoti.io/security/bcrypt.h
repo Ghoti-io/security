@@ -21,22 +21,23 @@
 /**
  * @file bcrypt.h
  *
- * bcrypt, the $2b$ EksBlowfish password hash.
+ * bcrypt, the EksBlowfish password hash.
  *
  * This is a password hash for storage. It is not PBKDF2. The salt is
  * the caller's 16 bytes. The cost is public. A password longer than
  * ::GSEC_BCRYPT_PASSWORD_MAX is ::GSEC_ERR_INVALID rather than silently
  * truncated.
  *
- * The key is the password bytes followed by a zero byte, and every byte
- * is unsigned. That is the $2b$ rule, which ::gsec_bcrypt implements.
- * ::gsec_bcrypt_2a is the same schedule with crypt_blowfish's $2a$
- * collision tweak: when the old sign-extending schedule would have
- * produced the same subkeys and a later byte in a group had its high
- * bit set, bit 16 of the first subkey is flipped before the salt is
- * mixed in. The sign-extending schedule itself is $2x$, and it is not
- * implemented. $2y$ is the $2b$ rule. A password whose bytes are all
- * below 128 hashes the same way under both functions.
+ * The key is the password bytes followed by a zero byte.
+ * ::gsec_bcrypt is the $2b$ rule, and it is also $2y$: every byte is
+ * unsigned. ::gsec_bcrypt_2a is that schedule with crypt_blowfish's
+ * collision tweak. When the sign-extending schedule would have produced
+ * the same subkeys and a later byte in a group had its high bit set,
+ * bit 16 of the first subkey is flipped before the salt is mixed in.
+ * ::gsec_bcrypt_2x is the sign-extending schedule itself. A byte at or
+ * above 128 is widened through a signed char, and those words are the
+ * key on every mix, including the later rounds. A password whose bytes
+ * are all below 128 hashes the same way under all three functions.
  *
  * EksBlowfish indexes its S-boxes with bytes that depend on the
  * password. That is not constant-time, and this function is not in the
@@ -103,6 +104,17 @@ GSEC_API GSEC_Result gsec_bcrypt(const void * password, size_t password_len,
  * collision tweak described in the file comment.
  */
 GSEC_API GSEC_Result gsec_bcrypt_2a(const void * password, size_t password_len,
+    const void * salt, size_t salt_len, uint32_t cost, void * hash,
+    size_t hash_len);
+
+/**
+ * @brief Hash a password with bcrypt ($2x$).
+ *
+ * The arguments are the same as ::gsec_bcrypt. The key words are the
+ * sign-extended ones described in the file comment. This exists to check
+ * a hash the old code produced. A new hash should not use it.
+ */
+GSEC_API GSEC_Result gsec_bcrypt_2x(const void * password, size_t password_len,
     const void * salt, size_t salt_len, uint32_t cost, void * hash,
     size_t hash_len);
 

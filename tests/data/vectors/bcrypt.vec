@@ -2,6 +2,7 @@
 # stars and empty are OpenBSD vectors. ASCII matches $2a$ and $2b$.
 # high is the $2b$ tag of ff ff a3. high-2a is crypt_blowfish's $2a$
 # tag of that same password: the collision tweak, not the sign extension.
+# lead-2x is the $2x$ tag of a lone 0x80, which $2b$ hashes differently.
 primitive bcrypt
 
 case stars
@@ -27,3 +28,9 @@ password ffffa3
 salt 05030085d5ed4c176b2ac3cbee47291c
 cost 5
 hash a6c7f7cb402b54e7dec6d4d8cf490837880ed40e1cfbb046
+
+case lead-2x
+password 80
+salt 05030085d5ed4c176b2ac3cbee47291c
+cost 5
+hash 05fa2e3d603e07e3e974c4cd46875dcf84fc679e3e132264
