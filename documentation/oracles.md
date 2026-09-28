@@ -5,11 +5,12 @@ not this library. `make check-oracle` first checks that the image still
 produces the published SHA-256 of `abc` and the Wycheproof file the pin
 names. It then judges every implemented primitive that has an outside
 judge: the hashes, including MD5, HMAC, HKDF, PBKDF2, AES, AES-CTR, AES-CBC,
-DES, RC4, and scrypt, against OpenSSL in the image, and the AEAD algorithms,
-the curves, ECDSA P-384, and RSA verification against the pinned Wycheproof
-files. bcrypt and Argon2 have judge `none`. RSA signing is judged by a
-2048-bit key the image
-generates: this library signs, and OpenSSL in the image verifies. A
+DES, RC4, scrypt, and Argon2, against OpenSSL in the image, and the AEAD
+algorithms, the curves, including P-384, ECDSA, RSA verification, and
+RSAES-OAEP against the pinned Wycheproof files. bcrypt is judged by
+libxcrypt in the same image. RSA signing, and RSAES-PKCS1-v1_5, are judged
+by a 2048-bit key the image generates. OpenSSL also writes a certificate,
+its PEM, and an unencrypted PKCS#8 key, and this library reads them. A
 difference fails the target.
 
 `make test` does not run a container. A checkout with no container runtime
@@ -38,7 +39,7 @@ container or on the host (`GHOTI_ORACLE=host`).
 | What | Pin |
 | --- | --- |
 | Base | `docker.io/library/debian:13-slim` at `sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c` |
-| Package | `openssl=3.5.7-1~deb13u2` from the `trixie-security` suite the base image already lists. A second source line for that suite is rejected, because the image signs it with `debian-archive-keyring.pgp`. Main may still be on an older openssl, and an unpinned install would take it. |
+| Package | `openssl=3.5.7-1~deb13u2` and `libssl-dev` at the same version, from the `trixie-security` suite the base image already lists. `libcrypt-dev=1:4.4.38-1` is libxcrypt, for bcrypt. `libc6-dev=2.41-12+deb13u4` and `gcc=4:14.2.0-1` compile the two helpers in the image. A second source line for that suite is rejected, because the image signs it with `debian-archive-keyring.pgp`. Main may still be on an older openssl, and an unpinned install would take it. |
 | Reported version | `OpenSSL 3.5.7` followed by a space. `OpenSSL 3.5.70` does not match. |
 | Wycheproof | C2SP commit `3fa63dd0344abb611f1fb1d77e119938603ea230` |
 | Corpus | SHA-256 of `testvectors_v1/aes_gcm_test.json` at that commit, in `tools/oracle/containers/CORPUS` |
@@ -101,7 +102,17 @@ private exponentiation, which blinding must not change. HMAC is
 compared the same way: `examples/hmac.c` (`GSEC_HMAC_BIN`) against
 `openssl dgst -mac HMAC`. HKDF uses `examples/hkdf.c` (`GSEC_HKDF_BIN`)
 against `openssl kdf HKDF`. PBKDF2 uses `examples/pbkdf2.c`
-(`GSEC_PBKDF2_BIN`) against `openssl kdf PBKDF2`.
+(`GSEC_PBKDF2_BIN`) against `openssl kdf PBKDF2`. Argon2 uses
+`examples/argon2.c` against `openssl kdf ARGON2D`, `ARGON2I`, and
+`ARGON2ID`, including the secret and the associated data from RFC 9106.
+bcrypt uses `examples/bcrypt.c` against `crypt-bcrypt` in the image,
+which calls libxcrypt's `crypt_r`. The comparison is the 23 bytes the
+modular-crypt string stores. P-384 ECDH runs
+`ecdh_secp384r1_ecpoint_test.json`. RSAES-OAEP runs the pinned files
+whose label hash and MGF1 hash are the same. RSAES-PKCS1-v1_5 encrypts
+a fresh message with `openssl pkeyutl` and decrypts it here. RC4's short
+keys go through `rc4-evp`, because `openssl enc -rc4` zero-pads `-K`.
+DER, PEM, PKCS#8, and X.509 read objects OpenSSL just wrote.
 
 A host-mode run (`GHOTI_ORACLE=host`) uses the `openssl` on `PATH` and still
 requires the version string. It is a way to run the probe without a
@@ -120,6 +131,7 @@ The parser rejects a truncated hex string, an odd number of digits, an
 uppercase digit, a boolean expectation, and a length that does not match
 the bytes. `equal`, the five hashes, `hmac`, `hkdf`, `pbkdf2`, `aes`,
 `aes_ctr`, `aes_cbc`, `des`, `rc4`, `scrypt`, `bcrypt`, `argon2`, `aes_gcm`, `chacha20_poly1305`, `x25519`, `ed25519`,
-`ecdh_p256`, `ecdsa_p256`, `ecdsa_p384`, `rsa_pkcs1`, `rsa_pss`, and `rsa_private` each have a file. A
+`ecdh_p256`, `ecdh_p384`, `ecdsa_p256`, `ecdsa_p384`, `rsa_pkcs1`, `rsa_pss`, `rsa_private`,
+`rsa_oaep`, `rsaes_pkcs1`, `der`, `pem`, `pkcs8`, and `x509` each have a file. A
 later primitive adds a file in the same commit as the function, and names
 it on the registry row.

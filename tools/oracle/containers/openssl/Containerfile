@@ -1,9 +1,11 @@
 # OpenSSL 3.5.7 and Wycheproof 3fa63dd, in one image.
 #
 # Built here, so the finished image has no digest to pin. Everything the build
-# reads is pinned instead: the Debian base by digest, the openssl package by
-# full apt version, Wycheproof by commit. The run-time checks — openssl-version
-# and the SHA-256 of aes_gcm_test.json — are what a second build has to satisfy.
+# reads is pinned instead: the Debian base by digest, the openssl and libxcrypt
+# packages by full apt version, Wycheproof by commit. The pinned gcc compiles
+# crypt-bcrypt and rc4-evp; those programs call the pinned libraries. The run-time checks —
+# openssl-version, libcrypt-version, and the SHA-256 of aes_gcm_test.json —
+# are what a second build has to satisfy.
 # documentation/oracles.md.
 #
 # The apt pin stops resolving when the archive drops it. That failure is the
@@ -21,9 +23,18 @@ ENV LANG=C.UTF-8 \
 RUN apt-get update -qq \
     && apt-get install -y --no-install-recommends \
       openssl=3.5.7-1~deb13u2 \
+      libssl-dev=3.5.7-1~deb13u2 \
+      libcrypt-dev=1:4.4.38-1 \
+      libc6-dev=2.41-12+deb13u4 \
+      gcc=4:14.2.0-1 \
       ca-certificates \
       git \
     && rm -rf /var/lib/apt/lists/*
+
+COPY crypt-bcrypt.c rc4-evp.c /tmp/oracle-helpers/
+RUN gcc -O2 -o /usr/local/bin/crypt-bcrypt /tmp/oracle-helpers/crypt-bcrypt.c -lcrypt \
+    && gcc -O2 -o /usr/local/bin/rc4-evp /tmp/oracle-helpers/rc4-evp.c -lcrypto \
+    && rm -rf /tmp/oracle-helpers
 
 RUN git init /opt/wycheproof \
     && git -C /opt/wycheproof remote add origin https://github.com/C2SP/wycheproof.git \
@@ -32,5 +43,6 @@ RUN git init /opt/wycheproof \
     && git -C /opt/wycheproof rev-parse HEAD > /opt/wycheproof/PIN \
     && rm -rf /opt/wycheproof/.git
 
-COPY openssl-version wycheproof-pin /usr/local/bin/
-RUN chmod 0755 /usr/local/bin/openssl-version /usr/local/bin/wycheproof-pin
+COPY openssl-version wycheproof-pin libcrypt-version /usr/local/bin/
+RUN chmod 0755 /usr/local/bin/openssl-version /usr/local/bin/wycheproof-pin \
+    /usr/local/bin/libcrypt-version

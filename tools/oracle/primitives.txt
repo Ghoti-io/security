@@ -4,7 +4,7 @@
 #
 #   id         the function prefix after gsec_. gsec_<id> and gsec_<id>_* match.
 #   status     implemented, pending, or excluded.
-#   judge      self, openssl, nist, rfc, wycheproof, or none.
+#   judge      self, openssl, nist, rfc, wycheproof, libcrypt, or none.
 #   vectors    a path pinned in tests/data/vectors/MANIFEST, or "-".
 #
 # implemented with an outside judge requires a vector file. pending may name
@@ -36,28 +36,28 @@ chacha20_poly1305	implemented	rfc	tests/data/vectors/chacha20_poly1305.vec
 x25519	implemented	rfc	tests/data/vectors/x25519.vec
 ed25519	implemented	rfc	tests/data/vectors/ed25519.vec
 ecdh_p256	implemented	wycheproof	tests/data/vectors/ecdh_p256.vec
-ecdh_p384	implemented	self	-
+ecdh_p384	implemented	wycheproof	tests/data/vectors/ecdh_p384.vec
 ecdsa_p256	implemented	rfc	tests/data/vectors/ecdsa_p256.vec
 ecdsa_p384	implemented	openssl	tests/data/vectors/ecdsa_p384.vec
 rsa_pss	implemented	wycheproof	tests/data/vectors/rsa_pss.vec
 rsa_pkcs1_v15_verify	implemented	wycheproof	tests/data/vectors/rsa_pkcs1.vec
 rsa_private	implemented	openssl	tests/data/vectors/rsa_private.vec
-rsa_pkcs1_v15	implemented	self	-
-rsa_oaep	implemented	self	-
+rsa_pkcs1_v15	implemented	openssl	tests/data/vectors/rsaes_pkcs1.vec
+rsa_oaep	implemented	wycheproof	tests/data/vectors/rsa_oaep.vec
 
 # Not now. x448 stays excluded so the foundation check still has a plant.
 aes_cbc	implemented	openssl	tests/data/vectors/aes_cbc.vec
 des	implemented	openssl	tests/data/vectors/des.vec
 rc4	implemented	openssl	tests/data/vectors/rc4.vec
-argon2	implemented	none	tests/data/vectors/argon2.vec
+argon2	implemented	openssl	tests/data/vectors/argon2.vec
 scrypt	implemented	openssl	tests/data/vectors/scrypt.vec
-bcrypt	implemented	none	tests/data/vectors/bcrypt.vec
+bcrypt	implemented	libcrypt	tests/data/vectors/bcrypt.vec
 
 md5	implemented	openssl	tests/data/vectors/md5.vec
-der	implemented	self	-
-pem	implemented	self	-
-pkcs8	implemented	self	-
-x509	implemented	self	-
+der	implemented	openssl	tests/data/vectors/der.vec
+pem	implemented	openssl	tests/data/vectors/pem.vec
+pkcs8	implemented	openssl	tests/data/vectors/pkcs8.vec
+x509	implemented	openssl	tests/data/vectors/x509.vec
 crl	implemented	self	-
 ocsp	implemented	self	-
 pkcs12	implemented	self	-

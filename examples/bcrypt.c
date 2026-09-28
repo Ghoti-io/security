@@ -23,9 +23,10 @@
  *
  * Hash a password with bcrypt.
  *
- * `bcrypt <hexpass|-> <hexsalt> <cost>`
- * A dash is an empty password. The salt is 16 bytes. Prints the 24-byte
- * ciphertext as lowercase hex and a newline.
+ * `bcrypt [2a|2b] <hexpass|-> <hexsalt> <cost>`
+ * A dash is an empty password. The salt is 16 bytes. The rule is $2b$
+ * when the prefix is omitted. Prints the 24-byte ciphertext as lowercase
+ * hex and a newline.
  */
 
 #include <ghoti.io/security/macros.h>
@@ -87,25 +88,33 @@ int main(int argc, char ** argv) {
   unsigned long cost;
   size_t i;
   char * end;
+  int rule_2a;
+  int base;
   GSEC_Result result;
   static const char hex[] = "0123456789abcdef";
 
-  if (argc != 4) {
-    fprintf(stderr, "usage: bcrypt hexpass|- hexsalt cost\n");
+  rule_2a = 0;
+  base = 1;
+  if (argc == 5 && (strcmp(argv[1], "2a") == 0 || strcmp(argv[1], "2b") == 0)) {
+    rule_2a = strcmp(argv[1], "2a") == 0;
+    base = 2;
+  } else if (argc != 4) {
+    fprintf(stderr, "usage: bcrypt [2a|2b] hexpass|- hexsalt cost\n");
     return 2;
   }
-  if (!parse_bytes(argv[1], password, PASS_MAX, &password_len) ||
-      !parse_bytes(argv[2], salt, sizeof salt, &salt_len) ||
+  if (!parse_bytes(argv[base], password, PASS_MAX, &password_len) ||
+      !parse_bytes(argv[base + 1], salt, sizeof salt, &salt_len) ||
       salt_len != sizeof salt) {
     return 2;
   }
-  cost = strtoul(argv[3], &end, 10);
+  cost = strtoul(argv[base + 2], &end, 10);
   if (*end != '\0' || cost < GSEC_BCRYPT_COST_MIN ||
       cost > GSEC_BCRYPT_COST_MAX) {
     return 2;
   }
-  result = gsec_bcrypt(password_len == 0 ? NULL : password, password_len,
-      salt, salt_len, (uint32_t)cost, hash, sizeof hash);
+  result = (rule_2a ? gsec_bcrypt_2a : gsec_bcrypt)(
+      password_len == 0 ? NULL : password, password_len, salt, salt_len,
+      (uint32_t)cost, hash, sizeof hash);
   gsec_wipe(password, sizeof password);
   gsec_wipe(salt, sizeof salt);
   if (result != GSEC_OK) {

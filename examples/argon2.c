@@ -23,9 +23,10 @@
  *
  * Hash a password with Argon2.
  *
- * `argon2 <d|i|id> <hexpass|-> <hexsalt> <memory_kib> <passes> <lanes> <taglen>`
- * A dash is an empty password. There is no secret and no associated data.
- * Prints lowercase hex and a newline.
+ * `argon2 <d|i|id> <hexpass|-> <hexsalt> <memory_kib> <passes> <lanes> <taglen>
+ * [hexsecret|- hexad|-]`
+ * A dash is empty. Secret and associated data are omitted when those two
+ * arguments are absent. Prints lowercase hex and a newline.
  */
 
 #include <ghoti.io/security/macros.h>
@@ -82,9 +83,13 @@ static int parse_bytes(const char * text, unsigned char * out, size_t cap,
 int main(int argc, char ** argv) {
   unsigned char password[PASS_MAX];
   unsigned char salt[SALT_MAX];
+  unsigned char secret[SALT_MAX];
+  unsigned char ad[SALT_MAX];
   unsigned char tag[GSEC_ARGON2_TAG_MAX];
   size_t password_len = 0;
   size_t salt_len = 0;
+  size_t secret_len = 0;
+  size_t ad_len = 0;
   unsigned long memory_kib;
   unsigned long passes;
   unsigned long lanes;
@@ -95,9 +100,10 @@ int main(int argc, char ** argv) {
   GSEC_Result result;
   static const char hex[] = "0123456789abcdef";
 
-  if (argc != 8) {
+  if (argc != 8 && argc != 10) {
     fprintf(stderr,
-        "usage: argon2 d|i|id hexpass|- hexsalt memory passes lanes taglen\n");
+        "usage: argon2 d|i|id hexpass|- hexsalt memory passes lanes taglen"
+        " [hexsecret|- hexad|-]\n");
     return 2;
   }
   if (strcmp(argv[1], "d") == 0) {
@@ -111,6 +117,11 @@ int main(int argc, char ** argv) {
   }
   if (!parse_bytes(argv[2], password, PASS_MAX, &password_len) ||
       !parse_bytes(argv[3], salt, SALT_MAX, &salt_len)) {
+    return 2;
+  }
+  if (argc == 10 &&
+      (!parse_bytes(argv[8], secret, SALT_MAX, &secret_len) ||
+      !parse_bytes(argv[9], ad, SALT_MAX, &ad_len))) {
     return 2;
   }
   memory_kib = strtoul(argv[4], &end, 10);
@@ -130,10 +141,13 @@ int main(int argc, char ** argv) {
     return 2;
   }
   result = gsec_argon2(type, password_len == 0 ? NULL : password,
-      password_len, salt, salt_len, NULL, 0, NULL, 0, (uint32_t)memory_kib,
+      password_len, salt, salt_len, secret_len == 0 ? NULL : secret,
+      secret_len, ad_len == 0 ? NULL : ad, ad_len, (uint32_t)memory_kib,
       (uint32_t)passes, (uint32_t)lanes, tag, tag_len);
   gsec_wipe(password, sizeof password);
   gsec_wipe(salt, sizeof salt);
+  gsec_wipe(secret, sizeof secret);
+  gsec_wipe(ad, sizeof ad);
   if (result != GSEC_OK) {
     gsec_wipe(tag, sizeof tag);
     return 1;

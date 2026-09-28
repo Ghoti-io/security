@@ -21,3 +21,4 @@
 
 openssl	localhost/ghoti-security-oracle-openssl:3.5.7	OpenSSL 3.5.7	SHA-256 of a published input, and the openssl CLI for later known-answer differentials
 wycheproof	localhost/ghoti-security-oracle-openssl:3.5.7	3fa63dd0344abb611f1fb1d77e119938603ea230	Negative test vectors at this commit; aes_gcm_test.json is hashed in CORPUS
+libcrypt	localhost/ghoti-security-oracle-openssl:3.5.7	1:4.4.38-1	libxcrypt crypt_r for bcrypt $2a$ and $2b$

@@ -761,7 +761,15 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/ecdh_p256$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/ecdsa_p256$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/ecdsa_p384$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/rsa_verify$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
+		$(APP_DIR)/examples/rsa_verify$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/argon2$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/bcrypt$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/ecdh_p384$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/rsa_crypt$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/x509$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/pem$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/pkcs8$(EXE_EXTENSION) \
+		$(APP_DIR)/examples/der$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
 	@GHOTI_ORACLE_REQUIRED=1 GSEC_SHA256_BIN="$(APP_DIR)/examples/sha256$(EXE_EXTENSION)" \
 		GSEC_HASH_BIN="$(APP_DIR)/examples/hash$(EXE_EXTENSION)" \
 		GSEC_HMAC_BIN="$(APP_DIR)/examples/hmac$(EXE_EXTENSION)" \
@@ -781,7 +789,15 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		GSEC_ECDSA_P256_BIN="$(APP_DIR)/examples/ecdsa_p256$(EXE_EXTENSION)" \
 		GSEC_ECDSA_P384_BIN="$(APP_DIR)/examples/ecdsa_p384$(EXE_EXTENSION)" \
 		GSEC_RSA_BIN="$(APP_DIR)/examples/rsa_verify$(EXE_EXTENSION)" \
-		$(ORACLE_RUN) openssl,wycheproof -- python3 $(ORACLE)/openssl_kat.py
+		GSEC_ARGON2_BIN="$(APP_DIR)/examples/argon2$(EXE_EXTENSION)" \
+		GSEC_BCRYPT_BIN="$(APP_DIR)/examples/bcrypt$(EXE_EXTENSION)" \
+		GSEC_ECDH_P384_BIN="$(APP_DIR)/examples/ecdh_p384$(EXE_EXTENSION)" \
+		GSEC_RSA_CRYPT_BIN="$(APP_DIR)/examples/rsa_crypt$(EXE_EXTENSION)" \
+		GSEC_X509_BIN="$(APP_DIR)/examples/x509$(EXE_EXTENSION)" \
+		GSEC_PEM_BIN="$(APP_DIR)/examples/pem$(EXE_EXTENSION)" \
+		GSEC_PKCS8_BIN="$(APP_DIR)/examples/pkcs8$(EXE_EXTENSION)" \
+		GSEC_DER_BIN="$(APP_DIR)/examples/der$(EXE_EXTENSION)" \
+		$(ORACLE_RUN) openssl,wycheproof,libcrypt -- python3 $(ORACLE)/openssl_kat.py
 
 ####################################################################
 # Install

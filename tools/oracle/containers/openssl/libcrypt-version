@@ -1,0 +1,13 @@
+#!/bin/sh
+# Print the pinned libxcrypt package version.
+set -eu
+got=$(dpkg-query -W -f '${Version}' libcrypt1)
+case $got in
+  1:4.4.38-1)
+    printf '%s\n' 'libxcrypt 1:4.4.38-1'
+    ;;
+  *)
+    printf '%s\n' "$got" >&2
+    exit 1
+    ;;
+esac

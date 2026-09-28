@@ -96,7 +96,8 @@ def classify(functions, rows):
                     "%s is implemented and no gsec_%s function is declared"
                     % (row["id"], row["id"]))
             claimed.update(hit)
-            if row["judge"] in ("openssl", "nist", "rfc", "wycheproof") \
+            if row["judge"] in (
+                    "openssl", "nist", "rfc", "wycheproof", "libcrypt") \
                     and row["vectors"] == "-":
                 problems.append(
                     "%s is judged by %s and has no vector file"
@@ -235,12 +236,14 @@ def main():
 
     text = CONTAINERFILE.read_text(encoding="utf-8")
     for needle in (DEBIAN_DIGEST, OPENSSL_APT, WYCHEPROOF, "LANG=C.UTF-8",
-            "trixie-security"):
+            "trixie-security", "libcrypt-dev=1:4.4.38-1",
+            "libssl-dev=3.5.7-1~deb13u2", "libc6-dev=2.41-12+deb13u4",
+            "gcc=4:14.2.0-1"):
         if needle not in text:
             fail("Containerfile does not pin %s" % needle)
     images = IMAGES.read_text(encoding="utf-8")
     if IMAGE not in images or "OpenSSL 3.5.7" not in images \
-            or WYCHEPROOF not in images:
+            or WYCHEPROOF not in images or "1:4.4.38-1" not in images:
         fail("IMAGES does not name the openssl image, its version, and the "
              "wycheproof commit")
     corpus = CORPUS.read_text(encoding="utf-8")
@@ -262,6 +265,18 @@ def main():
         fail("CORPUS does not name rsa_signature_2048_sha256_test.json")
     if "testvectors_v1/rsa_pss_2048_sha256_mgf1_32_test.json" not in corpus:
         fail("CORPUS does not name rsa_pss_2048_sha256_mgf1_32_test.json")
+    for name in (
+            "ecdh_secp384r1_ecpoint_test.json",
+            "rsa_oaep_2048_sha1_mgf1sha1_test.json",
+            "rsa_oaep_2048_sha256_mgf1sha256_test.json",
+            "rsa_oaep_2048_sha384_mgf1sha384_test.json",
+            "rsa_oaep_2048_sha512_mgf1sha512_test.json",
+            "rsa_oaep_3072_sha256_mgf1sha256_test.json",
+            "rsa_oaep_3072_sha512_mgf1sha512_test.json",
+            "rsa_oaep_4096_sha256_mgf1sha256_test.json",
+            "rsa_oaep_4096_sha512_mgf1sha512_test.json"):
+        if "testvectors_v1/" + name not in corpus:
+            fail("CORPUS does not name %s" % name)
     digest = None
     for line in corpus.splitlines():
         if line.startswith("#") or not line.strip():

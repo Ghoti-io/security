@@ -53,6 +53,7 @@ PROBE = {
         ["wycheproof-pin"],
         "3fa63dd0344abb611f1fb1d77e119938603ea230",
     ),
+    "libcrypt": (["libcrypt-version"], "1:4.4.38-1"),
 }
 
 _pins = None
