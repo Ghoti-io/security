@@ -241,7 +241,8 @@ static GSEC_Result apply_cipher(const Scheme * scheme, const unsigned char * key
   return gsec_pkcs7_unpad(out, ct_len, block, out_len);
 }
 
-static GSEC_Result legacy_decrypt(const Scheme * scheme, const GSEC_Der * params,
+static GSEC_Result legacy_decrypt(uint32_t iter_max, const Scheme * scheme,
+    const GSEC_Der * params,
     const void * ct, size_t ct_len, const void * password, size_t password_len,
     void * out, size_t out_cap, size_t * out_len) {
   const unsigned char * p;
@@ -280,7 +281,7 @@ static GSEC_Result legacy_decrypt(const Scheme * scheme, const GSEC_Der * params
   if (iterations == 0) {
     return GSEC_ERR_INVALID;
   }
-  if (iterations > GSEC_PBES2_ITER_MAX) {
+  if (iterations > iter_max) {
     return GSEC_ERR_LIMIT;
   }
   if (ct_len == 0 || ct_len > CT_MAX || ct_len > out_cap ||
@@ -295,11 +296,13 @@ static GSEC_Result legacy_decrypt(const Scheme * scheme, const GSEC_Der * params
     }
     pass = bmp;
     pass_len = bmp_len;
-    result = gsec_pkcs12_kdf(GSEC_HMAC_SHA1, GSEC_SHA1_DIGEST_LEN, 64, pass,
+    result = gsec_pkcs12_kdf(iter_max, GSEC_HMAC_SHA1, GSEC_SHA1_DIGEST_LEN, 64,
+        pass,
         pass_len, salt.value, salt.value_len, iterations, 1, key,
         scheme->key_len);
     if (result == GSEC_OK && scheme->cipher != CIPHER_RC4) {
-      result = gsec_pkcs12_kdf(GSEC_HMAC_SHA1, GSEC_SHA1_DIGEST_LEN, 64, pass,
+      result = gsec_pkcs12_kdf(iter_max, GSEC_HMAC_SHA1, GSEC_SHA1_DIGEST_LEN, 64,
+        pass,
           pass_len, salt.value, salt.value_len, iterations, 2, iv, sizeof iv);
     }
   } else {
@@ -328,7 +331,8 @@ static GSEC_Result legacy_decrypt(const Scheme * scheme, const GSEC_Der * params
   return result;
 }
 
-GSEC_Result gsec_pbe_decrypt(const GSEC_Der * alg, const void * ct,
+GSEC_Result gsec_pbe_decrypt(uint32_t iter_max, const GSEC_Der * alg,
+    const void * ct,
     size_t ct_len, const void * password, size_t password_len, void * out,
     size_t out_cap, size_t * out_len) {
   const unsigned char * p;
@@ -354,14 +358,15 @@ GSEC_Result gsec_pbe_decrypt(const GSEC_Der * alg, const void * ct,
   for (i = 0; i < sizeof SCHEMES / sizeof SCHEMES[0]; i++) {
     if (gsec_der_oid_is(&oid, SCHEMES[i].oid, SCHEMES[i].oid_len)) {
       if (SCHEMES[i].kind == KIND_PBES2) {
-        return gsec_pbes2_decrypt(alg, ct, ct_len, password, password_len, out,
+        return gsec_pbes2_decrypt(iter_max, alg, ct, ct_len, password, password_len,
+            out,
             out_cap, out_len);
       }
       result = gsec_der_next(&p, &left, &params);
       if (result != GSEC_OK || left != 0) {
         return GSEC_ERR_CORRUPT;
       }
-      return legacy_decrypt(&SCHEMES[i], &params, ct, ct_len, password,
+      return legacy_decrypt(iter_max, &SCHEMES[i], &params, ct, ct_len, password,
           password_len, out, out_cap, out_len);
     }
   }

@@ -321,7 +321,8 @@ GSEC_Result gsec_pkcs8_parse(const void * der, size_t len, GSEC_Pkcs8 * out) {
 
 GSEC_Result gsec_pkcs8_decrypt(const void * der, size_t len,
     const void * password, size_t password_len, void * out, size_t out_cap,
-    size_t * out_len) {
+    size_t * out_len, const GSEC_Limits * limits) {
+  GSEC_Limits caps;
   GSEC_Der seq;
   GSEC_Der alg;
   GSEC_Der data;
@@ -336,6 +337,11 @@ GSEC_Result gsec_pkcs8_decrypt(const void * der, size_t len,
   }
   if (len == 0) {
     return GSEC_ERR_CORRUPT;
+  }
+  if (limits == NULL) {
+    gsec_limits_default(&caps);
+  } else {
+    caps = *limits;
   }
   result = gsec_der_tlv(der, len, &seq);
   if (result != GSEC_OK) {
@@ -358,7 +364,8 @@ GSEC_Result gsec_pkcs8_decrypt(const void * der, size_t len,
       !gsec_der_is(&data, GSEC_DER_UNIVERSAL, 0, 4)) {
     return GSEC_ERR_CORRUPT;
   }
-  result = gsec_pbe_decrypt(&alg, data.value, data.value_len, password,
+  result = gsec_pbe_decrypt(caps.max_pbe_iterations, &alg, data.value,
+      data.value_len, password,
       password_len, out, out_cap, out_len);
   if (result != GSEC_OK) {
     if (result == GSEC_ERR_MISMATCH && out != NULL) {

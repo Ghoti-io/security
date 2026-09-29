@@ -34,7 +34,7 @@ TEST(Pkcs12, OpensKeyAndCerts) {
   size_t i;
   int saw_leaf = 0;
   ASSERT_EQ(gsec_pkcs12_open(p12.data(), p12.size(), "secret", 6, scratch,
-      sizeof scratch, &bag), GSEC_OK);
+      sizeof scratch, &bag, nullptr), GSEC_OK);
   ASSERT_NE(bag.key, nullptr);
   ASSERT_EQ(gsec_pkcs8_parse(bag.key, bag.key_len, &got), GSEC_OK);
   ASSERT_EQ(gsec_pkcs8_parse(plain.data(), plain.size(), &expect), GSEC_OK);
@@ -67,7 +67,7 @@ TEST(Pkcs12, OpensATraditionalBag) {
     GSEC_Pkcs8 got;
     SCOPED_TRACE(names[i]);
     ASSERT_EQ(gsec_pkcs12_open(p12.data(), p12.size(), "secret", 6, scratch,
-        sizeof scratch, &bag), GSEC_OK);
+        sizeof scratch, &bag, nullptr), GSEC_OK);
     ASSERT_NE(bag.key, nullptr);
     ASSERT_EQ(gsec_pkcs8_parse(bag.key, bag.key_len, &got), GSEC_OK);
     ASSERT_EQ(got.scalar_len, expect.scalar_len);
@@ -81,7 +81,40 @@ TEST(Pkcs12, WrongPasswordFailsTheMac) {
   unsigned char scratch[64];
   GSEC_Pkcs12 bag;
   EXPECT_EQ(gsec_pkcs12_open(p12.data(), p12.size(), "nope", 4, scratch,
-      sizeof scratch, &bag), GSEC_ERR_MISMATCH);
+      sizeof scratch, &bag, nullptr), GSEC_ERR_MISMATCH);
+}
+
+TEST(Pkcs12, NoMacDataIsRefused) {
+  /* RFC 7292 makes MacData optional. An archive without one is
+   * unauthenticated: its unencrypted certificate bags can be replaced by
+   * anyone who can write the file, and GSEC_OK would read as "this archive is
+   * fine". Refused, rather than opened silently. */
+  auto p12 = load("nomac.p12");
+  unsigned char scratch[8192];
+  GSEC_Pkcs12 bag;
+  ASSERT_GT(p12.size(), 0u);
+  EXPECT_EQ(gsec_pkcs12_open(p12.data(), p12.size(), "secret", 6, scratch,
+      sizeof scratch, &bag, nullptr), GSEC_ERR_UNSUPPORTED);
+}
+
+TEST(Pkcs12, IterationCapIsTheCallers) {
+  /* The iteration count is in the file, so it is an attacker's number when
+   * the file is. The default ceiling refuses it before deriving anything, and
+   * a caller that opens files it did not create can lower the ceiling. */
+  auto p12 = load("leaf.p12");
+  unsigned char scratch[8192];
+  GSEC_Pkcs12 bag;
+  GSEC_Limits limits;
+  gsec_limits_default(&limits);
+  EXPECT_EQ(limits.max_pbe_iterations, GSEC_PBE_ITERATIONS_DEFAULT);
+  ASSERT_EQ(gsec_pkcs12_open(p12.data(), p12.size(), "secret", 6, scratch,
+      sizeof scratch, &bag, &limits), GSEC_OK);
+  /* One iteration is below what any real file asks for, so the same archive
+   * that just opened must now be refused for its cost rather than opened
+   * slowly. */
+  limits.max_pbe_iterations = 1;
+  EXPECT_EQ(gsec_pkcs12_open(p12.data(), p12.size(), "secret", 6, scratch,
+      sizeof scratch, &bag, &limits), GSEC_ERR_LIMIT);
 }
 
 int main(int argc, char ** argv) {

@@ -68,4 +68,5 @@ void gsec_limits_default(GSEC_Limits * limits) {
    * asked to draw in one call. A caller with a real reason passes a limits
    * struct; the default refuses a request that is asking for a pool. */
   limits->max_random_bytes = (size_t)1 << 20;
+  limits->max_pbe_iterations = GSEC_PBE_ITERATIONS_DEFAULT;
 }

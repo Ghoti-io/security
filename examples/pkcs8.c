@@ -64,7 +64,7 @@ int main(int argc, char ** argv) {
     }
     fclose(in);
     opened = gsec_pkcs8_decrypt(buf, n, argv[2], strlen(argv[2]), plain,
-        sizeof plain, &plain_len);
+        sizeof plain, &plain_len, NULL);
     gsec_wipe(buf, sizeof buf);
     if (opened != GSEC_OK || gsec_pkcs8_parse(plain, plain_len, &key) != GSEC_OK) {
       gsec_wipe(plain, sizeof plain);

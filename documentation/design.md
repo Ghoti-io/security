@@ -61,10 +61,14 @@ package is `ghoti.io-security-0`, the include path
 | A function that does not exist yet cannot be declared quietly | `check-foundation` reads the registry and the headers. `implemented` must have a declaration. `pending` and `excluded` must not. The check plants `gsec_x448` and requires that plant to be rejected, because `x448` is excluded. |
 | An outside judge, once the function exists | An `implemented` row whose judge is not `self` requires a vector file hashed in `tests/data/vectors/MANIFEST`, and the oracle probe's coverage set must be exactly the rows whose judge is not `self` or `none`, so a primitive cannot land without a comparison. The container image is how that judge is run. See [oracles.md](oracles.md). |
 
-`GSEC_Limits` has one field, `max_random_bytes`, default 1 MiB, because that
-is the only call phase 0 can be asked to run without a bound the caller
-already paid for. A field nothing checks is not a promise. Later primitives
-add their fields in the commit that enforces them.
+`GSEC_Limits` began with one field, `max_random_bytes`, default 1 MiB,
+because that was the only call phase 0 could be asked to run without a bound
+the caller already paid for. A field nothing checks is not a promise, so
+later primitives add their fields in the commit that enforces them:
+`max_pbe_iterations` arrived with `gsec_pkcs8_decrypt` and
+`gsec_pkcs12_open` taking a `GSEC_Limits`, because the iteration count is in
+the file and the work it asks for was otherwise bounded only by a constant
+no caller could see or change.
 
 A zero length is success and does not read the pointers. A null pointer
 with a positive length is `GSEC_ERR_INVALID`, before any load.
@@ -130,7 +134,7 @@ crash rather than a silent corruption.
 | `gsec_der_tlv` | One DER value, viewed inside the caller's buffer, with no allocation. An indefinite length, a non-minimal length or tag, and a truncated value are `GSEC_ERR_CORRUPT`. Bytes after the value are not an error; the caller advances by `total_len`. |
 | `gsec_pem_decode`, `gsec_pem_encode` | The first PEM block in, and one block out at 64 characters to the line. Neither output is NUL-terminated, and the decoded bytes are not a string. |
 | `gsec_pkcs8_parse`, `gsec_pkcs8_decrypt` | An unencrypted PrivateKeyInfo, and an EncryptedPrivateKeyInfo under PBES2 or PBES1. The result is the RSA factors or the elliptic scalar. An Ed25519 seed is the raw 32 bytes or one octet string around them, which is what OpenSSL and RFC 8410 write. The password bytes are used as given. |
-| `gsec_pkcs12_open` | A PFX, RFC 7292. The MAC turns the UTF-8 password into the BMP string with the trailing two zero bytes; a PBES2 or PBES1 bag uses the UTF-8 bytes themselves. A wrong password fails the MAC. The key and the certificates are views of the caller's scratch buffer, or of the input where a bag was not encrypted. |
+| `gsec_pkcs12_open` | A PFX, RFC 7292, and MacData is required rather than optional: an archive with none is `GSEC_ERR_UNSUPPORTED`, because nothing about it is authenticated and any success would read as approval.  The MAC turns the UTF-8 password into the BMP string with the trailing two zero bytes; a PBES2 or PBES1 bag uses the UTF-8 bytes themselves. A wrong password fails the MAC. The key and the certificates are views of the caller's scratch buffer, or of the input where a bag was not encrypted. |
 | `gsec_x509_parse`, `gsec_x509_signed_by` | One certificate, viewed in the caller's buffer, and its signature checked with the primitives above. A critical extension this parser does not understand is rejected. certificatePolicies is read and not enforced. |
 | `gsec_x509_path`, `gsec_x509_purpose`, `gsec_x509_hostname` | A chain the caller arranged leaf, intermediates, anchor, at a Unix second, with both ends of each validity period inclusive. It refuses what RFC 5280 does not require a validator to refuse, because the caller of this function is making a trust decision: a link signed with MD5 or SHA-1, an RSA key below `GSEC_X509_RSA_MIN_BITS`, and an anchor outside its own dates - section 6.1 treats the anchor as trusted input, and an expired root is a thing that happens. `purpose`, when it is not 0, is one `GSEC_X509_EKU_*` bit the leaf's extendedKeyUsage must permit; `gsec_x509_purpose` is the same test for a caller that would rather apply it itself. A certificate with no extendedKeyUsage permits everything, one naming anyExtendedKeyUsage permits everything, and one naming only purposes this parser has no bit for permits nothing. An anchor with no basicConstraints is trusted as a CA, and one that says it is not a CA is rejected. Name constraints on dNSName and directoryName are applied and any other type is `GSEC_ERR_UNSUPPORTED`. The path does not check revocation. A wildcard is only the entire leftmost label. |
 | `gsec_x509_issue` | A certificate built and signed with P-256, P-384, Ed25519, or RSA. The result parses with `gsec_x509_parse`. A failure wipes the output. |

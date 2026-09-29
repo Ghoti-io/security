@@ -81,6 +81,9 @@ typedef enum {
  */
 GSEC_API const char * gsec_result_string(GSEC_Result result);
 
+/** Default ceiling on password-based derivation iterations. */
+#define GSEC_PBE_ITERATIONS_DEFAULT 10000000u
+
 /**
  * @brief Caps on quantities a caller can ask the library to produce.
  *
@@ -93,6 +96,19 @@ GSEC_API const char * gsec_result_string(GSEC_Result result);
 typedef struct GSEC_Limits {
   size_t max_random_bytes; ///< Most bytes one ::gsec_random_bytes call returns.
                            ///< Default 1 MiB.
+  /**
+   * Most password-based derivation iterations a file may ask for, for
+   * ::gsec_pkcs8_decrypt and ::gsec_pkcs12_open. Default
+   * ::GSEC_PBE_ITERATIONS_DEFAULT.
+   *
+   * The iteration count comes out of the file, so it is an attacker's
+   * number when the file is. One PBKDF2-HMAC-SHA256 iteration is about
+   * 0.9 microseconds here, so the default ceiling is around nine seconds
+   * of CPU for one call. A caller that opens files it did not create -
+   * a server, anything unattended - wants this much lower; a few hundred
+   * thousand covers every file a tool in this decade writes.
+   */
+  uint32_t max_pbe_iterations;
 } GSEC_Limits;
 
 /**

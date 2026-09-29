@@ -37,7 +37,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size) {
     return 0;
   }
   result = gsec_pkcs12_open(data, size, "secret", 6, scratch, sizeof scratch,
-      &bag);
+      &bag, nullptr);
   if (result != GSEC_OK && result != GSEC_ERR_CORRUPT &&
       result != GSEC_ERR_UNSUPPORTED && result != GSEC_ERR_LIMIT &&
       result != GSEC_ERR_INVALID && result != GSEC_ERR_MISMATCH) {

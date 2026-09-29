@@ -34,6 +34,14 @@
  * Shrouded keys and encrypted cert bags use PBES2, PBES1, or a PKCS#12
  * PBE, including RC2 and RC4. PBES1, RC2, and RC4 are here so an old
  * archive can be opened. A new encrypted bag is PBES2 with AES.
+ * **A PFX with no MacData is refused**, ::GSEC_ERR_UNSUPPORTED. RFC 7292
+ * makes MacData optional, and an archive without one is unauthenticated:
+ * its unencrypted certificate bags can be substituted by anyone who can
+ * write the file, and there is no answer this function could return that
+ * would not read as "this archive is fine". A caller that has some other
+ * reason to trust the bytes can parse them with the PKCS#7 and PKCS#8
+ * entry points directly.
+ *
  * The key and the certificates are views of @p scratch, or of the input
  * when a bag was not encrypted. At most ::GSEC_PKCS12_CERT_MAX
  * certificates are returned.
@@ -79,12 +87,15 @@ typedef struct GSEC_Pkcs12 {
  * @param scratch_cap Capacity of @p scratch. A ciphertext that does not
  *   fit is ::GSEC_ERR_LIMIT. Wiped when the MAC or the padding fails.
  * @param out Views. Not NULL.
+ * @param limits NULL for ::gsec_limits_default. An iteration count above
+ *   @p limits->max_pbe_iterations is ::GSEC_ERR_LIMIT before any
+ *   derivation runs.
  * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH, ::GSEC_ERR_UNSUPPORTED,
  *   ::GSEC_ERR_CORRUPT, ::GSEC_ERR_LIMIT, or ::GSEC_ERR_INVALID.
  */
 GSEC_API GSEC_Result gsec_pkcs12_open(const void * der, size_t len,
     const void * password, size_t password_len, void * scratch,
-    size_t scratch_cap, GSEC_Pkcs12 * out);
+    size_t scratch_cap, GSEC_Pkcs12 * out, const GSEC_Limits * limits);
 
 #ifdef __cplusplus
 }

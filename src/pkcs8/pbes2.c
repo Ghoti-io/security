@@ -185,7 +185,8 @@ GSEC_Result gsec_pkcs7_unpad(unsigned char * buf, size_t n, size_t block,
   return GSEC_OK;
 }
 
-GSEC_Result gsec_pbes2_decrypt(const GSEC_Der * alg, const void * ct,
+GSEC_Result gsec_pbes2_decrypt(uint32_t iter_max, const GSEC_Der * alg,
+    const void * ct,
     size_t ct_len, const void * password, size_t password_len, void * out,
     size_t out_cap, size_t * out_len) {
   const unsigned char * p;
@@ -270,7 +271,7 @@ GSEC_Result gsec_pbes2_decrypt(const GSEC_Der * alg, const void * ct,
   if (result != GSEC_OK) {
     return result;
   }
-  if (iterations == 0 || iterations > GSEC_PBES2_ITER_MAX) {
+  if (iterations == 0 || iterations > iter_max) {
     return iterations == 0 ? GSEC_ERR_INVALID : GSEC_ERR_LIMIT;
   }
   if (left != 0) {

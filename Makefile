@@ -233,7 +233,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
 TEST_GATES ?= check-symbols check-aliasing check-stamps check-secret check-harden \
-	check-foundation check-ct check-fuzz-ub
+	check-depfiles check-foundation check-ct check-fuzz-ub
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -351,7 +351,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SECLIBRARY) $(CUTIL_LIBS)
 
 .PHONY: clean cloc docs docs-pdf examples coverage check-symbols check-stamps check-aliasing
-.PHONY: check-secret check-foundation check-ct check-fuzz-ub check-harden
+.PHONY: check-secret check-foundation check-ct check-fuzz-ub check-harden check-depfiles
 .PHONY: all install test test-quiet test-asan test-valgrind test-valgrind-quiet test-watch uninstall watch
 .PHONY: all-debug install-debug test-debug test-valgrind-debug test-watch-debug uninstall-debug watch-debug
 .PHONY: fuzz fuzz-clean
@@ -483,6 +483,9 @@ check-secret: ## Fail if src/ calls memcmp, a userspace generator, or printf
 check-foundation: ## Fail if the registry, the manifest, or the oracle pins disagree
 	@python3 tools/check_foundation.py
 
+check-depfiles: ## Fail if an object tree does not track its header dependencies
+	@python3 tools/check-depfiles.py
+
 ####################################################################
 # Constant-time gate
 ####################################################################
@@ -498,6 +501,15 @@ CT_DIR := $(BUILD_DIR)/ct
 CT_OBJ := $(CT_DIR)/objects
 CT_APP := $(CT_DIR)/apps
 CT_FLAGS_STAMP := $(CT_OBJ)/.flags
+CT_DEPFILES := $(patsubst src/%.c,$(CT_OBJ)/%.d,$(SOURCES)) $(CT_OBJ)/clean.d \
+    $(CT_OBJ)/leak.d
+# Read them. The rule below has written .d files since this gate existed and
+# nothing included them, so a header change rebuilt core.c and left random.o
+# alone - and one GSEC_Limits grew a field, which put two sizes of the same
+# struct in one archive. gsec_limits_default then wrote past its caller's
+# local and the new stack protector caught it as stack smashing inside
+# gsec_random_bytes. A gate built from stale objects certifies nothing.
+-include $(CT_DEPFILES)
 CT_CFLAGS := $(LIB_CFLAGS) -DGSEC_CT_TEST -Wno-pedantic
 CT_OBJECTS := $(patsubst src/%.c,$(CT_OBJ)/%.o,$(SOURCES))
 CT_ARCHIVE := $(CT_APP)/$(STATIC_TARGET)
@@ -765,9 +777,13 @@ FUZZ_OBJECTS := $(patsubst src/%.c,$(FUZZ_OBJ_DIR)/%.o,$(SOURCES))
 FUZZ_CORPUS := tests/fuzz/corpus
 FUZZ_TIME ?= 60
 
+FUZZ_DEPFILES := $(patsubst src/%.c,$(FUZZ_OBJ_DIR)/%.d,$(SOURCES))
+-include $(FUZZ_DEPFILES)
+
 $(FUZZ_OBJ_DIR)/%.o: src/%.c $(FUZZ_FLAGS_STAMP) | $(LIBVER_GEN)
 	@mkdir -p $(@D)
-	@$(FUZZ_CC) $(FUZZ_LIB_FLAGS) -std=c17 -w $(INCLUDE) -DGSEC_BUILD -c $< -o $@
+	@$(FUZZ_CC) $(FUZZ_LIB_FLAGS) -std=c17 -w $(INCLUDE) -DGSEC_BUILD \
+		-MMD -MP -MF $(@:.o=.d) -c $< -o $@
 
 define fuzz-rule
 fuzz-$2: $$(FUZZ_APP_DIR)/$1 ## Build the $2 fuzzer

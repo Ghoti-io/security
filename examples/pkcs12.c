@@ -84,7 +84,7 @@ int main(int argc, char ** argv) {
     return 2;
   }
   if (gsec_pkcs12_open(file, n, argv[1], strlen(argv[1]), scratch,
-      sizeof scratch, &bag) != GSEC_OK) {
+      sizeof scratch, &bag, NULL) != GSEC_OK) {
     gsec_wipe(file, sizeof file);
     gsec_wipe(scratch, sizeof scratch);
     return 1;

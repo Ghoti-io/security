@@ -161,7 +161,8 @@ static GSEC_Result hash_bytes(uint32_t id, const unsigned char * p, size_t n,
   return gsec_sha512(p, n, out);
 }
 
-GSEC_Result gsec_pkcs12_kdf(uint32_t id, size_t u, size_t v,
+GSEC_Result gsec_pkcs12_kdf(uint32_t iter_max, uint32_t id, size_t u,
+    size_t v,
     const unsigned char * pass, size_t pass_len, const unsigned char * salt,
     size_t salt_len, uint32_t iterations, unsigned char purpose,
     unsigned char * dk, size_t dk_len) {
@@ -174,8 +175,8 @@ GSEC_Result gsec_pkcs12_kdf(uint32_t id, size_t u, size_t v,
   size_t produced = 0;
   size_t i;
 
-  if (salt_len > 128u || iterations == 0 || iterations > GSEC_PBES2_ITER_MAX) {
-    return iterations > GSEC_PBES2_ITER_MAX ? GSEC_ERR_LIMIT : GSEC_ERR_INVALID;
+  if (salt_len > 128u || iterations == 0 || iterations > iter_max) {
+    return iterations > iter_max ? GSEC_ERR_LIMIT : GSEC_ERR_INVALID;
   }
   s_len = salt_len == 0 ? 0 : v * ((salt_len + v - 1u) / v);
   p_len = pass_len == 0 ? 0 : v * ((pass_len + v - 1u) / v);
@@ -265,9 +266,9 @@ static GSEC_Result add_cert(GSEC_Pkcs12 * out, const unsigned char * der, size_t
   return GSEC_OK;
 }
 
-static GSEC_Result take_bags(const unsigned char * p, size_t n,
-    const unsigned char * pass, size_t pass_len, unsigned char ** scratch,
-    size_t * scratch_left, GSEC_Pkcs12 * out) {
+static GSEC_Result take_bags(uint32_t iter_max, const unsigned char * p,
+    size_t n, const unsigned char * pass, size_t pass_len,
+    unsigned char ** scratch, size_t * scratch_left, GSEC_Pkcs12 * out) {
   GSEC_Der seq;
   GSEC_Result result;
   const unsigned char * cursor;
@@ -364,7 +365,8 @@ static GSEC_Result take_bags(const unsigned char * p, size_t n,
       if (ct.value_len > *scratch_left) {
         return GSEC_ERR_LIMIT;
       }
-      result = gsec_pbe_decrypt(&alg, ct.value, ct.value_len, pass, pass_len,
+      result = gsec_pbe_decrypt(iter_max, &alg, ct.value, ct.value_len, pass,
+          pass_len,
           *scratch, *scratch_left, &plain_len);
       if (result != GSEC_OK) {
         return result;
@@ -379,9 +381,9 @@ static GSEC_Result take_bags(const unsigned char * p, size_t n,
   return GSEC_OK;
 }
 
-static GSEC_Result take_content(const GSEC_Der * info, const unsigned char * pass,
-    size_t pass_len, unsigned char ** scratch, size_t * scratch_left,
-    GSEC_Pkcs12 * out) {
+static GSEC_Result take_content(uint32_t iter_max, const GSEC_Der * info,
+    const unsigned char * pass, size_t pass_len, unsigned char ** scratch,
+    size_t * scratch_left, GSEC_Pkcs12 * out) {
   const unsigned char * p = info->value;
   size_t left = info->value_len;
   GSEC_Der oid;
@@ -411,7 +413,8 @@ static GSEC_Result take_content(const GSEC_Der * info, const unsigned char * pas
     if (!gsec_der_is(&inner, GSEC_DER_UNIVERSAL, 0, 4)) {
       return GSEC_ERR_CORRUPT;
     }
-    return take_bags(inner.value, inner.value_len, pass, pass_len, scratch,
+    return take_bags(iter_max, inner.value, inner.value_len, pass, pass_len,
+        scratch,
         scratch_left, out);
   }
   if (gsec_der_oid_is(&oid, OID_ENCRYPTED, sizeof OID_ENCRYPTED)) {
@@ -455,7 +458,8 @@ static GSEC_Result take_content(const GSEC_Der * info, const unsigned char * pas
     if (ct.value_len > *scratch_left) {
       return GSEC_ERR_LIMIT;
     }
-    result = gsec_pbe_decrypt(&alg, ct.value, ct.value_len, pass, pass_len,
+    result = gsec_pbe_decrypt(iter_max, &alg, ct.value, ct.value_len, pass,
+          pass_len,
         *scratch, *scratch_left, &plain_len);
     if (result != GSEC_OK) {
       return result;
@@ -463,7 +467,7 @@ static GSEC_Result take_content(const GSEC_Der * info, const unsigned char * pas
     {
       unsigned char * nested = *scratch + plain_len;
       size_t nested_left = *scratch_left - plain_len;
-      result = take_bags(*scratch, plain_len, pass, pass_len, &nested,
+      result = take_bags(iter_max, *scratch, plain_len, pass, pass_len, &nested,
           &nested_left, out);
       if (result != GSEC_OK) {
         return result;
@@ -477,7 +481,10 @@ static GSEC_Result take_content(const GSEC_Der * info, const unsigned char * pas
 }
 
 GSEC_Result gsec_pkcs12_open(const void * der, size_t len, const void * password,
-    size_t password_len, void * scratch, size_t scratch_cap, GSEC_Pkcs12 * out) {
+    size_t password_len, void * scratch, size_t scratch_cap, GSEC_Pkcs12 * out,
+    const GSEC_Limits * limits) {
+  GSEC_Limits caps;
+  uint32_t iter_max;
   GSEC_Der seq;
   GSEC_Der ver;
   GSEC_Der auth;
@@ -497,6 +504,12 @@ GSEC_Result gsec_pkcs12_open(const void * der, size_t len, const void * password
       (password == NULL && password_len != 0)) {
     return GSEC_ERR_INVALID;
   }
+  if (limits == NULL) {
+    gsec_limits_default(&caps);
+  } else {
+    caps = *limits;
+  }
+  iter_max = caps.max_pbe_iterations;
   memset(out, 0, sizeof *out);
   if (len == 0 || len > GSEC_X509_DER_MAX) {
     return len == 0 ? GSEC_ERR_CORRUPT : GSEC_ERR_LIMIT;
@@ -537,7 +550,15 @@ GSEC_Result gsec_pkcs12_open(const void * der, size_t len, const void * password
     }
     have_mac = 1;
   }
-  if (have_mac) {
+  /* RFC 7292 makes MacData optional. Refused: without it the archive is
+   * unauthenticated, an unencrypted certificate bag can be replaced by
+   * anyone who can write the file, and GSEC_OK would read as "this archive
+   * is fine". */
+  if (!have_mac) {
+    gsec_wipe(bmp, sizeof bmp);
+    return GSEC_ERR_UNSUPPORTED;
+  }
+  {
     GSEC_Der digest_info;
     GSEC_Der salt;
     GSEC_Der alg;
@@ -653,7 +674,8 @@ GSEC_Result gsec_pkcs12_open(const void * der, size_t len, const void * password
     }
     content = content_oct.value;
     content_len = content_oct.value_len;
-    result = gsec_pkcs12_kdf(id, u, v, bmp, bmp_len, salt.value, salt.value_len,
+    result = gsec_pkcs12_kdf(iter_max, id, u, v, bmp, bmp_len, salt.value,
+        salt.value_len,
         iterations, 3, key, u);
     if (result != GSEC_OK) {
       gsec_wipe(bmp, sizeof bmp);
@@ -715,7 +737,8 @@ GSEC_Result gsec_pkcs12_open(const void * der, size_t len, const void * password
         gsec_wipe(scratch, scratch_cap);
         return result;
       }
-      result = take_content(&info, password, password_len, &slot, &slot_left,
+      result = take_content(iter_max, &info, password, password_len, &slot,
+          &slot_left,
           out);
       if (result != GSEC_OK) {
         gsec_wipe(bmp, sizeof bmp);

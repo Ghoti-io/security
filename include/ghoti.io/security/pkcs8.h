@@ -106,12 +106,17 @@ GSEC_API GSEC_Result gsec_pkcs8_parse(const void * der, size_t len,
  * @param out Buffer for the PrivateKeyInfo. Wiped on failure.
  * @param out_cap Capacity of @p out. It must hold the ciphertext.
  * @param out_len Receives the PrivateKeyInfo length. Not written on failure.
+ * @param limits NULL for ::gsec_limits_default. An iteration count above
+ *   @p limits->max_pbe_iterations is ::GSEC_ERR_LIMIT before any
+ *   derivation runs: the count is in the file, so it is an attacker's
+ *   number whenever the file is, and the work it asks for is unbounded
+ *   otherwise.
  * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH, ::GSEC_ERR_UNSUPPORTED,
  *   ::GSEC_ERR_CORRUPT, ::GSEC_ERR_LIMIT, or ::GSEC_ERR_INVALID.
  */
 GSEC_API GSEC_Result gsec_pkcs8_decrypt(const void * der, size_t len,
     const void * password, size_t password_len, void * out, size_t out_cap,
-    size_t * out_len);
+    size_t * out_len, const GSEC_Limits * limits);
 
 #ifdef __cplusplus
 }

@@ -40,11 +40,13 @@
 /* A million iterations is a hostile file, not a password. */
 #define GSEC_PBES2_ITER_MAX 10000000u
 
-GSEC_Result gsec_pbes2_decrypt(const GSEC_Der * alg, const void * ct,
+GSEC_Result gsec_pbes2_decrypt(uint32_t iter_max, const GSEC_Der * alg,
+    const void * ct,
     size_t ct_len, const void * password, size_t password_len, void * out,
     size_t out_cap, size_t * out_len);
 
-GSEC_Result gsec_pbe_decrypt(const GSEC_Der * alg, const void * ct,
+GSEC_Result gsec_pbe_decrypt(uint32_t iter_max, const GSEC_Der * alg,
+    const void * ct,
     size_t ct_len, const void * password, size_t password_len, void * out,
     size_t out_cap, size_t * out_len);
 
@@ -54,7 +56,8 @@ GSEC_Result gsec_pkcs7_unpad(unsigned char * buf, size_t n, size_t block,
 GSEC_Result gsec_pkcs12_bmp(const unsigned char * in, size_t n,
     unsigned char * out, size_t * out_len);
 
-GSEC_Result gsec_pkcs12_kdf(uint32_t id, size_t u, size_t v,
+GSEC_Result gsec_pkcs12_kdf(uint32_t iter_max, uint32_t id, size_t u,
+    size_t v,
     const unsigned char * pass, size_t pass_len, const unsigned char * salt,
     size_t salt_len, uint32_t iterations, unsigned char purpose,
     unsigned char * dk, size_t dk_len);
