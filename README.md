@@ -157,15 +157,18 @@ export PKG_CONFIG_PATH="$PWD/.local/share/pkgconfig"
 make -C libs/security test PREFIX="$PWD/.local"
 ```
 
-`make test` is the suite: the unit tests, and the symbol, aliasing,
-stamp, secret, foundation, and constant-time gates. `make help` lists
-the rest.
+`make test` is the suite: the unit tests, and the symbol, aliasing, stamp,
+secret, hardening, depfile, static-analysis, foundation, constant-time and
+fuzz-flag gates. Each of those is written so that it fails when the thing it
+guards stops being true - most of them by planting a violation and requiring
+it to be reported. `make help` lists the rest.
 
 | Target | What it does |
 | --- | --- |
 | `make test-asan` | Rebuild with ASan and UBSan and run the suite |
 | `make test-valgrind` | Run the suite under Valgrind |
 | `make check-ct` | The constant-time gate. Needs memcheck |
+| `make analyze` | GCC's `-fanalyzer` over `src/`, slower than the gate |
 | `make check-oracle` | Differentials against pinned OpenSSL and Wycheproof, in a container |
 | `make oracle-build` | Build that container |
 | `make fuzz` | Build and run the libFuzzer harnesses |
@@ -223,6 +226,11 @@ are in [documentation/oracles.md](documentation/oracles.md). The Windows
 LGPL-3.0-only. See [COPYING.LESSER](COPYING.LESSER) for the license, and
 [COPYING](COPYING) for the GPL text it is written as additional permissions
 on top of.
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md), which also lists
+the behaviour that is deliberate - the broken algorithms an old format still
+needs, what is not constant-time and why - and what this library guarantees
+about threads.
 
 Contributions are not being accepted at this time; see
 [CONTRIBUTING.md](CONTRIBUTING.md) for what is useful instead.

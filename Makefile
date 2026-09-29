@@ -233,7 +233,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
 TEST_GATES ?= check-symbols check-aliasing check-stamps check-secret check-harden \
-	check-depfiles check-foundation check-ct check-fuzz-ub
+	check-depfiles check-analyzer check-foundation check-ct check-fuzz-ub
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -352,6 +352,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 
 .PHONY: clean cloc docs docs-pdf examples coverage check-symbols check-stamps check-aliasing
 .PHONY: check-secret check-foundation check-ct check-fuzz-ub check-harden check-depfiles
+.PHONY: check-analyzer analyze
 .PHONY: all install test test-quiet test-asan test-valgrind test-valgrind-quiet test-watch uninstall watch
 .PHONY: all-debug install-debug test-debug test-valgrind-debug test-watch-debug uninstall-debug watch-debug
 .PHONY: fuzz fuzz-clean
@@ -485,6 +486,47 @@ check-foundation: ## Fail if the registry, the manifest, or the oracle pins disa
 
 check-depfiles: ## Fail if an object tree does not track its header dependencies
 	@python3 tools/check-depfiles.py
+
+# Static analysis, gated rather than occasional. cppcheck is clean over this
+# tree and costs a few seconds, so there is no reason for it to be a thing
+# somebody remembers to run. A plant keeps it honest: if cppcheck stops
+# reporting an obvious defect - a newer version, a different default, a
+# missing binary mistaken for success - the gate says so instead of passing.
+#
+# `make analyze` is the slower sweep, GCC's -fanalyzer over the same sources.
+# It is not in TEST_GATES because it takes minutes rather than seconds.
+check-analyzer: ## Fail if cppcheck reports anything, or stops reporting a plant
+	@if ! command -v cppcheck >/dev/null 2>&1; then \
+		printf 'check-analyzer: no cppcheck, static analysis is not gated\n' >&2; \
+		exit 0; \
+	fi; \
+	mkdir -p $(BUILD_DIR)/analyzer; \
+	printf 'int gsec_plant(void);\nint gsec_plant(void) { int * p = 0; return *p; }\n' \
+		> $(BUILD_DIR)/analyzer/plant.c; \
+	if cppcheck --enable=warning --std=c17 --quiet --error-exitcode=2 \
+			$(BUILD_DIR)/analyzer/plant.c >/dev/null 2>&1; then \
+		printf 'check-analyzer: cppcheck did not report the planted null dereference, so this gate certifies nothing\n' >&2; \
+		exit 1; \
+	fi; \
+	out=$$(cppcheck --enable=warning,portability --inline-suppr --std=c17 \
+		--quiet -I include -I $(BUILD_DIR)/generated src/ 2>&1 \
+		| grep -vE 'normalCheckLevelMaxBranches|^\^$$|^$$'); \
+	if [ -n "$$out" ]; then \
+		printf 'check-analyzer: cppcheck reports:\n%s\n' "$$out" >&2; \
+		exit 1; \
+	fi; \
+	printf 'check-analyzer: cppcheck is clean, and still reports the plant\n'
+
+analyze: ## GCC's -fanalyzer over src/, slower than check-analyzer
+	@status=0; \
+	for f in $(SOURCES); do \
+		out=$$($(CC) -fanalyzer $(LIB_CFLAGS) $(INCLUDE) -c $$f -o /dev/null 2>&1); \
+		if [ -n "$$out" ]; then printf '%s\n' "$$out"; status=1; fi; \
+	done; \
+	if [ $$status -eq 0 ]; then \
+		printf 'analyze: -fanalyzer is clean over every source\n'; \
+	fi; \
+	exit $$status
 
 ####################################################################
 # Constant-time gate
