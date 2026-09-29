@@ -21,10 +21,12 @@ namespace {
 
 struct Case {
   std::string name;
-  uint32_t hash;
-  uint32_t mgf;
-  size_t salt;
-  bool pss;
+  /* Initialised for the same reason as test_rsa_sign.cpp's: the field count a
+   * case needs is read from `pss` before the first case has set anything. */
+  uint32_t hash = 0;
+  uint32_t mgf = 0;
+  size_t salt = 0;
+  bool pss = false;
   std::vector<unsigned char> n;
   std::vector<unsigned char> e;
   std::vector<unsigned char> msg;
@@ -89,10 +91,10 @@ bool parse_file(const std::string & text, std::vector<Case> * cases,
   int saw = 0;
 
   auto finish = [&]() -> bool {
-    int need = pss ? 7 : 5;
     if (!in_case) {
       return true;
     }
+    int need = pss ? 7 : 5;
     if (current.name.empty() || saw != need || current.n.empty() ||
         current.e.empty() || current.sig.empty()) {
       *error = "truncated case " + current.name;

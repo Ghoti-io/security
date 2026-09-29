@@ -22,9 +22,14 @@ namespace {
 
 struct Case {
   std::string name;
-  bool pss;
-  uint32_t hash;
-  uint32_t mgf;
+  /* Initialised, because `finish()` below reads `pss` to decide how many
+   * fields a case needs, and on the first `case` line it runs before anything
+   * has set it. Valgrind reported that as a conditional jump on an
+   * uninitialised value; it was right, and it had nothing to do with the
+   * library. */
+  bool pss = false;
+  uint32_t hash = 0;
+  uint32_t mgf = 0;
   std::vector<unsigned char> n;
   std::vector<unsigned char> e;
   std::vector<unsigned char> d;
@@ -90,10 +95,10 @@ bool parse_file(const std::string & text, std::vector<Case> * cases,
   int saw = 0;
 
   auto finish = [&]() -> bool {
-    int need = current.pss ? 9 : 7;
     if (!in_case) {
       return true;
     }
+    int need = current.pss ? 9 : 7;
     if (current.name.empty() || saw != need || current.sig.empty()) {
       *error = "truncated case " + current.name;
       return false;
