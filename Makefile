@@ -205,7 +205,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
 TEST_GATES ?= check-symbols check-aliasing check-stamps check-secret \
-	check-foundation check-ct
+	check-foundation check-ct check-fuzz-ub
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -323,7 +323,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SECLIBRARY) $(CUTIL_LIBS)
 
 .PHONY: clean cloc docs docs-pdf examples coverage check-symbols check-stamps check-aliasing
-.PHONY: check-secret check-foundation check-ct
+.PHONY: check-secret check-foundation check-ct check-fuzz-ub
 .PHONY: all install test test-quiet test-asan test-valgrind test-valgrind-quiet test-watch uninstall watch
 .PHONY: all-debug install-debug test-debug test-valgrind-debug test-watch-debug uninstall-debug watch-debug
 .PHONY: fuzz fuzz-clean
@@ -376,6 +376,46 @@ check-aliasing: ## Fail if -Wstrict-aliasing is not armed at level 1
 
 check-stamps: ## Fail if a compile rule names no flags stamp, or a stamp omits a variable
 	@python3 tools/check-stamps.py
+
+# The fuzz flags must turn undefined behaviour into a failing run. They did
+# not: UBSan's default is to print and continue, libFuzzer only fails on a
+# crash, and a planted signed overflow in gsec_sha256_update printed its
+# diagnostic while the run exited 0 after 270,975 inputs. Every campaign
+# recorded up to 2026-09-28 was therefore incapable of failing on UB.
+#
+# One harness with the overflow in it, built with the flags the fuzzers use,
+# and required to exit nonzero. A control harness without the overflow must
+# exit 0, because a gate that fails for some other reason - a missing clang,
+# a link error - is measuring nothing. Skipped, loudly, when clang is absent;
+# there is nothing to gate then.
+check-fuzz-ub: ## Fail unless the fuzz flags make undefined behaviour a failing run
+	@if [ -z "$(FUZZ_CC_OK)" ]; then \
+		printf 'check-fuzz-ub: no %s, so the fuzz flags are not gated here\n' \
+			'$(FUZZ_CXX)' >&2; \
+		exit 0; \
+	fi
+	@mkdir -p $(BUILD_DIR)/fuzzub
+	@printf '#include <cstddef>\n#include <cstdint>\nextern "C" int LLVMFuzzerTestOneInput(const uint8_t * d, size_t n) {\n  static int v = 0x7ffffff0;\n  if (n > 0) { v += d[0] | 0x10; }\n  return v == 0 ? 0 : 0;\n}\n' > $(BUILD_DIR)/fuzzub/ub.cpp
+	@printf '#include <cstddef>\n#include <cstdint>\nextern "C" int LLVMFuzzerTestOneInput(const uint8_t * d, size_t n) {\n  static unsigned v = 0u;\n  if (n > 0) { v += d[0]; }\n  return v == 0u ? 0 : 0;\n}\n' > $(BUILD_DIR)/fuzzub/clean.cpp
+	@$(FUZZ_CXX) $(FUZZ_BIN_FLAGS) -std=c++20 -w -o $(BUILD_DIR)/fuzzub/ub \
+		$(BUILD_DIR)/fuzzub/ub.cpp 2>/dev/null || { \
+		printf 'check-fuzz-ub: the probe did not build, so this gate is measuring nothing\n' >&2; exit 1; }
+	@$(FUZZ_CXX) $(FUZZ_BIN_FLAGS) -std=c++20 -w -o $(BUILD_DIR)/fuzzub/clean \
+		$(BUILD_DIR)/fuzzub/clean.cpp 2>/dev/null || { \
+		printf 'check-fuzz-ub: the control did not build, so this gate is measuring nothing\n' >&2; exit 1; }
+	@rm -rf $(BUILD_DIR)/fuzzub/seed && mkdir -p $(BUILD_DIR)/fuzzub/seed
+	@printf 'A' > $(BUILD_DIR)/fuzzub/seed/one
+	@if ! $(BUILD_DIR)/fuzzub/clean $(BUILD_DIR)/fuzzub/seed -runs=0 \
+			-print_final_stats=0 >/dev/null 2>&1; then \
+		printf 'check-fuzz-ub: the control run failed, so a nonzero status proves nothing\n' >&2; \
+		exit 1; \
+	fi
+	@if $(BUILD_DIR)/fuzzub/ub $(BUILD_DIR)/fuzzub/seed -runs=0 \
+			-print_final_stats=0 >/dev/null 2>&1; then \
+		printf 'check-fuzz-ub: a planted signed overflow ran to a zero exit. FUZZ_SAN needs -fno-sanitize-recover, or every campaign is unable to fail on UB.\n' >&2; \
+		exit 1; \
+	fi
+	@printf 'check-fuzz-ub: planted undefined behaviour fails the run, and the control does not\n'
 
 check-secret: ## Fail if src/ calls memcmp, a userspace generator, or printf
 	@python3 tools/check-secret.py
@@ -648,7 +688,13 @@ test-asan: $(ASAN_TEST_EXECUTABLES) ## Build with ASan+UBSan and run the tests
 FUZZ_CC ?= clang
 FUZZ_CXX ?= clang++
 FUZZ_CC_OK := $(shell which $(FUZZ_CC) 2>/dev/null)
-FUZZ_SAN := -fsanitize=address,$(UBSAN_CHECKS) -fno-omit-frame-pointer -g -O1 -fstrict-aliasing
+# -fno-sanitize-recover is not optional here. Without it UBSan prints the
+# diagnostic and the run continues, libFuzzer sees no crash, and `make fuzz`
+# exits 0 with undefined behaviour in the log: a campaign that cannot fail.
+# ASan aborts on its own, so only the UBSan half needed saying.
+FUZZ_SAN := -fsanitize=address,$(UBSAN_CHECKS) \
+    -fno-sanitize-recover=$(UBSAN_CHECKS) -fno-omit-frame-pointer -g -O1 \
+    -fstrict-aliasing
 FUZZ_LIB_FLAGS := $(FUZZ_SAN) -fsanitize=fuzzer-no-link
 FUZZ_BIN_FLAGS := $(FUZZ_SAN) -fsanitize=fuzzer
 FUZZ_DIR := $(BUILD_DIR)/fuzz
