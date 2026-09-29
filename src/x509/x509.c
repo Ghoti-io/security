@@ -1306,6 +1306,15 @@ GSEC_Result gsec_x509_signed_by(const GSEC_X509 * cert, const GSEC_X509 * issuer
   if (cert == NULL || issuer == NULL || cert->tbs == NULL || issuer->key == 0) {
     return GSEC_ERR_INVALID;
   }
+  /* Belt and braces, and deliberately not testable from outside: every
+   * mismatch this catches would also fail the verification it skips, because
+   * the signature for one key type is never a well-formed signature for
+   * another - an RSA signature is the modulus length and a raw ECDSA one is
+   * two coordinates. Removing it does not change any answer, which is why no
+   * test covers it. It stays because dispatching on the issuer's key while
+   * ignoring what the certificate says it was signed with is the shape that
+   * algorithm-confusion bugs are made of. parse_tbs separately requires the
+   * inner and outer AlgorithmIdentifiers to agree. */
   if (cert->sig_key != issuer->key) {
     return GSEC_ERR_MISMATCH;
   }

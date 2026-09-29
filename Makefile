@@ -464,12 +464,14 @@ check-fuzz-ub: ## Fail unless the fuzz flags make undefined behaviour a failing 
 	@rm -rf $(BUILD_DIR)/fuzzub/seed && mkdir -p $(BUILD_DIR)/fuzzub/seed
 	@printf 'A' > $(BUILD_DIR)/fuzzub/seed/one
 	@if ! $(BUILD_DIR)/fuzzub/clean $(BUILD_DIR)/fuzzub/seed -runs=0 \
-			-print_final_stats=0 >/dev/null 2>&1; then \
+			-print_final_stats=0 \
+			-artifact_prefix=$(BUILD_DIR)/fuzzub/ >/dev/null 2>&1; then \
 		printf 'check-fuzz-ub: the control run failed, so a nonzero status proves nothing\n' >&2; \
 		exit 1; \
 	fi
 	@if $(BUILD_DIR)/fuzzub/ub $(BUILD_DIR)/fuzzub/seed -runs=0 \
-			-print_final_stats=0 >/dev/null 2>&1; then \
+			-print_final_stats=0 \
+			-artifact_prefix=$(BUILD_DIR)/fuzzub/ >/dev/null 2>&1; then \
 		printf 'check-fuzz-ub: a planted signed overflow ran to a zero exit. FUZZ_SAN needs -fno-sanitize-recover, or every campaign is unable to fail on UB.\n' >&2; \
 		exit 1; \
 	fi

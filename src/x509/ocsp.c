@@ -290,10 +290,7 @@ GSEC_Result gsec_ocsp_parse(const void * der, size_t len, GSEC_Ocsp * out) {
   if (result != GSEC_OK) {
     return result;
   }
-  {
-    int64_t produced;
-    result = gsec_der_time(&field, &produced);
-  }
+  result = gsec_der_time(&field, &out->produced_at);
   if (result != GSEC_OK) {
     return result;
   }
@@ -341,15 +338,20 @@ GSEC_Result gsec_ocsp_signed_by(const GSEC_Ocsp * ocsp, const GSEC_X509 * issuer
 GSEC_Result gsec_ocsp_status(const GSEC_Ocsp * ocsp, uint32_t hash,
     const void * name_hash, size_t name_hash_len, const void * key_hash,
     size_t key_hash_len, const void * serial, size_t serial_len,
-    uint32_t * status, int64_t * revoked_at) {
+    GSEC_Ocsp_Single * out) {
   const unsigned char * p;
   size_t left;
   size_t expect;
 
-  if (ocsp == NULL || status == NULL || (name_hash == NULL && name_hash_len != 0) ||
+  if (ocsp == NULL || out == NULL || (name_hash == NULL && name_hash_len != 0) ||
       (key_hash == NULL && key_hash_len != 0) || (serial == NULL && serial_len != 0)) {
     return GSEC_ERR_INVALID;
   }
+  out->status = GSEC_OCSP_UNKNOWN;
+  out->this_update = 0;
+  out->next_update = 0;
+  out->have_next_update = 0;
+  out->revoked_at = 0;
   if (hash == GSEC_HMAC_SHA1) {
     expect = 20;
   } else if (hash == GSEC_HMAC_SHA256) {
@@ -429,28 +431,61 @@ GSEC_Result gsec_ocsp_status(const GSEC_Ocsp * ocsp, uint32_t hash,
       return GSEC_ERR_CORRUPT;
     }
     if (st.number == 0 && st.value_len == 0) {
-      *status = GSEC_OCSP_GOOD;
+      out->status = GSEC_OCSP_GOOD;
     } else if (st.number == 2 && st.value_len == 0) {
-      *status = GSEC_OCSP_UNKNOWN;
+      out->status = GSEC_OCSP_UNKNOWN;
     } else if (st.number == 1 && st.constructed == 1) {
       GSEC_Der when;
       const unsigned char * rp = st.value;
       size_t rleft = st.value_len;
-      int64_t at;
-      *status = GSEC_OCSP_REVOKED;
+      out->status = GSEC_OCSP_REVOKED;
       result = gsec_der_next(&rp, &rleft, &when);
       if (result != GSEC_OK) {
         return result;
       }
-      result = gsec_der_time(&when, &at);
+      result = gsec_der_time(&when, &out->revoked_at);
       if (result != GSEC_OK) {
         return result;
       }
-      if (revoked_at != NULL) {
-        *revoked_at = at;
-      }
     } else {
       return GSEC_ERR_CORRUPT;
+    }
+    /* thisUpdate, then nextUpdate if it is there. RFC 6960's SingleResponse
+     * puts both after certStatus, and they were parsed past and dropped:
+     * without them a caller has no way to tell a fresh response from one
+     * replayed out of a capture. */
+    result = gsec_der_next(&ep, &eleft, &st);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    result = gsec_der_time(&st, &out->this_update);
+    if (result != GSEC_OK) {
+      return result;
+    }
+    if (eleft != 0) {
+      result = gsec_der_next(&ep, &eleft, &st);
+      if (result != GSEC_OK) {
+        return result;
+      }
+      if (st.tag_class == GSEC_DER_CONTEXT && st.constructed == 1 &&
+          st.number == 0) {
+        GSEC_Der when;
+        result = gsec_der_tlv(st.value, st.value_len, &when);
+        if (result != GSEC_OK || when.total_len != st.value_len) {
+          return GSEC_ERR_CORRUPT;
+        }
+        result = gsec_der_time(&when, &out->next_update);
+        if (result != GSEC_OK) {
+          return result;
+        }
+        out->have_next_update = 1;
+        if (out->next_update < out->this_update) {
+          return GSEC_ERR_CORRUPT;
+        }
+      }
+      /* Anything after that is singleExtensions, which this parser does not
+       * read. A critical one it does not understand is refused during the
+       * parse, so reaching here means there is none to refuse. */
     }
     return GSEC_OK;
   }

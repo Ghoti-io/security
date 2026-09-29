@@ -66,7 +66,30 @@ typedef struct GSEC_Ocsp {
   unsigned char ecdsa_raw[96];
   const unsigned char * responses;
   size_t responses_len;
+  /** producedAt, as seconds since 1970-01-01 UTC. */
+  int64_t produced_at;
 } GSEC_Ocsp;
+
+/**
+ * @brief One certificate's entry in a response.
+ *
+ * @p this_update and @p next_update are what make a response's age
+ * visible. A signed response stays valid forever otherwise, which is to
+ * say a captured "good" answer can be replayed until the responder's
+ * certificate expires. @p have_next_update is 0 when the response omits
+ * nextUpdate, which RFC 6960 permits and which means the responder has
+ * newer information available at all times.
+ *
+ * @p revoked_at is meaningful only when @p status is
+ * ::GSEC_OCSP_REVOKED.
+ */
+typedef struct GSEC_Ocsp_Single {
+  uint32_t status;
+  int64_t this_update;
+  int64_t next_update;
+  int have_next_update;
+  int64_t revoked_at;
+} GSEC_Ocsp_Single;
 
 /**
  * @brief Parse one successful basic OCSP response.
@@ -97,17 +120,30 @@ GSEC_API GSEC_Result gsec_ocsp_signed_by(const GSEC_Ocsp * ocsp,
  *
  * @p hash is ::GSEC_HMAC_SHA1, ::GSEC_HMAC_SHA256, ::GSEC_HMAC_SHA384, or
  * ::GSEC_HMAC_SHA512, and both hashes are that digest. A CertID that is
- * not in the response is ::GSEC_ERR_MISMATCH. When the status is
- * ::GSEC_OCSP_REVOKED and @p revoked_at is not NULL, it receives the
- * revocation time.
+ * not in the response is ::GSEC_ERR_MISMATCH.
  *
+ * **Freshness is the caller's, and it is not optional.** This function
+ * reports what the response says; it has no clock. A response is a
+ * statement about the instant in @p out->this_update, and replaying an
+ * old one is the cheapest attack on revocation there is. Compare
+ * @p out->this_update and, when @p out->have_next_update is set,
+ * @p out->next_update against the time the caller already had to supply
+ * to ::gsec_x509_path.
+ *
+ * Nothing here evaluates a delegated responder either: @p ocsp must have
+ * been signed by the issuer itself, which ::gsec_ocsp_signed_by checks. A
+ * response signed by a responder certificate the issuer delegated to -
+ * with id-kp-OCSPSigning, which ::gsec_x509_purpose can test - fails
+ * closed rather than being accepted on the delegate's authority.
+ *
+ * @param out Filled on ::GSEC_OK. Not NULL.
  * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH, ::GSEC_ERR_CORRUPT, or
  *   ::GSEC_ERR_INVALID.
  */
 GSEC_API GSEC_Result gsec_ocsp_status(const GSEC_Ocsp * ocsp, uint32_t hash,
     const void * name_hash, size_t name_hash_len, const void * key_hash,
     size_t key_hash_len, const void * serial, size_t serial_len,
-    uint32_t * status, int64_t * revoked_at);
+    GSEC_Ocsp_Single * out);
 
 #ifdef __cplusplus
 }

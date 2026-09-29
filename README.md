@@ -83,7 +83,7 @@ parsed result address the caller's buffer.
 | X.509 | One certificate, a signature check, a path, and a name match. The caller supplies the chain and the time. The path refuses MD5 and SHA-1, an RSA key below 2048 bits, and an expired anchor, and checks the leaf's extendedKeyUsage against a purpose the caller names. It does not check revocation. |
 | Issuance | A certificate signed with P-256, P-384, Ed25519, or RSA. |
 | CRL | Parse, check the signature, and look up a serial. Fetching the list stays with the caller. |
-| OCSP | A basic response. Fetching it stays with the caller. |
+| OCSP | A basic response, with `producedAt`, `thisUpdate` and `nextUpdate`, because a signed response with no visible age can be replayed. Fetching it, judging its freshness, and a delegated responder all stay with the caller. |
 
 ## Before you call it
 
