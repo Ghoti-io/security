@@ -806,9 +806,19 @@ FUZZ_CC_OK := $(shell which $(FUZZ_CC) 2>/dev/null)
 # diagnostic and the run continues, libFuzzer sees no crash, and `make fuzz`
 # exits 0 with undefined behaviour in the log: a campaign that cannot fail.
 # ASan aborts on its own, so only the UBSan half needed saying.
+# implicit-conversion is clang's and not GCC's, so it cannot go in
+# UBSAN_CHECKS, which the GCC-built ASan tree shares: `-fsanitize=` rejects
+# the name outright there. The fuzz tree is clang, so it gets it, probed the
+# same way the hardening flags are - a clang without the check must degrade
+# rather than fail to build. It catches the narrowing this code does by the
+# thousand, all of it currently explicit; four harnesses were run with it
+# enabled and reported nothing.
+FUZZ_EXTRA := $(shell printf 'int gsec_fuzz_probe(void);\n' | \
+	$(FUZZ_CC) -fsanitize=implicit-conversion -x c -c -o /dev/null - \
+	>/dev/null 2>&1 && printf '%s' '-fsanitize=implicit-conversion -fno-sanitize-recover=implicit-conversion')
 FUZZ_SAN := -fsanitize=address,$(UBSAN_CHECKS) \
-    -fno-sanitize-recover=$(UBSAN_CHECKS) -fno-omit-frame-pointer -g -O1 \
-    -fstrict-aliasing
+    -fno-sanitize-recover=$(UBSAN_CHECKS) $(FUZZ_EXTRA) \
+    -fno-omit-frame-pointer -g -O1 -fstrict-aliasing
 FUZZ_LIB_FLAGS := $(FUZZ_SAN) -fsanitize=fuzzer-no-link
 FUZZ_BIN_FLAGS := $(FUZZ_SAN) -fsanitize=fuzzer
 FUZZ_DIR := $(BUILD_DIR)/fuzz
