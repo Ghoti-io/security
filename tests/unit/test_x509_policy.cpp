@@ -330,7 +330,10 @@ TEST(X509Policy, HostNamesThatAreNotNames) {
       GSEC_ERR_INVALID);
   EXPECT_EQ(gsec_x509_hostname(&parsed, "www.example.com\x01", 16),
       GSEC_ERR_INVALID);
-  EXPECT_EQ(gsec_x509_hostname(&parsed, "www.exam\xc3\xa9ple.com", 19),
+  /* Two bytes of UTF-8 in the middle: 17 characters, not 19. Passing the
+   * wrong length here was a one-byte over-read of the literal, which is what
+   * `make test-asan` reported - in the test, not the library. */
+  EXPECT_EQ(gsec_x509_hostname(&parsed, "www.exam\xc3\xa9ple.com", 17),
       GSEC_ERR_INVALID);
   {
     /* Longer than 253 bytes, and a single label longer than 63. */
