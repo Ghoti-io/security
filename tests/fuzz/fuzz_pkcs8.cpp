@@ -18,5 +18,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size) {
       result != GSEC_ERR_UNSUPPORTED && result != GSEC_ERR_INVALID) {
     __builtin_trap();
   }
+  {
+    GSEC_Pkcs8 twice;
+    if (gsec_pkcs8_parse(data, size, &twice) != result) {
+      __builtin_trap();
+    }
+  }
   return 0;
 }

@@ -106,6 +106,16 @@ GSEC_API GSEC_Result gsec_pkcs8_parse(const void * der, size_t len,
  * @param out Buffer for the PrivateKeyInfo. Wiped on failure.
  * @param out_cap Capacity of @p out. It must hold the ciphertext.
  * @param out_len Receives the PrivateKeyInfo length. Not written on failure.
+ * **A successful decrypt is not an integrity check.** PBES2 with a CBC
+ * cipher, and every PBES1 scheme, carries no MAC. A flipped bit in the
+ * ciphertext garbles one block of the plaintext, and when that garbling
+ * lands inside a big integer rather than in a tag, a length or the
+ * padding, the result still parses and this function returns
+ * ::GSEC_OK on a key that is not the key. What ::GSEC_OK means here is
+ * that the password was right and the bytes decoded - not that nobody
+ * altered the file. A caller that needs the stronger statement wants
+ * PKCS#12, whose MAC covers the archive.
+ *
  * @param limits NULL for ::gsec_limits_default. An iteration count above
  *   @p limits->max_pbe_iterations is ::GSEC_ERR_LIMIT before any
  *   derivation runs: the count is in the file, so it is an attacker's
