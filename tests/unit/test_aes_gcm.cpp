@@ -249,6 +249,29 @@ TEST(AesGcm, AShortTagMatchesAndAWrongTagWipes) {
   EXPECT_EQ(gsec_wipe(tag, sizeof tag), GSEC_OK);
 }
 
+TEST(AesGcm, ShortTagIsRefused) {
+  /* SP 800-38D's 4- and 8-byte tags are refused: the library cannot enforce
+   * the attempt limits that make them safe. 12 through 16 are accepted. */
+  unsigned char key[GSEC_AES128_KEY_LEN] = {0};
+  unsigned char iv[12] = {0};
+  unsigned char pt[16] = {0};
+  unsigned char ct[16];
+  unsigned char tag[16];
+
+  for (size_t n : {size_t(0), size_t(1), size_t(4), size_t(8), size_t(11),
+      size_t(17)}) {
+    EXPECT_EQ(gsec_aes_gcm_encrypt(key, sizeof key, iv, sizeof iv, nullptr, 0,
+        pt, sizeof pt, ct, tag, n), GSEC_ERR_INVALID) << "tag_len " << n;
+    EXPECT_EQ(gsec_aes_gcm_decrypt(key, sizeof key, iv, sizeof iv, nullptr, 0,
+        ct, sizeof ct, pt, tag, n), GSEC_ERR_INVALID) << "tag_len " << n;
+  }
+  for (size_t n : {size_t(12), size_t(13), size_t(14), size_t(15),
+      size_t(16)}) {
+    EXPECT_EQ(gsec_aes_gcm_encrypt(key, sizeof key, iv, sizeof iv, nullptr, 0,
+        pt, sizeof pt, ct, tag, n), GSEC_OK) << "tag_len " << n;
+  }
+}
+
 int main(int argc, char ** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

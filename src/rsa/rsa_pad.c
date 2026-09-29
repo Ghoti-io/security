@@ -134,7 +134,12 @@ GSEC_Result rsa_load_public(bn * mod, const unsigned char ** exp,
 
 GSEC_Result rsa_mgf1(uint32_t hash, const unsigned char * seed, size_t seed_len,
     unsigned char * mask, size_t mask_len) {
-  unsigned char block[GSEC_SHA512_DIGEST_LEN + 4u];
+  /* MODULUS_MAX, not a digest length: PSS seeds this with H, which is one
+   * digest, and OAEP seeds it with DB, which is nearly the modulus. There
+   * used to be a second copy of this function in rsa_crypt.c for that
+   * reason, with its own bound and its own counter guard. Two MGF1s meant a
+   * fix to one would not reach the other. */
+  unsigned char block[GSEC_RSA_MODULUS_MAX + 4u];
   unsigned char dig[GSEC_SHA512_DIGEST_LEN];
   const unsigned char * prefix;
   size_t prefix_len;
@@ -142,7 +147,7 @@ GSEC_Result rsa_mgf1(uint32_t hash, const unsigned char * seed, size_t seed_len,
   size_t off;
   uint32_t counter;
 
-  if (seed_len > GSEC_SHA512_DIGEST_LEN) {
+  if (seed_len > GSEC_RSA_MODULUS_MAX) {
     return GSEC_ERR_INVALID;
   }
   memcpy(block, seed, seed_len);
@@ -173,6 +178,11 @@ GSEC_Result rsa_mgf1(uint32_t hash, const unsigned char * seed, size_t seed_len,
     }
     off += take;
     counter++;
+    if (counter == 0) {
+      gsec_wipe(block, sizeof block);
+      gsec_wipe(dig, sizeof dig);
+      return GSEC_ERR_LIMIT;
+    }
   }
   gsec_wipe(block, sizeof block);
   gsec_wipe(dig, sizeof dig);

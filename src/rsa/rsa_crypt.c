@@ -135,8 +135,14 @@ static GSEC_Result nonzero_pad(unsigned char * ps, size_t n) {
   return GSEC_OK;
 }
 
+/* `src_len` is how much of `em` was written, and it is public: it is the
+ * modulus length for PKCS#1 v1.5 and DB's length for OAEP. The selector used
+ * to run to `k` in both cases, so the OAEP path read the tail of a buffer
+ * nothing had written - masked to zero on the way out, and within the
+ * allocation, but an indeterminate read all the same, and one that only
+ * memcheck's handling of `& 0` kept quiet. */
 static void take_msg(unsigned char * plain, size_t k, const unsigned char * em,
-    uint32_t start, uint32_t mlen) {
+    size_t src_len, uint32_t start, uint32_t mlen) {
   const volatile unsigned char * secret = em;
   size_t i;
 
@@ -147,7 +153,7 @@ static void take_msg(unsigned char * plain, size_t k, const unsigned char * em,
     volatile unsigned char acc = 0;
     size_t j;
 
-    for (j = 0; j < k; j++) {
+    for (j = 0; j < src_len; j++) {
       uint32_t match = eq_u32((uint32_t)j, src);
       acc = (unsigned char)(acc | (unsigned char)(secret[j] & (0u - match)));
     }
@@ -296,62 +302,9 @@ GSEC_Result gsec_rsa_pkcs1_v15_decrypt(const void * n, size_t n_len,
   ok &= found;
   ok &= (9u - sep) >> 31;
   mlen = (uint32_t)k - sep - 1u;
-  take_msg(plain, k, em, sep + 1u, mlen);
+  take_msg(plain, k, em, k, sep + 1u, mlen);
   gsec_wipe(em, sizeof em);
   return finish_msg(msg, msg_cap, msg_len, plain, k, ok, mlen);
-}
-
-static GSEC_Result mgf(uint32_t hash, const unsigned char * seed,
-    size_t seed_len, unsigned char * mask, size_t mask_len) {
-  unsigned char block[GSEC_RSA_MODULUS_MAX + 4u];
-  unsigned char dig[GSEC_SHA512_DIGEST_LEN];
-  const unsigned char * prefix;
-  size_t prefix_len;
-  size_t hlen;
-  size_t off;
-  uint32_t counter;
-
-  if (seed_len > GSEC_RSA_MODULUS_MAX) {
-    return GSEC_ERR_INVALID;
-  }
-  memcpy(block, seed, seed_len);
-  off = 0;
-  counter = 0;
-  while (off < mask_len) {
-    size_t take;
-    size_t i;
-    GSEC_Result result;
-
-    block[seed_len] = (unsigned char)(counter >> 24);
-    block[seed_len + 1u] = (unsigned char)(counter >> 16);
-    block[seed_len + 2u] = (unsigned char)(counter >> 8);
-    block[seed_len + 3u] = (unsigned char)counter;
-    result = rsa_hash_one(hash, block, seed_len + 4u, dig, &hlen, &prefix,
-        &prefix_len);
-    if (result != GSEC_OK) {
-      gsec_wipe(block, sizeof block);
-      gsec_wipe(dig, sizeof dig);
-      return result;
-    }
-    take = hlen;
-    if (take > mask_len - off) {
-      take = mask_len - off;
-    }
-    for (i = 0; i < take; i++) {
-      mask[off + i] = dig[i];
-    }
-    off += take;
-    counter++;
-    if (counter == 0) {
-      gsec_wipe(block, sizeof block);
-      gsec_wipe(dig, sizeof dig);
-      return GSEC_ERR_LIMIT;
-    }
-  }
-  gsec_wipe(block, sizeof block);
-  gsec_wipe(dig, sizeof dig);
-  (void)prefix;
-  return GSEC_OK;
 }
 
 static GSEC_Result label_hash(uint32_t hash, const void * label,
@@ -437,14 +390,14 @@ GSEC_Result gsec_rsa_oaep_mgf_encrypt(uint32_t hash, uint32_t mgf_hash,
   if (result != GSEC_OK) {
     goto fail;
   }
-  result = mgf(mgf_hash, seed, hlen, mask, db_len);
+  result = rsa_mgf1(mgf_hash, seed, hlen, mask, db_len);
   if (result != GSEC_OK) {
     goto fail;
   }
   for (i = 0; i < db_len; i++) {
     db[i] = (unsigned char)(db[i] ^ mask[i]);
   }
-  result = mgf(mgf_hash, db, db_len, mask, hlen);
+  result = rsa_mgf1(mgf_hash, db, db_len, mask, hlen);
   if (result != GSEC_OK) {
     goto fail;
   }
@@ -546,14 +499,14 @@ GSEC_Result gsec_rsa_oaep_mgf_decrypt(uint32_t hash, uint32_t mgf_hash,
   }
   secret = em;
   db_len = k - hlen - 1u;
-  result = mgf(mgf_hash, em + 1u + hlen, db_len, mask, hlen);
+  result = rsa_mgf1(mgf_hash, em + 1u + hlen, db_len, mask, hlen);
   if (result != GSEC_OK) {
     goto fail_em;
   }
   for (i = 0; i < hlen; i++) {
     seed[i] = (unsigned char)(secret[1u + i] ^ mask[i]);
   }
-  result = mgf(mgf_hash, seed, hlen, db, db_len);
+  result = rsa_mgf1(mgf_hash, seed, hlen, db, db_len);
   if (result != GSEC_OK) {
     goto fail_em;
   }
@@ -577,7 +530,7 @@ GSEC_Result gsec_rsa_oaep_mgf_decrypt(uint32_t hash, uint32_t mgf_hash,
   }
   ok &= found & (bad ^ 1u);
   mlen = (uint32_t)db_len - sep - 1u;
-  take_msg(plain, k, db, sep + 1u, mlen);
+  take_msg(plain, k, db, db_len, sep + 1u, mlen);
   gsec_wipe(em, sizeof em);
   gsec_wipe(db, sizeof db);
   gsec_wipe(seed, sizeof seed);

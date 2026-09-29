@@ -68,7 +68,10 @@ extern "C" {
  *   ::GSEC_ERR_INVALID. NULL when @p pt_len is 0.
  * @param tag Tag output. NULL is ::GSEC_ERR_INVALID. Must not overlap
  *   @p pt or @p ct.
- * @param tag_len 4, 8, or 12 through 16.
+ * @param tag_len 12 through 16. A shorter tag is
+ *   ::GSEC_ERR_INVALID: SP 800-38D allows 4 and 8 only where the
+ *   caller bounds the number of forgery attempts, which this
+ *   library cannot do on its behalf.
  * @return ::GSEC_OK, ::GSEC_ERR_INVALID, or ::GSEC_ERR_LIMIT.
  */
 GSEC_API GSEC_Result gsec_aes_gcm_encrypt(const void * key, size_t key_len,
@@ -94,7 +97,7 @@ GSEC_API GSEC_Result gsec_aes_gcm_encrypt(const void * key, size_t key_len,
  *   overlap is ::GSEC_ERR_INVALID. NULL when @p ct_len is 0.
  * @param tag Tag to check. Copied before any plaintext is written, so it
  *   may overlap @p pt.
- * @param tag_len 4, 8, or 12 through 16. Must be the length that was
+ * @param tag_len 12 through 16, and the length that was
  *   produced. A shorter tag is a different authenticator.
  * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH, ::GSEC_ERR_INVALID, or
  *   ::GSEC_ERR_LIMIT.

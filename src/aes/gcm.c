@@ -40,8 +40,12 @@ static int key_len_ok(size_t n) {
       n == GSEC_AES256_KEY_LEN;
 }
 
+/* SP 800-38D approves 4 and 8 as well, but only for applications that cap
+ * the number of forgery attempts and the message count, which a library
+ * cannot check for its caller: a 4-byte tag is one guess in 2^32. Refused
+ * here, so a caller has to reach past this library to get one. */
 static int tag_len_ok(size_t n) {
-  return n == 4u || n == 8u || (n >= 12u && n <= 16u);
+  return n >= 12u && n <= 16u;
 }
 
 static int bit_len_ok(size_t n) {
