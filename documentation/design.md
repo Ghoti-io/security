@@ -55,6 +55,7 @@ package is `ghoti.io-security-0`, the include path
 | Secret bytes are not compared with `memcmp` | `tools/check-secret.py` scans `src/`, including comments, and rejects `memcmp`, `bcmp`, `timingsafe_bcmp`, cutil's Mersenne Twister, a userspace device node, `RAND_bytes`, and the `printf` family. The scanner is run against a plant of its own, so a pattern that stops matching fails the build. |
 | A branch on a secret is visible | `make check-ct` builds the library with `-DGSEC_CT_TEST` at the same `-O2` as the release objects. `tools/ct/clean` compares equal buffers and must be silent under memcheck. `tools/ct/leak` branches on a secret byte and must be reported. Both refuse to run unless memcheck is the caller. A clean leak, or a dirty `gsec_equal`, fails `make test`. |
 | Entropy comes from the kernel | `gsec_random_bytes` calls `getrandom` without `GRND_NONBLOCK` on Linux, `getentropy` on macOS, and `BCryptGenRandom` on Windows. A short read is retried. Any other failure wipes the output and returns `GSEC_ERR_IO`. |
+| The exploit mitigations are on | `check-harden` requires the probe to reject a flag that does not exist, to have accepted at least one that does, and - on Linux - requires the built library to reference the stack protector and to be linked `BIND_NOW`. Flags probed away silently are the failure this catches. |
 | A wiped buffer stays wiped | `gsec_wipe` writes through a `volatile` pointer. The compiler is not trusted to keep a `memset` of a dead buffer. |
 | Nothing in the library prints a secret | `gsec_result_string` returns one of a fixed table of static strings. There is no `_dump` for a key, a scalar, or a derived secret. |
 | A function that does not exist yet cannot be declared quietly | `check-foundation` reads the registry and the headers. `implemented` must have a declaration. `pending` and `excluded` must not. The check plants `gsec_x448` and requires that plant to be rejected, because `x448` is excluded. |
@@ -71,6 +72,24 @@ with a positive length is `GSEC_ERR_INVALID`, before any load.
 No allocation in this library may depend on a secret: not its size, and not
 whether it happens. memcheck will not report that. It is a rule for the
 phases that allocate.
+
+### The stack an embedder has to have
+
+Everything but `scrypt` and `argon2` works in automatic storage, so the
+cost is stack rather than heap, and the RSA private path is the deep one.
+Measured with `-fstack-usage` at `-O2`: `bn_modinv_ct` 9,200 bytes in one
+frame, `rsa_blinded` 4,896, `gsec_rsa_private_pss_sign` 4,048,
+`gsec_rsa_oaep_mgf_decrypt` 3,376, `gsec_x509_path` 5,712. The deepest
+chain is a private-key operation at roughly **18 KB**, plus what
+`mont_mul` adds under it.
+
+A thread with an 8 or 16 KB stack cannot sign. That is a real
+configuration - a small embedded RTOS task, or a deliberately small
+pthread stack - so the number is recorded here rather than left to be
+discovered. The build carries `-fstack-clash-protection` and
+`-fstack-protector-strong` where the compiler has them
+(`check-harden` asserts they survived the probe), so an overflow is a
+crash rather than a silent corruption.
 
 ## 2. What is implemented
 

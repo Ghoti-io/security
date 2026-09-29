@@ -151,7 +151,30 @@ CC := cc
 # shape is reported at level 1 and silent at 0, 2, and 3. Do not simplify it
 # to `*(int *)&local`, which fires at every level from 1 up and certifies
 # nothing. check-aliasing is the measurement.
-CFLAGS := -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 $(OPT_CFLAGS) -g $(EXTRA_CFLAGS)
+# Hardening. A crypto library is worth the exploit-mitigation flags the
+# distributions have compiled everything else with for a decade, and this one
+# shipped without them: no stack protector, lazy binding, no fortified string
+# functions. They are *probed* rather than assumed, because this tree builds
+# with GCC 14 here, GCC 16 on the EVO-X2, clang on macOS and mingw on
+# Windows, and `-fcf-protection` is an error on a compiler targeting anything
+# but x86 - with -Werror in play an unknown flag would break the build rather
+# than degrade it. `-U_FORTIFY_SOURCE` first because a distribution compiler
+# may define it already, and a redefinition is a diagnostic.
+#
+# check-harden asserts the result is not empty on this platform, so a probe
+# that silently stops matching does not quietly disarm all of this.
+gsec_flag_ok = $(shell printf 'int gsec_flag_probe(void);\n' | \
+	$(CC) $(1) -O2 -x c -c -o /dev/null - >/dev/null 2>&1 && printf '%s' '$(1)')
+HARDEN_CFLAGS := $(call gsec_flag_ok,-fstack-protector-strong) \
+	$(call gsec_flag_ok,-fstack-clash-protection) \
+	$(call gsec_flag_ok,-fcf-protection=full)
+ifneq ($(BUILD),debug)
+HARDEN_CFLAGS += $(or \
+	$(call gsec_flag_ok,-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3), \
+	$(call gsec_flag_ok,-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2))
+endif
+
+CFLAGS := -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 $(OPT_CFLAGS) -g $(HARDEN_CFLAGS) $(EXTRA_CFLAGS)
 ifeq ($(OS_NAME), Windows)
 CFLAGS += -DGSEC_STATIC
 CXXFLAGS += -DGSEC_STATIC
@@ -161,6 +184,11 @@ LDFLAGS := -L /usr/lib -lstdc++ -lm $(EXTRA_LDFLAGS)
 ifeq ($(OS_NAME), Windows)
 # TODO(windows): bcrypt, for BCryptGenRandom. Unverified.
 LDFLAGS += -lbcrypt
+endif
+ifeq ($(OS_NAME), Linux)
+# Full RELRO. Partial is what a bare link gives: the GOT stays writable for
+# lazy binding, which is a write target in a process that holds keys.
+LDFLAGS += -Wl,-z,relro,-z,now
 endif
 ifdef PREFIX
 LDFLAGS += -Wl,-rpath,$(LIB_INSTALL_PATH)/$(SUITE)
@@ -204,7 +232,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-secret \
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-secret check-harden \
 	check-foundation check-ct check-fuzz-ub
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
@@ -323,7 +351,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SECLIBRARY) $(CUTIL_LIBS)
 
 .PHONY: clean cloc docs docs-pdf examples coverage check-symbols check-stamps check-aliasing
-.PHONY: check-secret check-foundation check-ct check-fuzz-ub
+.PHONY: check-secret check-foundation check-ct check-fuzz-ub check-harden
 .PHONY: all install test test-quiet test-asan test-valgrind test-valgrind-quiet test-watch uninstall watch
 .PHONY: all-debug install-debug test-debug test-valgrind-debug test-watch-debug uninstall-debug watch-debug
 .PHONY: fuzz fuzz-clean
@@ -376,6 +404,36 @@ check-aliasing: ## Fail if -Wstrict-aliasing is not armed at level 1
 
 check-stamps: ## Fail if a compile rule names no flags stamp, or a stamp omits a variable
 	@python3 tools/check-stamps.py
+
+# The hardening flags are probed, so the failure mode is silence: a probe
+# that stops matching disarms every one of them and the build still succeeds.
+# This asserts three things - that the probe can still say no, that it said
+# yes to something, and that the property reached the artifact rather than
+# just the command line.
+check-harden: $(APP_DIR)/$(TARGET) ## Fail if the hardening flags were probed away
+	@if [ -n '$(call gsec_flag_ok,-fgsec-not-a-real-flag)' ]; then \
+		printf 'check-harden: the probe accepted a flag that does not exist, so it certifies nothing\n' >&2; \
+		exit 1; \
+	fi
+	@if [ -z '$(strip $(HARDEN_CFLAGS))' ]; then \
+		printf 'check-harden: no hardening flag survived the probe on this platform\n' >&2; \
+		exit 1; \
+	fi
+ifeq ($(OS_NAME), Linux)
+	@if ! command -v readelf >/dev/null 2>&1; then \
+		printf 'check-harden: no readelf, so only the flags were checked\n' >&2; \
+		exit 0; \
+	fi
+	@if ! nm -D $(APP_DIR)/$(TARGET) 2>/dev/null | grep -q stack_chk; then \
+		printf 'check-harden: %s has no stack-protector reference\n' '$(TARGET)' >&2; \
+		exit 1; \
+	fi
+	@if ! readelf -dW $(APP_DIR)/$(TARGET) | grep -q BIND_NOW; then \
+		printf 'check-harden: %s is not linked with full RELRO\n' '$(TARGET)' >&2; \
+		exit 1; \
+	fi
+endif
+	@printf 'check-harden: %s\n' '$(strip $(HARDEN_CFLAGS))'
 
 # The fuzz flags must turn undefined behaviour into a failing run. They did
 # not: UBSan's default is to print and continue, libFuzzer only fails on a
