@@ -401,5 +401,105 @@ int main(void) {
     }
     gsec_wipe(dk, sizeof dk);
   }
+
+  /* Decryption. Until 2026-09-28 only the encrypt direction of the AEADs and
+   * of CBC was poisoned here, and OAEP decrypt was absent entirely - the
+   * direction that takes attacker-chosen bytes and a secret key, which is
+   * where a data-dependent branch is worth money. */
+  {
+    unsigned char iv[12];
+    unsigned char tag[16];
+    unsigned char ct[8];
+    unsigned char back[8];
+    unsigned char key[GSEC_AES128_KEY_LEN];
+
+    memset(iv, 2, sizeof iv);
+    memset(key, 0x3c, sizeof key);
+    memset(secret, 0x5a, sizeof secret);
+    if (gsec_aes_gcm_encrypt(key, sizeof key, iv, sizeof iv, NULL, 0, secret,
+        sizeof secret, ct, tag, sizeof tag) != GSEC_OK) {
+      return 30;
+    }
+    gsec_poison(key, sizeof key);
+    gsec_poison(ct, sizeof ct);
+    gsec_poison(tag, sizeof tag);
+    if (gsec_aes_gcm_decrypt(key, sizeof key, iv, sizeof iv, NULL, 0, ct,
+        sizeof ct, back, tag, sizeof tag) != GSEC_OK) {
+      return 31;
+    }
+    gsec_wipe(back, sizeof back);
+    gsec_wipe(key, sizeof key);
+    gsec_wipe(ct, sizeof ct);
+    gsec_wipe(tag, sizeof tag);
+  }
+  {
+    unsigned char nonce[GSEC_CHACHA20_NONCE_LEN];
+    unsigned char tag[GSEC_POLY1305_TAG_LEN];
+    unsigned char ct[8];
+    unsigned char back[8];
+    unsigned char key[GSEC_CHACHA20_KEY_LEN];
+
+    memset(nonce, 2, sizeof nonce);
+    memset(key, 0x3c, sizeof key);
+    memset(secret, 0x5a, sizeof secret);
+    if (gsec_chacha20_poly1305_encrypt(key, nonce, NULL, 0, secret,
+        sizeof secret, ct, tag) != GSEC_OK) {
+      return 32;
+    }
+    gsec_poison(key, sizeof key);
+    gsec_poison(ct, sizeof ct);
+    gsec_poison(tag, sizeof tag);
+    if (gsec_chacha20_poly1305_decrypt(key, nonce, NULL, 0, ct, sizeof ct,
+        back, tag) != GSEC_OK) {
+      return 33;
+    }
+    gsec_wipe(back, sizeof back);
+    gsec_wipe(key, sizeof key);
+    gsec_wipe(ct, sizeof ct);
+    gsec_wipe(tag, sizeof tag);
+  }
+  {
+    unsigned char iv[GSEC_AES_BLOCK_LEN];
+    unsigned char plain[GSEC_AES_BLOCK_LEN];
+    unsigned char ct[GSEC_AES_BLOCK_LEN];
+    unsigned char back[GSEC_AES_BLOCK_LEN];
+    unsigned char key[GSEC_AES128_KEY_LEN];
+
+    memset(iv, 1, sizeof iv);
+    memset(key, 0x3c, sizeof key);
+    memset(plain, 0xa5, sizeof plain);
+    if (gsec_aes_cbc_encrypt(key, sizeof key, iv, plain, sizeof plain, ct) !=
+        GSEC_OK) {
+      return 34;
+    }
+    gsec_poison(key, sizeof key);
+    gsec_poison(ct, sizeof ct);
+    if (gsec_aes_cbc_decrypt(key, sizeof key, iv, ct, sizeof ct, back) !=
+        GSEC_OK) {
+      return 35;
+    }
+    gsec_wipe(back, sizeof back);
+    gsec_wipe(key, sizeof key);
+    gsec_wipe(ct, sizeof ct);
+  }
+  {
+    unsigned char mac[GSEC_SHA256_DIGEST_LEN];
+    unsigned char key[16];
+
+    memset(key, 0x3c, sizeof key);
+    memset(secret, 0x5a, sizeof secret);
+    if (gsec_hmac(GSEC_HMAC_SHA256, key, sizeof key, secret, sizeof secret,
+        mac) != GSEC_OK) {
+      return 36;
+    }
+    gsec_poison(key, sizeof key);
+    gsec_poison(mac, sizeof mac);
+    if (gsec_hmac_verify(GSEC_HMAC_SHA256, key, sizeof key, secret,
+        sizeof secret, mac, sizeof mac) != GSEC_OK) {
+      return 37;
+    }
+    gsec_wipe(mac, sizeof mac);
+    gsec_wipe(key, sizeof key);
+  }
   return 0;
 }
