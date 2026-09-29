@@ -47,8 +47,25 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size) {
       gsec_ed25519_verify(pub, message, n, sig) != GSEC_OK) {
     __builtin_trap();
   }
+  /* A flipped byte of R is a refusal, and which refusal depends on the byte:
+   * GSEC_ERR_INVALID when the result is no longer a point on the curve or the
+   * y coordinate is at or above the field prime, GSEC_ERR_MISMATCH when it is
+   * a different valid point and the equation fails. Asserting MISMATCH alone
+   * is what this harness did, and the EVO-X2 campaign trapped on the empty
+   * input thirteen units in when the two were split apart. Both are refusals;
+   * GSEC_OK is the only answer that must not happen. */
   sig[0] = static_cast<unsigned char>(sig[0] ^ 0x01u);
-  if (gsec_ed25519_verify(pub, message, n, sig) != GSEC_ERR_MISMATCH) {
+  {
+    GSEC_Result flipped = gsec_ed25519_verify(pub, message, n, sig);
+
+    if (flipped != GSEC_ERR_MISMATCH && flipped != GSEC_ERR_INVALID) {
+      __builtin_trap();
+    }
+  }
+  /* And S out of range is specifically the malformed-encoding answer. */
+  sig[0] = static_cast<unsigned char>(sig[0] ^ 0x01u);
+  sig[GSEC_ED25519_SIG_LEN - 1u] = 0xff;
+  if (gsec_ed25519_verify(pub, message, n, sig) != GSEC_ERR_INVALID) {
     __builtin_trap();
   }
   if (gsec_ed25519_sign(nullptr, message, n, again) != GSEC_ERR_INVALID ||
