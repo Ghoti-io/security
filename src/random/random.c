@@ -67,7 +67,6 @@ GSEC_Result gsec_random_bytes(void * out, size_t n,
   GSEC_Limits local;
   const GSEC_Limits * caps;
   unsigned char * p;
-  size_t got;
 
   if (limits == NULL) {
     gsec_limits_default(&local);
@@ -86,11 +85,13 @@ GSEC_Result gsec_random_bytes(void * out, size_t n,
   }
 
   p = (unsigned char *)out;
-  got = 0;
 
 #if defined(_WIN32)
-  /* TODO(windows): BCryptGenRandom has not been run. See
-   * notes/suite/WINDOWS-TODO.md. */
+  /* Cross-compiled for win64 and run under wine on 2026-09-29, by
+   * tools/xwin/run-security.sh in the workspace: the call, its NTSTATUS
+   * check, the ULONG guard below and the refusals above all behave, and a
+   * control that breaks the call proves the probe would notice.  Not yet run
+   * on a real Windows machine, where bcrypt.dll is not wine's. */
   {
     NTSTATUS status;
 
@@ -105,35 +106,43 @@ GSEC_Result gsec_random_bytes(void * out, size_t n,
     }
   }
 #elif defined(__APPLE__)
-  while (got < n) {
-    size_t chunk = n - got;
+  {
+    size_t got = 0;
 
-    /* getentropy refuses more than 256 bytes in one call. */
-    if (chunk > 256) {
-      chunk = 256;
+    while (got < n) {
+      size_t chunk = n - got;
+
+      /* getentropy refuses more than 256 bytes in one call. */
+      if (chunk > 256) {
+        chunk = 256;
+      }
+      if (getentropy(p + got, chunk) != 0) {
+        (void)wipe_out(out, n);
+        return GSEC_ERR_IO;
+      }
+      got += chunk;
     }
-    if (getentropy(p + got, chunk) != 0) {
-      (void)wipe_out(out, n);
-      return GSEC_ERR_IO;
-    }
-    got += chunk;
   }
 #else
-  while (got < n) {
-    ssize_t wrote = getrandom(p + got, n - got, 0);
+  {
+    size_t got = 0;
 
-    if (wrote < 0) {
-      if (errno == EINTR) {
-        continue;
+    while (got < n) {
+      ssize_t wrote = getrandom(p + got, n - got, 0);
+
+      if (wrote < 0) {
+        if (errno == EINTR) {
+          continue;
+        }
+        (void)wipe_out(out, n);
+        return GSEC_ERR_IO;
       }
-      (void)wipe_out(out, n);
-      return GSEC_ERR_IO;
+      if (wrote == 0) {
+        (void)wipe_out(out, n);
+        return GSEC_ERR_IO;
+      }
+      got += (size_t)wrote;
     }
-    if (wrote == 0) {
-      (void)wipe_out(out, n);
-      return GSEC_ERR_IO;
-    }
-    got += (size_t)wrote;
   }
 #endif
   return GSEC_OK;
