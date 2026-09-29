@@ -42,6 +42,7 @@
 #include <ghoti.io/security/aes_gcm.h>
 #include <ghoti.io/security/chacha20_poly1305.h>
 #include <ghoti.io/security/hkdf.h>
+#include <ghoti.io/security/pem.h>
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/md5.h>
@@ -1286,6 +1287,176 @@ GSEC_Result gsec_selftest(void) {
     result = gsec_der_tlv(der, sizeof der, &view);
     if (result != GSEC_OK || view.number != 16 || view.value_len != 3) {
       return result == GSEC_OK ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+  /* Everything below was missing, which is what design.md's claim of a known
+   * answer for each implemented primitive had quietly become. check-foundation
+   * enforces the claim now, at the granularity of a registry row.
+   *
+   * ECDSA P-384 signing and verification. Only the public-key derivation was
+   * here, so the half of the primitive that uses the nonce and the group order
+   * was never exercised. RFC 6979 makes signing deterministic, so this is a
+   * round trip and not a vector: the vector file is where the fixed answers
+   * live. */
+  {
+    unsigned char scalar[GSEC_ECDSA_P384_LEN];
+    unsigned char pub[GSEC_ECDSA_P384_PUBLIC_LEN];
+    unsigned char sig[GSEC_ECDSA_P384_SIG_LEN];
+    static const unsigned char message[3] = {0x61, 0x62, 0x63};
+    unsigned i;
+
+    for (i = 0; i < sizeof scalar; i++) {
+      scalar[i] = 0;
+    }
+    scalar[sizeof scalar - 1u] = 3;
+    result = gsec_ecdsa_p384_public(scalar, pub);
+    if (result == GSEC_OK) {
+      result = gsec_ecdsa_p384_sign(scalar, message, sizeof message, sig);
+    }
+    if (result == GSEC_OK) {
+      result = gsec_ecdsa_p384_verify(pub, message, sizeof message, sig);
+    }
+    if (result == GSEC_OK) {
+      /* A flipped bit must not verify: a verifier that accepts everything
+       * would otherwise pass the line above. */
+      sig[0] = (unsigned char)(sig[0] ^ 0x01u);
+      if (gsec_ecdsa_p384_verify(pub, message, sizeof message, sig) ==
+          GSEC_OK) {
+        result = GSEC_ERR_INTERNAL;
+      }
+    }
+    gsec_wipe(scalar, sizeof scalar);
+    gsec_wipe(sig, sizeof sig);
+    if (result != GSEC_OK) {
+      return result;
+    }
+  }
+  /* The decrypt direction of the two AEADs and of CBC. Only encryption was
+   * here, so a build in which decryption was broken - or in which the tag
+   * comparison always succeeded - passed its own self test. */
+  {
+    static const unsigned char key[GSEC_AES128_KEY_LEN] = {
+      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+      0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+    };
+    static const unsigned char iv[12] = {
+      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b
+    };
+    static const unsigned char pt[8] = {
+      0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x21, 0x21, 0x21
+    };
+    unsigned char ct[8];
+    unsigned char back[8];
+    unsigned char tag[16];
+
+    result = gsec_aes_gcm_encrypt(key, sizeof key, iv, sizeof iv, NULL, 0, pt,
+        sizeof pt, ct, tag, sizeof tag);
+    if (result == GSEC_OK) {
+      result = gsec_aes_gcm_decrypt(key, sizeof key, iv, sizeof iv, NULL, 0, ct,
+          sizeof ct, back, tag, sizeof tag);
+    }
+    if (result == GSEC_OK) {
+      result = gsec_equal(back, pt, sizeof pt);
+    }
+    if (result == GSEC_OK) {
+      tag[0] = (unsigned char)(tag[0] ^ 0x01u);
+      if (gsec_aes_gcm_decrypt(key, sizeof key, iv, sizeof iv, NULL, 0, ct,
+          sizeof ct, back, tag, sizeof tag) != GSEC_ERR_MISMATCH) {
+        result = GSEC_ERR_INTERNAL;
+      }
+    }
+    gsec_wipe(back, sizeof back);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+  {
+    static const unsigned char key[GSEC_CHACHA20_KEY_LEN] = {
+      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+      0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+      0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+      0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f
+    };
+    static const unsigned char nonce[GSEC_CHACHA20_NONCE_LEN] = {
+      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b
+    };
+    static const unsigned char pt[8] = {
+      0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x21, 0x21, 0x21
+    };
+    unsigned char ct[8];
+    unsigned char back[8];
+    unsigned char tag[GSEC_POLY1305_TAG_LEN];
+
+    result = gsec_chacha20_poly1305_encrypt(key, nonce, NULL, 0, pt, sizeof pt,
+        ct, tag);
+    if (result == GSEC_OK) {
+      result = gsec_chacha20_poly1305_decrypt(key, nonce, NULL, 0, ct,
+          sizeof ct, back, tag);
+    }
+    if (result == GSEC_OK) {
+      result = gsec_equal(back, pt, sizeof pt);
+    }
+    if (result == GSEC_OK) {
+      tag[0] = (unsigned char)(tag[0] ^ 0x01u);
+      if (gsec_chacha20_poly1305_decrypt(key, nonce, NULL, 0, ct, sizeof ct,
+          back, tag) != GSEC_ERR_MISMATCH) {
+        result = GSEC_ERR_INTERNAL;
+      }
+    }
+    gsec_wipe(back, sizeof back);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+  {
+    static const unsigned char key[GSEC_AES128_KEY_LEN] = {
+      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+      0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+    };
+    static const unsigned char iv[GSEC_AES_BLOCK_LEN] = {
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
+    };
+    static const unsigned char pt[GSEC_AES_BLOCK_LEN] = {
+      0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x63, 0x62,
+      0x63, 0x20, 0x6d, 0x6f, 0x64, 0x65, 0x21, 0x21
+    };
+    unsigned char ct[GSEC_AES_BLOCK_LEN];
+    unsigned char back[GSEC_AES_BLOCK_LEN];
+
+    result = gsec_aes_cbc_encrypt(key, sizeof key, iv, pt, sizeof pt, ct);
+    if (result == GSEC_OK) {
+      result = gsec_aes_cbc_decrypt(key, sizeof key, iv, ct, sizeof ct, back);
+    }
+    if (result == GSEC_OK) {
+      result = gsec_equal(back, pt, sizeof pt);
+    }
+    gsec_wipe(back, sizeof back);
+    if (result != GSEC_OK) {
+      return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
+    }
+  }
+  /* PEM, which has a writer, so its self test is a round trip. */
+  {
+    static const unsigned char der[] = {0x30, 0x03, 0x02, 0x01, 0x01};
+    unsigned char armour[128];
+    unsigned char back[16];
+    char label[16];
+    size_t armour_len = 0;
+    size_t back_len = 0;
+
+    result = gsec_pem_encode("TEST", der, sizeof der, armour, sizeof armour,
+        &armour_len);
+    if (result == GSEC_OK) {
+      result = gsec_pem_decode(armour, armour_len, back, sizeof back, &back_len,
+          label, sizeof label);
+    }
+    if (result == GSEC_OK && (back_len != sizeof der ||
+        gsec_equal(back, der, sizeof der) != GSEC_OK)) {
+      result = GSEC_ERR_INTERNAL;
+    }
+    if (result != GSEC_OK) {
+      return result;
     }
   }
   return GSEC_OK;

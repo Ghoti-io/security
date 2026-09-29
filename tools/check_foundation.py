@@ -126,6 +126,60 @@ def declarations():
     return found
 
 
+# Primitives gsec_selftest does not exercise, each with the reason. A
+# power-on self test answers "is this build computing what it was built to
+# compute"; a parser with no writer cannot answer that without a fixture
+# compiled into the library, and a PFX is 1.5 KB of one. Those are covered by
+# the vector corpus instead, which is where a parser's known answers belong.
+#
+# The list is here and not in the registry because it is a statement about
+# this function rather than about the primitive. Adding a row to it is a
+# decision; leaving a primitive out silently was what design.md's claim of "a
+# known answer for each implemented primitive" had quietly become.
+SELFTEST_EXCLUDED = {
+    "pkcs8": "parses only; its known answers are pkcs8.vec and the fixtures",
+    "pkcs12": "parses only; a PFX in the library would be 1.5 KB of fixture",
+    "x509": "parses and issues; issuance needs a key and a clock",
+    "crl": "parses only; its known answer is a fixture",
+    "ocsp": "parses only; its known answer is a fixture",
+    "rsa_pss": "verification's known answer is rsa_pss.vec, as design.md says",
+    "rsa_pkcs1_v15_verify": "same, rsa_pkcs1.vec",
+}
+
+
+def check_selftest(rows):
+    """Every implemented primitive is exercised by gsec_selftest or excused.
+
+    The claim that the self-test covers each implemented primitive was made in
+    design.md and enforced nowhere, and it had stopped being true: ECDSA P-384
+    signing, the AEAD and CBC decrypt directions, and every encoding but DER
+    were absent. The oracle probe's coverage is checked exactly this way a few
+    lines above; this is the same check for the other set.
+    """
+    source = (ROOT / "src" / "core" / "selftest.c").read_text(encoding="utf-8")
+    called = set(re.findall(r"\b(gsec_[a-z0-9_]+)\s*\(", source))
+    problems = []
+    for row in rows:
+        if row["status"] != "implemented":
+            continue
+        ident = row["id"]
+        if ident in SELFTEST_EXCLUDED:
+            if any(matches(fn, ident) for fn in called):
+                problems.append(
+                    "%s is in SELFTEST_EXCLUDED and gsec_selftest calls it; "
+                    "drop the exclusion" % ident)
+            continue
+        if not any(matches(fn, ident) for fn in called):
+            problems.append(
+                "gsec_selftest calls nothing matching %s: add a known answer, "
+                "or add it to SELFTEST_EXCLUDED with the reason" % ident)
+    for ident in sorted(SELFTEST_EXCLUDED):
+        if not any(row["id"] == ident for row in rows):
+            problems.append("SELFTEST_EXCLUDED names %s, which is not a "
+                            "registry row" % ident)
+    return problems
+
+
 def check_manifest():
     if not MANIFEST.is_file():
         fail("no %s" % MANIFEST.relative_to(ROOT))
@@ -240,6 +294,12 @@ def main():
         missing = sorted(set(outside) - set(openssl_kat.COVERED))
         extra = sorted(set(openssl_kat.COVERED) - set(outside))
         fail("oracle coverage missing %s extra %s" % (missing, extra))
+
+    problems = check_selftest(rows)
+    if problems:
+        for problem in problems:
+            print("check-foundation: " + problem, file=sys.stderr)
+        return 1
 
     listed = check_manifest()
     for row in rows:
