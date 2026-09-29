@@ -233,6 +233,37 @@ TEST(Ocsp, TruncationIsRefused) {
   EXPECT_NE(gsec_ocsp_parse(base.data(), 0, &ocsp), GSEC_OK);
 }
 
+TEST(Ocsp, CriticalSingleExtensionIsRefused) {
+  /* A critical extension the parser does not understand must refuse the
+   * answer, not be read past. `skip_extensions` was applied to
+   * responseExtensions at parse time and never to a SingleResponse's own, so
+   * the entry actually being answered could carry one and be answered anyway -
+   * the same shape as accepting a critical extendedKeyUsage and evaluating
+   * none of it.
+   *
+   * The fixture is leaf.ocsp with a critical 1.2.3.4.5 spliced into the first
+   * SingleResponse by tools/make-ocsp-ext.py. Its signature no longer covers
+   * the modified body, which does not matter here: gsec_ocsp_status does not
+   * check signatures, and tampering is covered by the sweep above. */
+  auto ocsp_der = load("ocsp-critical-single-ext.der");
+  auto ca_der = load("ca.der");
+  GSEC_Ocsp ocsp;
+  GSEC_X509 ca;
+  GSEC_Ocsp_Single single;
+  ASSERT_EQ(gsec_ocsp_parse(ocsp_der.data(), ocsp_der.size(), &ocsp), GSEC_OK);
+  ASSERT_EQ(gsec_x509_parse(ca_der.data(), ca_der.size(), &ca), GSEC_OK);
+  Id id = id_of(ca);
+  EXPECT_EQ(status_of(ocsp, id, kSerial, sizeof kSerial, &single),
+      GSEC_ERR_UNSUPPORTED);
+
+  /* The control: the same response without the extension answers. Otherwise
+   * this test would pass on any response the parser happened to refuse. */
+  auto plain = load("leaf.ocsp");
+  GSEC_Ocsp ok;
+  ASSERT_EQ(gsec_ocsp_parse(plain.data(), plain.size(), &ok), GSEC_OK);
+  EXPECT_EQ(status_of(ok, id, kSerial, sizeof kSerial, &single), GSEC_OK);
+}
+
 int main(int argc, char ** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

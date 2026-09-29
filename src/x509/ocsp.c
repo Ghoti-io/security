@@ -482,10 +482,33 @@ GSEC_Result gsec_ocsp_status(const GSEC_Ocsp * ocsp, uint32_t hash,
         if (out->next_update < out->this_update) {
           return GSEC_ERR_CORRUPT;
         }
+        if (eleft != 0) {
+          result = gsec_der_next(&ep, &eleft, &st);
+          if (result != GSEC_OK) {
+            return result;
+          }
+        } else {
+          st.tag_class = GSEC_DER_UNIVERSAL;
+        }
       }
-      /* Anything after that is singleExtensions, which this parser does not
-       * read. A critical one it does not understand is refused during the
-       * parse, so reaching here means there is none to refuse. */
+      /* singleExtensions, and a critical one this parser does not understand
+       * refuses the answer rather than being ignored. skip_extensions is
+       * applied to responseExtensions at parse time and was never applied
+       * here, so a critical extension on the entry actually being answered was
+       * read past - which is the same shape as accepting a critical
+       * extendedKeyUsage and evaluating none of it.
+       *
+       * Only the entry being answered: a critical extension on some other
+       * certificate's entry says nothing about this one, and refusing the
+       * whole response for it would make an unrelated entry able to deny
+       * service for this one. */
+      if (st.tag_class == GSEC_DER_CONTEXT && st.constructed == 1 &&
+          st.number == 1) {
+        result = skip_extensions(st.value, st.value_len);
+        if (result != GSEC_OK) {
+          return result;
+        }
+      }
     }
     return GSEC_OK;
   }

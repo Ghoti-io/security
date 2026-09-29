@@ -25,7 +25,12 @@
  *
  * Parsing and the signature check live here. Fetching the response does
  * not. The caller supplies the issuer-name hash and the issuer-key hash.
- * A critical extension this parser does not understand is rejected.
+ * A critical extension this parser does not understand is rejected: the
+ * response's own at parse time, and the answered SingleResponse's by
+ * ::gsec_ocsp_status, which is where a per-entry one can matter. A
+ * critical extension on some *other* certificate's entry is not
+ * examined, because it says nothing about this one and refusing the
+ * whole response for it would let an unrelated entry deny service.
  * The pointers address the caller's buffer, except an ECDSA signature,
  * which is copied into the result.
  */
