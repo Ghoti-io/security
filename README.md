@@ -217,9 +217,24 @@ program that links `ghoti.io-security-0` links this too.
 
 ## Status
 
-The algorithms in the tables above are implemented. Known-answer files
-are in [documentation/oracles.md](documentation/oracles.md). The Windows
+The algorithms in the tables above are implemented. Known-answer files are in
+[documentation/oracles.md](documentation/oracles.md). The Windows
 `BCryptGenRandom` path is written and has not been compiled.
+
+`make test` is 180 tests and ten gates. `make test-asan`, `make test-valgrind`
+and `make check-oracle` are clean, and every fuzz harness runs without a trap -
+which means something it did not mean before 2026-09-28, because the fuzz build
+now turns undefined behaviour into a failing run rather than a printed
+diagnostic and a zero exit.
+
+The library was audited on 2026-09-28 by a reader who had not written it, and
+the findings were fixed in the fifteen commits from `6b268eb` to `c4112a7`.
+What that changed, for anyone who had already read this file: `gsec_x509_path`
+refuses MD5 and SHA-1 links, RSA keys under 2048 bits and an expired anchor,
+and takes an extendedKeyUsage purpose; `gsec_pkcs12_open` refuses an archive
+with no MacData; `gsec_ocsp_status` reports the times that make a replayed
+response visible; and `gsec_pkcs8_decrypt` and `gsec_pkcs12_open` take a
+`GSEC_Limits *` so the caller bounds the derivation work a file can ask for.
 
 ## License
 
