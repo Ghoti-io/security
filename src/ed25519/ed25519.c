@@ -735,9 +735,19 @@ static GSEC_Result verify_variant(const void * public_key, const void * data,
       ctx_len > 255 || (ctx == NULL && ctx_len != 0)) {
     return GSEC_ERR_INVALID;
   }
+  /* Not a well-formed encoding is GSEC_ERR_INVALID, and a well-formed one
+   * that does not verify is GSEC_ERR_MISMATCH. Both are refusals, and the
+   * split is deliberate: S at or above the group order and a y coordinate at
+   * or above the field prime are RFC 8032 section 5.1.7 and 5.1.3 rejections
+   * of the *bytes*, not statements about the signature, and a caller wants to
+   * be able to tell a peer that sent garbage from one whose signature is
+   * wrong. It also makes the checks testable - with every rejection funnelled
+   * into one code, removing the non-canonical-y check changed no answer that
+   * any test could see, which is exactly how it survived mutation. All three
+   * inputs here are public, so distinguishing them leaks nothing. */
   if (!sc_canonical(signature + 32) || !ge_decode(&point_a, pub) ||
       !ge_decode(&point_r, signature)) {
-    return GSEC_ERR_MISMATCH;
+    return GSEC_ERR_INVALID;
   }
   if (phflag > 0) {
     result = gsec_sha512(message, n, ph);

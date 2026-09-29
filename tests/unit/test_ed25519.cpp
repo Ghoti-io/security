@@ -241,11 +241,17 @@ TEST(Ed25519, RejectsATamperedSignatureAndANonCanonicalS) {
   };
 
   ASSERT_TRUE(parse_file(load_committed(), &cases, &error)) << error;
+
+  /* A flipped byte of R: either it is no longer a point on the curve, which
+   * is a malformed encoding, or it is a different point and the equation
+   * fails. Both are refusals and which one it is depends on the byte. */
   std::memcpy(sig, cases[0].sig.data(), sizeof sig);
   sig[0] = static_cast<unsigned char>(sig[0] ^ 0x01u);
-  EXPECT_EQ(gsec_ed25519_verify(cases[0].pub.data(), nullptr, 0, sig),
-      GSEC_ERR_MISMATCH);
+  EXPECT_NE(gsec_ed25519_verify(cases[0].pub.data(), nullptr, 0, sig), GSEC_OK);
 
+  /* S + L is the same scalar modulo L, so a verifier that reduces instead of
+   * checking the range would accept it. RFC 8032 section 5.1.7 says the
+   * encoding is out of range: not a mismatch, a malformed signature. */
   std::memcpy(sig, cases[0].sig.data(), sizeof sig);
   for (i = 0; i < 32; i++) {
     unsigned int sum = static_cast<unsigned int>(sig[32 + i]) + order[i] + carry;
@@ -254,11 +260,35 @@ TEST(Ed25519, RejectsATamperedSignatureAndANonCanonicalS) {
   }
   EXPECT_EQ(carry, 0u);
   EXPECT_EQ(gsec_ed25519_verify(cases[0].pub.data(), nullptr, 0, sig),
-      GSEC_ERR_MISMATCH);
+      GSEC_ERR_INVALID);
 
+  /* A y coordinate of every one bit is above the field prime. */
   std::memset(bad_point, 0xff, sizeof bad_point);
   EXPECT_EQ(gsec_ed25519_verify(bad_point, nullptr, 0, cases[0].sig.data()),
-      GSEC_ERR_MISMATCH);
+      GSEC_ERR_INVALID);
+
+  /* The pair that makes the check above mean something, and the one the
+   * audit could not write while every refusal returned the same code.
+   * `prime` encodes y = p, which reduces to y = 0, and `zero` encodes y = 0
+   * canonically. y = 0 is a point on this curve - x^2 = 1 - so `zero`
+   * decodes and fails the equation, while `prime` must be refused for its
+   * encoding before any equation is considered. Without the range check in
+   * ge_decode the two would give the same answer, which is the whole
+   * malleability question: one signature, two public keys. */
+  {
+    unsigned char prime[GSEC_ED25519_LEN];
+    unsigned char zero[GSEC_ED25519_LEN];
+
+    std::memset(prime, 0xff, sizeof prime);
+    prime[0] = 0xed;
+    prime[31] = 0x7f;
+    std::memset(zero, 0, sizeof zero);
+    EXPECT_EQ(gsec_ed25519_verify(prime, nullptr, 0, cases[0].sig.data()),
+        GSEC_ERR_INVALID);
+    EXPECT_EQ(gsec_ed25519_verify(zero, nullptr, 0, cases[0].sig.data()),
+        GSEC_ERR_MISMATCH);
+  }
+
   EXPECT_EQ(gsec_ed25519_verify(cases[0].pub.data(), "no", 2,
       cases[0].sig.data()), GSEC_ERR_MISMATCH);
 }

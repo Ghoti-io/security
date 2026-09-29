@@ -95,6 +95,7 @@ int main(int argc, char ** argv) {
   size_t response_len = 0;
   size_t issuer_len = 0;
   size_t serial_len = 0;
+  GSEC_Ocsp_Single single;
   uint32_t status = 99;
   int64_t when = 0;
   GSEC_Ocsp ocsp;
@@ -123,10 +124,22 @@ int main(int argc, char ** argv) {
   if (gsec_sha1(ca.subject, ca.subject_len, name_hash) != GSEC_OK ||
       gsec_sha1(point, 1u + ca.point_len, key_hash) != GSEC_OK ||
       gsec_ocsp_status(&ocsp, GSEC_HMAC_SHA1, name_hash, sizeof name_hash,
-          key_hash, sizeof key_hash, serial, serial_len, &status, &when)
+          key_hash, sizeof key_hash, serial, serial_len, &single)
           != GSEC_OK) {
     return 1;
   }
+  status = single.status;
+  when = single.revoked_at;
+  /* What a caller does with these is compare them against its own clock: a
+   * response whose age is invisible is one that can be replayed. On stderr
+   * rather than stdout, because make check-oracle reads this program's stdout
+   * and compares it with OpenSSL's answer. */
+  fprintf(stderr, "produced %lld this %lld", (long long)ocsp.produced_at,
+      (long long)single.this_update);
+  if (single.have_next_update) {
+    fprintf(stderr, " next %lld", (long long)single.next_update);
+  }
+  fprintf(stderr, "\n");
   if (status == GSEC_OCSP_GOOD) {
     printf("good\n");
   } else if (status == GSEC_OCSP_REVOKED) {

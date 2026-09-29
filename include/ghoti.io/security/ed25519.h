@@ -78,8 +78,13 @@ GSEC_API GSEC_Result gsec_ed25519_sign(const void * seed, const void * data,
  * @param data Message. NULL with @p n of 0 is the empty message.
  * @param n Message length in bytes.
  * @param sig Exactly ::GSEC_ED25519_SIG_LEN bytes.
- * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH when the signature, the point, or
- *   S is not accepted, or ::GSEC_ERR_INVALID for a null argument.
+ * @return ::GSEC_OK; ::GSEC_ERR_MISMATCH when the signature is well formed
+ *   and does not verify; ::GSEC_ERR_INVALID for a null argument and for
+ *   bytes that are not a well-formed encoding - an S at or above the group
+ *   order (RFC 8032 section 5.1.7) or a y coordinate at or above the field
+ *   prime (section 5.1.3), in either the public key or R. Both are
+ *   refusals; they are told apart so that a caller can distinguish a peer
+ *   sending garbage from a signature that does not match.
  */
 GSEC_API GSEC_Result gsec_ed25519_verify(const void * public_key,
     const void * data, size_t n, const void * sig);
