@@ -69,10 +69,47 @@ extern "C" {
 /** Ed25519 public key. */
 #define GSEC_X509_ED25519 4u
 
+/** extendedKeyUsage: anyExtendedKeyUsage. */
+#define GSEC_X509_EKU_ANY 0x01u
+
+/** extendedKeyUsage: id-kp-serverAuth. */
+#define GSEC_X509_EKU_SERVER_AUTH 0x02u
+
+/** extendedKeyUsage: id-kp-clientAuth. */
+#define GSEC_X509_EKU_CLIENT_AUTH 0x04u
+
+/** extendedKeyUsage: id-kp-codeSigning. */
+#define GSEC_X509_EKU_CODE_SIGNING 0x08u
+
+/** extendedKeyUsage: id-kp-emailProtection. */
+#define GSEC_X509_EKU_EMAIL_PROTECTION 0x10u
+
+/** extendedKeyUsage: id-kp-timeStamping. */
+#define GSEC_X509_EKU_TIME_STAMPING 0x20u
+
+/** extendedKeyUsage: id-kp-OCSPSigning. */
+#define GSEC_X509_EKU_OCSP_SIGNING 0x40u
+
+/**
+ * Smallest RSA modulus ::gsec_x509_path will accept in a chain, in bits.
+ * The primitives in rsa.h have a lower floor, because a self-test and a
+ * fuzz harness sign with a small key on purpose; a certificate is a trust
+ * decision and does not get that latitude.
+ */
+#define GSEC_X509_RSA_MIN_BITS 2048u
+
 /**
  * @brief A parsed certificate. The view is valid while the DER is.
  *
  * @p key_usage bit 0 is digitalSignature. Bit 5 is keyCertSign.
+ *
+ * @p eku holds the ::GSEC_X509_EKU_* bits of the purposes named by
+ * extendedKeyUsage, @p eku_unknown is 1 when it named a purpose this
+ * parser does not have a bit for, and @p eku_critical is 1 when the
+ * extension was marked critical. All three are 0 when @p eku_set is 0.
+ * ::gsec_x509_purpose is what reads them; the extension used to be
+ * syntax-checked and discarded, which meant a critical
+ * extendedKeyUsage was accepted and then ignored.
  */
 typedef struct GSEC_X509 {
   const unsigned char * tbs;
@@ -106,6 +143,10 @@ typedef struct GSEC_X509 {
   int dns_san;
   const unsigned char * name_constraints;
   size_t name_constraints_len;
+  int eku_set;
+  int eku_critical;
+  int eku_unknown;
+  unsigned eku;
 } GSEC_X509;
 
 /**
@@ -124,7 +165,11 @@ GSEC_API GSEC_Result gsec_x509_parse(const void * der, size_t len,
 /**
  * @brief Check that @p issuer's key signed @p cert.
  *
- * Names and times are not considered.
+ * Names and times are not considered, and neither is the strength of the
+ * digest: this will verify an MD5 or SHA-1 signature, which is what makes
+ * it possible to identify an old certificate and then refuse it for its
+ * algorithm. @p cert->sig_hash is the digest that was used.
+ * ::gsec_x509_path is the function that applies a policy.
  *
  * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH, or ::GSEC_ERR_INVALID.
  */
@@ -143,13 +188,49 @@ GSEC_API GSEC_Result gsec_x509_signed_by(const GSEC_X509 * cert,
  * and directoryName are applied. Any other name-constraint type is
  * ::GSEC_ERR_UNSUPPORTED.
  *
+ * What it refuses that RFC 5280's algorithm does not require, each
+ * because a caller of this function is making a trust decision and the
+ * alternative is that it makes it wrongly:
+ *
+ * - **A link signed with MD5 or SHA-1** is ::GSEC_ERR_UNSUPPORTED.
+ *   Chosen-prefix collisions are practical for both. ::gsec_x509_signed_by
+ *   still verifies them, which is how an old certificate is identified
+ *   before being refused.
+ * - **An RSA key below ::GSEC_X509_RSA_MIN_BITS** anywhere in the chain is
+ *   ::GSEC_ERR_UNSUPPORTED.
+ * - **The anchor's own validity period** is checked, though RFC 5280 §6.1
+ *   treats the anchor as trusted input whose dates are not examined. An
+ *   expired root is a thing that happens, and accepting one silently is
+ *   worse than the interoperability it buys.
+ *
  * @param unix_time The instant to test, as seconds since 1970-01-01 UTC.
+ * @param purpose 0, or one ::GSEC_X509_EKU_* bit that the leaf's
+ *   extendedKeyUsage must permit. 0 does not check it, which is the right
+ *   answer only when the caller checks it with ::gsec_x509_purpose
+ *   instead: a certificate issued for e-mail is otherwise a valid TLS
+ *   server certificate as far as this function is concerned.
  * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH, ::GSEC_ERR_CORRUPT,
  *   ::GSEC_ERR_UNSUPPORTED, ::GSEC_ERR_LIMIT, or ::GSEC_ERR_INVALID.
  */
 GSEC_API GSEC_Result gsec_x509_path(const void * leaf, size_t leaf_len,
     const void * const * mids, const size_t * mid_lens, size_t mid_count,
-    const void * anchor, size_t anchor_len, int64_t unix_time);
+    const void * anchor, size_t anchor_len, int64_t unix_time,
+    unsigned purpose);
+
+/**
+ * @brief Report whether @p cert's extendedKeyUsage permits @p purpose.
+ *
+ * A certificate with no extendedKeyUsage permits every purpose, which is
+ * what RFC 5280 says. So does one that names anyExtendedKeyUsage. A
+ * certificate that names purposes none of which is @p purpose is
+ * ::GSEC_ERR_MISMATCH, and that includes the case where the only purposes
+ * it names are ones this parser has no bit for.
+ *
+ * @param purpose One ::GSEC_X509_EKU_* bit.
+ * @return ::GSEC_OK, ::GSEC_ERR_MISMATCH, or ::GSEC_ERR_INVALID.
+ */
+GSEC_API GSEC_Result gsec_x509_purpose(const GSEC_X509 * cert,
+    unsigned purpose);
 
 /**
  * @brief Match a DNS name against the certificate.

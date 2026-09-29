@@ -187,6 +187,7 @@
 #define gsec_x509_issue GHOTIIO_SECURITY(gsec_x509_issue)
 #define gsec_x509_parse GHOTIIO_SECURITY(gsec_x509_parse)
 #define gsec_x509_path GHOTIIO_SECURITY(gsec_x509_path)
+#define gsec_x509_purpose GHOTIIO_SECURITY(gsec_x509_purpose)
 #define gsec_x509_signed_by GHOTIIO_SECURITY(gsec_x509_signed_by)
 #define gsec_x25519_public GHOTIIO_SECURITY(gsec_x25519_public)
 

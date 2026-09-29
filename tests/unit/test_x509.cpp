@@ -36,11 +36,11 @@ TEST(X509, P256LeafSignedByItsCa) {
   EXPECT_LT(parsed.not_before, kInside);
   EXPECT_GT(parsed.not_after, kInside);
   EXPECT_EQ(gsec_x509_path(leaf.data(), leaf.size(), nullptr, nullptr, 0,
-      ca.data(), ca.size(), kInside), GSEC_OK);
+      ca.data(), ca.size(), kInside, 0), GSEC_OK);
   EXPECT_EQ(gsec_x509_path(leaf.data(), leaf.size(), nullptr, nullptr, 0,
-      ca.data(), ca.size(), parsed.not_before - 1), GSEC_ERR_MISMATCH);
+      ca.data(), ca.size(), parsed.not_before - 1, 0), GSEC_ERR_MISMATCH);
   EXPECT_EQ(gsec_x509_path(leaf.data(), leaf.size(), nullptr, nullptr, 0,
-      ca.data(), ca.size(), parsed.not_after + 1), GSEC_ERR_MISMATCH);
+      ca.data(), ca.size(), parsed.not_after + 1, 0), GSEC_ERR_MISMATCH);
   EXPECT_EQ(gsec_x509_hostname(&parsed, "www.example.com", 15), GSEC_OK);
   EXPECT_EQ(gsec_x509_hostname(&parsed, "WWW.EXAMPLE.COM", 15), GSEC_OK);
   EXPECT_EQ(gsec_x509_hostname(&parsed, "other.example.com", 17),
@@ -52,7 +52,7 @@ TEST(X509, FlippedSignatureFails) {
   auto leaf = load("p256-leaf.der");
   leaf.back() ^= 0x01;
   EXPECT_EQ(gsec_x509_path(leaf.data(), leaf.size(), nullptr, nullptr, 0,
-      ca.data(), ca.size(), kInside), GSEC_ERR_MISMATCH);
+      ca.data(), ca.size(), kInside, 0), GSEC_ERR_MISMATCH);
 }
 
 TEST(X509, IntermediateMustBeACa) {
@@ -64,17 +64,17 @@ TEST(X509, IntermediateMustBeACa) {
   const void * mids[] = {mid.data()};
   size_t lens[] = {mid.size()};
   EXPECT_EQ(gsec_x509_path(leaf.data(), leaf.size(), mids, lens, 1,
-      ca.data(), ca.size(), kInside), GSEC_OK);
+      ca.data(), ca.size(), kInside, 0), GSEC_OK);
   mids[0] = noca.data();
   lens[0] = noca.size();
   EXPECT_EQ(gsec_x509_path(nleaf.data(), nleaf.size(), mids, lens, 1,
-      ca.data(), ca.size(), kInside), GSEC_ERR_MISMATCH);
+      ca.data(), ca.size(), kInside, 0), GSEC_ERR_MISMATCH);
 }
 
 TEST(X509, ExplicitCaFalseAnchorIsRejected) {
   auto bad = load("ca-false.der");
   EXPECT_EQ(gsec_x509_path(bad.data(), bad.size(), nullptr, nullptr, 0,
-      bad.data(), bad.size(), kInside), GSEC_ERR_MISMATCH);
+      bad.data(), bad.size(), kInside, 0), GSEC_ERR_MISMATCH);
 }
 
 TEST(X509, NameConstraintAndWildcard) {
@@ -85,16 +85,16 @@ TEST(X509, NameConstraintAndWildcard) {
   auto wild = load("wild.der");
   GSEC_X509 parsed;
   EXPECT_EQ(gsec_x509_path(ok.data(), ok.size(), nullptr, nullptr, 0,
-      ca.data(), ca.size(), kInside), GSEC_OK);
+      ca.data(), ca.size(), kInside, 0), GSEC_OK);
   EXPECT_EQ(gsec_x509_path(bad.data(), bad.size(), nullptr, nullptr, 0,
-      ca.data(), ca.size(), kInside), GSEC_ERR_MISMATCH);
+      ca.data(), ca.size(), kInside, 0), GSEC_ERR_MISMATCH);
   ASSERT_EQ(gsec_x509_parse(wild.data(), wild.size(), &parsed), GSEC_OK);
   EXPECT_EQ(gsec_x509_hostname(&parsed, "www.example.com", 15), GSEC_OK);
   EXPECT_EQ(gsec_x509_hostname(&parsed, "example.com", 11), GSEC_ERR_MISMATCH);
   EXPECT_EQ(gsec_x509_hostname(&parsed, "a.b.example.com", 15),
       GSEC_ERR_MISMATCH);
   EXPECT_EQ(gsec_x509_path(wild.data(), wild.size(), nullptr, nullptr, 0,
-      wild_ca.data(), wild_ca.size(), kInside), GSEC_OK);
+      wild_ca.data(), wild_ca.size(), kInside, 0), GSEC_OK);
 }
 
 TEST(X509, RsaEd25519AndP384) {
@@ -119,7 +119,7 @@ TEST(X509, RsaEd25519AndP384) {
       EXPECT_EQ(parsed.point_len, row.point) << row.leaf;
     }
     EXPECT_EQ(gsec_x509_path(leaf.data(), leaf.size(), nullptr, nullptr, 0,
-        ca.data(), ca.size(), kInside), GSEC_OK) << row.leaf;
+        ca.data(), ca.size(), kInside, 0), GSEC_OK) << row.leaf;
   }
 }
 

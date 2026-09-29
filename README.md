@@ -80,7 +80,7 @@ parsed result address the caller's buffer.
 | PEM | The first block. |
 | PKCS#8 | An unencrypted key, or PBES2. PBES1 is opened so an old key can be read. A new encrypted key is PBES2 with AES. |
 | PKCS#12 | A PFX. A new encrypted bag is PBES2 with AES. The older schemes are opened so an old archive can be read. |
-| X.509 | One certificate, a signature check, a path, and a name match. The caller supplies the chain and the time. The path does not check revocation. |
+| X.509 | One certificate, a signature check, a path, and a name match. The caller supplies the chain and the time. The path refuses MD5 and SHA-1, an RSA key below 2048 bits, and an expired anchor, and checks the leaf's extendedKeyUsage against a purpose the caller names. It does not check revocation. |
 | Issuance | A certificate signed with P-256, P-384, Ed25519, or RSA. |
 | CRL | Parse, check the signature, and look up a serial. Fetching the list stays with the caller. |
 | OCSP | A basic response. Fetching it stays with the caller. |
@@ -90,6 +90,7 @@ parsed result address the caller's buffer.
 - A comparison of secret bytes goes through `gsec_equal`. It returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean, and `GSEC_OK` is the only success. `memcmp` anywhere under `src/` fails `make test`.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
 - Verification returns `GSEC_ERR_MISMATCH` when the tag, MAC, or signature does not match.
+- `gsec_x509_path` is where a trust policy lives: MD5 and SHA-1 links, RSA keys below `GSEC_X509_RSA_MIN_BITS`, and an anchor outside its own validity period are `GSEC_ERR_UNSUPPORTED` or `GSEC_ERR_MISMATCH` there, while `gsec_x509_signed_by` still verifies a weak signature so an old certificate can be identified before it is refused. Pass a `GSEC_X509_EKU_*` purpose, or check it yourself with `gsec_x509_purpose`: without one, a certificate issued for e-mail is a valid TLS certificate as far as the path is concerned.
 - `gsec_result_string` returns one of a fixed set of static strings. There is no function that prints a key.
 - `NULL` for an allocator is cutil's default. `NULL` for limits is `gsec_limits_default`, which caps one `gsec_random_bytes` call at 1 MiB.
 - A zero length is success and does not read the pointers. A null pointer with a positive length is `GSEC_ERR_INVALID`.

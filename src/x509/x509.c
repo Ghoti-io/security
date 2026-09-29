@@ -80,6 +80,26 @@ static const unsigned char OID_SKI[] = {0x55, 0x1d, 0x0e};
 static const unsigned char OID_AKI[] = {0x55, 0x1d, 0x23};
 static const unsigned char OID_EKU[] = {0x55, 0x1d, 0x25};
 static const unsigned char OID_CP[] = {0x55, 0x1d, 0x20};
+/* id-kp-* under 1.3.6.1.5.5.7.3, and anyExtendedKeyUsage at 2.5.29.37.0. */
+static const unsigned char OID_KP_SERVER[] = {
+  0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x01
+};
+static const unsigned char OID_KP_CLIENT[] = {
+  0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x02
+};
+static const unsigned char OID_KP_CODE[] = {
+  0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x03
+};
+static const unsigned char OID_KP_EMAIL[] = {
+  0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x04
+};
+static const unsigned char OID_KP_TIME[] = {
+  0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x08
+};
+static const unsigned char OID_KP_OCSP[] = {
+  0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x09
+};
+static const unsigned char OID_KP_ANY[] = {0x55, 0x1d, 0x25, 0x00};
 
 enum {
   SEEN_BC = 1u,
@@ -320,6 +340,54 @@ static GSEC_Result ecdsa_raw(const unsigned char * bits, size_t bits_len,
   }
   if (left != 0) {
     return GSEC_ERR_CORRUPT;
+  }
+  return GSEC_OK;
+}
+
+/* The purposes, not just the syntax. An OID with no bit of its own sets
+ * eku_unknown, so gsec_x509_purpose can refuse a certificate whose only
+ * stated purposes are ones this parser cannot evaluate. */
+static GSEC_Result parse_eku(const unsigned char * p, size_t n, int critical,
+    GSEC_X509 * out) {
+  GSEC_Der seq;
+  GSEC_Result result;
+  const unsigned char * cursor;
+  size_t left;
+
+  result = whole(p, n, &seq);
+  if (result != GSEC_OK || !gsec_der_is(&seq, GSEC_DER_UNIVERSAL, 1, 16)) {
+    return GSEC_ERR_CORRUPT;
+  }
+  cursor = seq.value;
+  left = seq.value_len;
+  if (left == 0) {
+    return GSEC_ERR_CORRUPT;
+  }
+  out->eku_set = 1;
+  out->eku_critical = critical;
+  while (left != 0) {
+    GSEC_Der oid;
+    result = gsec_der_next(&cursor, &left, &oid);
+    if (result != GSEC_OK || gsec_der_oid_ok(&oid) != GSEC_OK) {
+      return GSEC_ERR_CORRUPT;
+    }
+    if (gsec_der_oid_is(&oid, OID_KP_ANY, sizeof OID_KP_ANY)) {
+      out->eku |= GSEC_X509_EKU_ANY;
+    } else if (gsec_der_oid_is(&oid, OID_KP_SERVER, sizeof OID_KP_SERVER)) {
+      out->eku |= GSEC_X509_EKU_SERVER_AUTH;
+    } else if (gsec_der_oid_is(&oid, OID_KP_CLIENT, sizeof OID_KP_CLIENT)) {
+      out->eku |= GSEC_X509_EKU_CLIENT_AUTH;
+    } else if (gsec_der_oid_is(&oid, OID_KP_CODE, sizeof OID_KP_CODE)) {
+      out->eku |= GSEC_X509_EKU_CODE_SIGNING;
+    } else if (gsec_der_oid_is(&oid, OID_KP_EMAIL, sizeof OID_KP_EMAIL)) {
+      out->eku |= GSEC_X509_EKU_EMAIL_PROTECTION;
+    } else if (gsec_der_oid_is(&oid, OID_KP_TIME, sizeof OID_KP_TIME)) {
+      out->eku |= GSEC_X509_EKU_TIME_STAMPING;
+    } else if (gsec_der_oid_is(&oid, OID_KP_OCSP, sizeof OID_KP_OCSP)) {
+      out->eku |= GSEC_X509_EKU_OCSP_SIGNING;
+    } else {
+      out->eku_unknown = 1;
+    }
   }
   return GSEC_OK;
 }
@@ -802,7 +870,9 @@ static GSEC_Result apply_one_nc(const GSEC_X509 * cert, const unsigned char * nc
   return GSEC_OK;
 }
 
-static GSEC_Result light_seq(const unsigned char * p, size_t n, int oids) {
+/* certificatePolicies: read for shape, not enforced. The one caller left
+ * after extendedKeyUsage got a parser of its own. */
+static GSEC_Result policy_seq(const unsigned char * p, size_t n) {
   GSEC_Der seq;
   GSEC_Result result;
   const unsigned char * cursor;
@@ -819,28 +889,25 @@ static GSEC_Result light_seq(const unsigned char * p, size_t n, int oids) {
   }
   while (left != 0) {
     GSEC_Der field;
+    const unsigned char * ip;
+    size_t ileft;
+    GSEC_Der oid;
     result = gsec_der_next(&cursor, &left, &field);
     if (result != GSEC_OK) {
       return result;
     }
-    if (oids) {
-      if (gsec_der_oid_ok(&field) != GSEC_OK) {
-        return GSEC_ERR_CORRUPT;
-      }
-    } else if (!gsec_der_is(&field, GSEC_DER_UNIVERSAL, 1, 16)) {
+    if (!gsec_der_is(&field, GSEC_DER_UNIVERSAL, 1, 16)) {
       return GSEC_ERR_CORRUPT;
-    } else {
-      const unsigned char * ip = field.value;
-      size_t ileft = field.value_len;
-      GSEC_Der oid;
-      result = gsec_der_next(&ip, &ileft, &oid);
-      if (result != GSEC_OK || gsec_der_oid_ok(&oid) != GSEC_OK) {
-        return GSEC_ERR_CORRUPT;
-      }
-      result = walk_ok(ip, ileft);
-      if (result != GSEC_OK) {
-        return result;
-      }
+    }
+    ip = field.value;
+    ileft = field.value_len;
+    result = gsec_der_next(&ip, &ileft, &oid);
+    if (result != GSEC_OK || gsec_der_oid_ok(&oid) != GSEC_OK) {
+      return GSEC_ERR_CORRUPT;
+    }
+    result = walk_ok(ip, ileft);
+    if (result != GSEC_OK) {
+      return result;
     }
   }
   return GSEC_OK;
@@ -960,10 +1027,10 @@ static GSEC_Result parse_extensions(const unsigned char * p, size_t n,
       result = walk_ok(value.value, value.value_len);
     } else if (gsec_der_oid_is(&oid, OID_EKU, sizeof OID_EKU)) {
       flag = SEEN_EKU;
-      result = light_seq(value.value, value.value_len, 1);
+      result = parse_eku(value.value, value.value_len, critical, out);
     } else if (gsec_der_oid_is(&oid, OID_CP, sizeof OID_CP)) {
       flag = SEEN_CP;
-      result = light_seq(value.value, value.value_len, 0);
+      result = policy_seq(value.value, value.value_len);
     } else if (critical) {
       return GSEC_ERR_UNSUPPORTED;
     } else {
@@ -1207,6 +1274,10 @@ GSEC_Result gsec_x509_parse(const void * der, size_t len, GSEC_X509 * out) {
   }
   inner_key = out->sig_key;
   inner_hash = out->sig_hash;
+  /* Only the algorithm fields, and only so that parse_sig_alg's answer for
+   * the outer AlgorithmIdentifier can be compared with the inner one. The
+   * rest of the certificate has already been parsed; clear_cert is where
+   * fields start at zero. */
   out->sig_key = 0;
   out->sig_hash = 0;
   result = parse_sig_alg(&alg, out);
@@ -1272,6 +1343,29 @@ static int self_issued(const GSEC_X509 * cert) {
       cert->issuer_len);
 }
 
+/* MD5 and SHA-1 are refused for a link in a chain. Both have practical
+ * chosen-prefix collisions - Flame in 2012, SHA-1 in 2020 - so a signature
+ * over a digest either of them produced is not evidence of anything.
+ * gsec_x509_signed_by still verifies them on purpose: identifying an old
+ * certificate is how a caller comes to refuse it. */
+static GSEC_Result strong_enough(const GSEC_X509 * cert) {
+  if (cert->sig_hash == GSEC_RSA_MD5 || cert->sig_hash == GSEC_RSA_SHA1) {
+    return GSEC_ERR_UNSUPPORTED;
+  }
+  return GSEC_OK;
+}
+
+/* A 1024-bit RSA key in a certificate is not a key. The primitives allow
+ * smaller, because a self-test signs with a 512-bit key deliberately; a
+ * trust decision does not get that latitude. */
+static GSEC_Result key_big_enough(const GSEC_X509 * cert) {
+  if (cert->key == GSEC_X509_RSA &&
+      cert->n_len * 8u < GSEC_X509_RSA_MIN_BITS) {
+    return GSEC_ERR_UNSUPPORTED;
+  }
+  return GSEC_OK;
+}
+
 static GSEC_Result check_link(const GSEC_X509 * cert, const GSEC_X509 * parent,
     int64_t unix_time, const GSEC_X509 * const * prior, size_t prior_n,
     int require_ca) {
@@ -1280,6 +1374,14 @@ static GSEC_Result check_link(const GSEC_X509 * cert, const GSEC_X509 * parent,
 
   if (!names_eq(parent, cert)) {
     return GSEC_ERR_MISMATCH;
+  }
+  result = strong_enough(cert);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  result = key_big_enough(cert);
+  if (result != GSEC_OK) {
+    return result;
   }
   result = gsec_x509_signed_by(cert, parent);
   if (result != GSEC_OK) {
@@ -1311,7 +1413,8 @@ static GSEC_Result check_link(const GSEC_X509 * cert, const GSEC_X509 * parent,
 
 GSEC_Result gsec_x509_path(const void * leaf, size_t leaf_len,
     const void * const * mids, const size_t * mid_lens, size_t mid_count,
-    const void * anchor, size_t anchor_len, int64_t unix_time) {
+    const void * anchor, size_t anchor_len, int64_t unix_time,
+    unsigned purpose) {
   GSEC_X509 trust;
   GSEC_X509 chain[GSEC_X509_CHAIN_MAX];
   GSEC_X509 end;
@@ -1336,6 +1439,16 @@ GSEC_Result gsec_x509_path(const void * leaf, size_t leaf_len,
     return GSEC_ERR_MISMATCH;
   }
   if (trust.key_usage_set && (trust.key_usage & 0x04u) == 0) {
+    return GSEC_ERR_MISMATCH;
+  }
+  result = key_big_enough(&trust);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  /* RFC 5280 section 6.1 does not examine the anchor's dates: it is trusted
+   * input. Checked anyway. An expired root is a thing that happens, and a
+   * caller that is told the chain is good has no way to notice. */
+  if (!in_force(&trust, unix_time)) {
     return GSEC_ERR_MISMATCH;
   }
   prior[0] = &trust;
@@ -1366,7 +1479,30 @@ GSEC_Result gsec_x509_path(const void * leaf, size_t leaf_len,
   if (result != GSEC_OK) {
     return result;
   }
-  return check_link(&end, prior[prior_n - 1u], unix_time, prior, prior_n, 0);
+  result = check_link(&end, prior[prior_n - 1u], unix_time, prior, prior_n, 0);
+  if (result != GSEC_OK) {
+    return result;
+  }
+  if (purpose != 0) {
+    return gsec_x509_purpose(&end, purpose);
+  }
+  return GSEC_OK;
+}
+
+GSEC_Result gsec_x509_purpose(const GSEC_X509 * cert, unsigned purpose) {
+  if (cert == NULL || purpose == 0) {
+    return GSEC_ERR_INVALID;
+  }
+  if (!cert->eku_set) {
+    return GSEC_OK;
+  }
+  if ((cert->eku & GSEC_X509_EKU_ANY) != 0) {
+    return GSEC_OK;
+  }
+  if ((cert->eku & purpose) != 0) {
+    return GSEC_OK;
+  }
+  return GSEC_ERR_MISMATCH;
 }
 
 static GSEC_Result match_cn(const GSEC_X509 * cert, const unsigned char * host,
