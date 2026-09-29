@@ -86,8 +86,10 @@ else ifeq ($(UNAME_S), Darwin)
 	override BUILD := mac/$(BUILD)
 
 # TODO(windows): the Windows branches in this file were adapted from font's
-# and have never been run, nor has GSEC_API's dllexport/dllimport switching,
-# nor BCryptGenRandom. See notes/suite/WINDOWS-TODO.md.
+# and have never been run, nor has GSEC_API's dllexport/dllimport switching -
+# the win64 cross build in the workspace's tools/xwin/ links archives, so it
+# exercises the GSEC_STATIC arm and not those two. BCryptGenRandom itself has
+# run; see src/random/random.c. Check list: notes/suite/WINDOWS-TODO.md.
 else ifeq ($(findstring MINGW32_NT,$(UNAME_S)),MINGW32_NT)
 	OS_NAME := Windows
 	LIB_EXTENSION := dll
@@ -182,7 +184,9 @@ endif
 LIB_CFLAGS := $(CFLAGS) -fvisibility=hidden -DGSEC_BUILD $(EXTRA_CFLAGS)
 LDFLAGS := -L /usr/lib -lstdc++ -lm $(EXTRA_LDFLAGS)
 ifeq ($(OS_NAME), Windows)
-# TODO(windows): bcrypt, for BCryptGenRandom. Unverified.
+# TODO(windows): bcrypt, for BCryptGenRandom. The flag is right - the win64
+# probe in the workspace's tools/xwin/ links it and the import binds - but
+# this Makefile's own Windows link has never run.
 LDFLAGS += -lbcrypt
 endif
 ifeq ($(OS_NAME), Linux)

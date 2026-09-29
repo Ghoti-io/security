@@ -158,8 +158,14 @@ call that takes a `GSEC_Limits`. `check-secret` rejects a use of the
 Twister under `src/`.
 
 The Windows branch calls `BCryptGenRandom` with
-`BCRYPT_USE_SYSTEM_PREFERRED_RNG` and links `bcrypt`. It has not been
-compiled or run. The marker is `TODO(windows)` in `src/random/random.c` and
+`BCRYPT_USE_SYSTEM_PREFERRED_RNG` and links `bcrypt`. It is cross-compiled for
+win64 and run under wine by `tools/xwin/run-security.sh` in the workspace,
+which also runs a control whose `BCryptGenRandom` call must fail. That covers
+the call, its `NTSTATUS`, the `ULONG` guard, the refusals that precede it, and
+`gsec_selftest`. It is not a statement about a real Windows machine: under
+wine, `bcrypt.dll` is wine's own. What remains unrun is this Makefile's
+Windows branches and `GSEC_API`'s dllexport/dllimport switching, since the
+cross build links archives and so takes the `GSEC_STATIC` arm; both markers are
 in the Makefile, and the check list is `notes/suite/WINDOWS-TODO.md`.
 
 ## 4. The corpus and the oracle
