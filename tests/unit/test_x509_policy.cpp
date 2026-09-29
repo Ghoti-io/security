@@ -20,6 +20,8 @@
 #include "test_helpers.h"
 
 #include <cstdint>
+#include <cstring>
+#include <string>
 #include <fstream>
 #include <vector>
 
@@ -256,6 +258,99 @@ TEST(X509Policy, SignatureAlgorithmMustMatchIssuerKey) {
   /* An RSA signature offered to an EC key is refused before any verification
    * is attempted, rather than dispatched on the issuer's key type. */
   EXPECT_EQ(gsec_x509_signed_by(&pl, &pc), GSEC_ERR_MISMATCH);
+}
+
+/* --- The hostname matcher's refusals -------------------------------------- */
+
+TEST(X509Policy, WildcardPatternsThatMustNotMatch) {
+  /* The audit found these untested: replacing every `return 0` in host_match
+   * with `return 1` left the suite passing, because the three negative cases
+   * that existed all fail on the final byte comparison instead. A CA would
+   * not issue these names; that is not a reason for the matcher to accept
+   * them. Each host below is one that would match if the rule being tested
+   * were removed. */
+  struct Case {
+    const char * fixture;
+    const char * host;
+  };
+  const Case refused[] = {
+    /* A `*` that is not the whole leading label is not a wildcard. */
+    {"san-wild-mid.der", "www.example.com"},
+    {"san-wild-mid.der", "w*w.example.com"},
+    /* Two wildcards: the second is not special, and the first covers one
+     * label only. */
+    {"san-wild-two.der", "a.b.example.com"},
+    {"san-wild-inner.der", "www.any.example.com"},
+    /* A bare `*` is not a pattern that matches everything. */
+    {"san-bare-wild.der", "example"},
+  };
+  for (const Case & c : refused) {
+    auto der = load(c.fixture);
+    GSEC_X509 parsed;
+    ASSERT_EQ(gsec_x509_parse(der.data(), der.size(), &parsed), GSEC_OK)
+        << c.fixture;
+    EXPECT_EQ(gsec_x509_hostname(&parsed, c.host, std::strlen(c.host)),
+        GSEC_ERR_MISMATCH) << c.fixture << " matched " << c.host;
+  }
+
+  /* `host_ok` is applied to the pattern as well, and that arm cannot be
+   * reached with a distinguishing input: the same malformed name offered as
+   * the host is refused first, below, so a pattern-side rejection never
+   * decides an answer on its own. Noted rather than tested, because a test
+   * that cannot fail is worse than none. */
+}
+
+TEST(X509Policy, WildcardTldStillMatchesOneLabel) {
+  /* Recorded rather than endorsed: `*.com` matches `example.com` here,
+   * because this matcher applies no minimum label count. No CA issues such a
+   * name. If that policy changes, this is the test to change with it. */
+  auto der = load("san-wild-tld.der");
+  GSEC_X509 parsed;
+  ASSERT_EQ(gsec_x509_parse(der.data(), der.size(), &parsed), GSEC_OK);
+  EXPECT_EQ(gsec_x509_hostname(&parsed, "example.com", 11), GSEC_OK);
+  EXPECT_EQ(gsec_x509_hostname(&parsed, "a.example.com", 13),
+      GSEC_ERR_MISMATCH);
+  EXPECT_EQ(gsec_x509_hostname(&parsed, "com", 3), GSEC_ERR_MISMATCH);
+}
+
+TEST(X509Policy, HostNamesThatAreNotNames) {
+  /* A malformed name from the caller is GSEC_ERR_INVALID, not a mismatch:
+   * the question was not asked properly. A trailing dot is the exception -
+   * it is the absolute form of the same name and is stripped. */
+  auto der = load("p256-leaf.der");
+  GSEC_X509 parsed;
+  ASSERT_EQ(gsec_x509_parse(der.data(), der.size(), &parsed), GSEC_OK);
+  EXPECT_EQ(gsec_x509_hostname(&parsed, "www.example.com", 15), GSEC_OK);
+  EXPECT_EQ(gsec_x509_hostname(&parsed, "www.example.com.", 16), GSEC_OK);
+  EXPECT_EQ(gsec_x509_hostname(&parsed, "WWW.Example.COM.", 16), GSEC_OK);
+
+  EXPECT_EQ(gsec_x509_hostname(&parsed, "", 0), GSEC_ERR_INVALID);
+  EXPECT_EQ(gsec_x509_hostname(&parsed, ".", 1), GSEC_ERR_INVALID);
+  EXPECT_EQ(gsec_x509_hostname(&parsed, "www..example.com", 16),
+      GSEC_ERR_INVALID);
+  EXPECT_EQ(gsec_x509_hostname(&parsed, "www.example.com\x01", 16),
+      GSEC_ERR_INVALID);
+  EXPECT_EQ(gsec_x509_hostname(&parsed, "www.exam\xc3\xa9ple.com", 19),
+      GSEC_ERR_INVALID);
+  {
+    /* Longer than 253 bytes, and a single label longer than 63. */
+    std::string long_name(254, 'a');
+    EXPECT_EQ(gsec_x509_hostname(&parsed, long_name.c_str(),
+        long_name.size()), GSEC_ERR_INVALID);
+    std::string long_label(64, 'a');
+    long_label += ".example.com";
+    EXPECT_EQ(gsec_x509_hostname(&parsed, long_label.c_str(),
+        long_label.size()), GSEC_ERR_INVALID);
+  }
+  {
+    /* An embedded NUL, which is the classic way a name in a certificate is
+     * made to read as one thing to this library and another to a C caller. */
+    const char embedded[] = "www.example.com\0.evil.example";
+    EXPECT_EQ(gsec_x509_hostname(&parsed, embedded, sizeof embedded - 1u),
+        GSEC_ERR_INVALID);
+  }
+  EXPECT_EQ(gsec_x509_hostname(&parsed, nullptr, 1), GSEC_ERR_INVALID);
+  EXPECT_EQ(gsec_x509_hostname(nullptr, "a", 1), GSEC_ERR_INVALID);
 }
 
 int main(int argc, char ** argv) {

@@ -368,6 +368,51 @@ TEST(RsaSign, RejectsABadPrivateKey) {
       nullptr, 0), GSEC_ERR_INVALID);
 }
 
+TEST(RsaSign, AWrongPrivateExponentIsCaughtRatherThanSigned) {
+  /* rsa_blinded verifies its own output with the public exponent before
+   * returning, and gives up after eight attempts. That check is the defence
+   * against a fault during the exponentiation and against a blinding factor
+   * that does not invert, and nothing exercised it: forcing bn_same to return
+   * true left `make test` passing, and the GSEC_ERR_INTERNAL arm had never
+   * once executed.
+   *
+   * A private exponent that is in range but is not the key's is the reachable
+   * way in. s^e cannot equal m, every attempt fails the check, and the caller
+   * gets GSEC_ERR_INTERNAL rather than a signature that does not verify. */
+  std::vector<Case> cases;
+  std::string error;
+  ASSERT_TRUE(parse_file(load_file(), &cases, &error)) << error;
+  ASSERT_FALSE(cases.empty());
+  const Case & c = cases[0];
+  std::vector<unsigned char> wrong = c.d;
+  std::vector<unsigned char> sig(c.n.size());
+  ASSERT_GT(wrong.size(), 0u);
+  wrong[wrong.size() - 1u] = static_cast<unsigned char>(
+      wrong[wrong.size() - 1u] ^ 0x02u);
+
+  EXPECT_EQ(gsec_rsa_private_pkcs1_v15_sign(GSEC_RSA_SHA256, c.n.data(),
+      c.n.size(), c.e.data(), c.e.size(), wrong.data(), wrong.size(), "abc", 3,
+      sig.data(), sig.size()), GSEC_ERR_INTERNAL);
+  /* And the buffer is wiped, so a caller that ignores the status does not
+   * transmit whatever the arithmetic produced. */
+  for (size_t i = 0; i < sig.size(); i++) {
+    EXPECT_EQ(sig[i], 0u) << "signature byte " << i << " survived the failure";
+  }
+
+  EXPECT_EQ(gsec_rsa_private_pss_sign(GSEC_RSA_SHA256, GSEC_RSA_SHA256,
+      c.n.data(), c.n.size(), c.e.data(), c.e.size(), wrong.data(),
+      wrong.size(), "abc", 3, sig.data(), sig.size(), nullptr, 0),
+      GSEC_ERR_INTERNAL);
+
+  /* The control: the same call with the real exponent succeeds and verifies.
+   * Without it, GSEC_ERR_INTERNAL might be coming from anywhere. */
+  EXPECT_EQ(gsec_rsa_private_pkcs1_v15_sign(GSEC_RSA_SHA256, c.n.data(),
+      c.n.size(), c.e.data(), c.e.size(), c.d.data(), c.d.size(), "abc", 3,
+      sig.data(), sig.size()), GSEC_OK);
+  EXPECT_EQ(gsec_rsa_pkcs1_v15_verify(GSEC_RSA_SHA256, c.n.data(), c.n.size(),
+      c.e.data(), c.e.size(), "abc", 3, sig.data(), sig.size()), GSEC_OK);
+}
+
 int main(int argc, char ** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

@@ -126,6 +126,21 @@ der "$TMP/nokcs-ca.pem" "$OUT/nokcs-ca.der"
 der "$TMP/nokcs-mid.pem" "$OUT/nokcs-mid.der"
 der "$TMP/nokcs-leaf.pem" "$OUT/nokcs-leaf.der"
 
+# 6b. Hostname patterns a matcher has to refuse. OpenSSL will put whatever
+#     dNSName it is given into the SAN, which is what makes these possible: a
+#     CA would not issue them, and the matcher must not rely on that.
+san_cert() {
+  openssl req -x509 -newkey rsa:2048 -keyout "$TMP/$1.key" -out "$TMP/$1.pem" \
+      -days 3650 -nodes -sha256 -subj "/CN=$2" \
+      -addext "subjectAltName=DNS:$2" >/dev/null 2>&1
+  der "$TMP/$1.pem" "$OUT/$1.der"
+}
+san_cert san-wild-mid 'w*w.example.com'
+san_cert san-wild-two '*.*.example.com'
+san_cert san-wild-inner 'www.*.example.com'
+san_cert san-bare-wild '*'
+san_cert san-wild-tld '*.com'
+
 # 7. A PFX with no MacData. Its contents are unauthenticated, which
 #    gsec_pkcs12_open refuses.
 openssl pkcs12 -export -inkey "$TMP/plen-leaf.key" -in "$TMP/plen-leaf.pem" \
