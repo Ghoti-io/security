@@ -77,7 +77,7 @@ typedef struct GSEC_Hmac {
     GSEC_Sha256 sha256;   ///< Inner hash when the algorithm is SHA-256.
     GSEC_Sha384 sha384;   ///< Inner hash when the algorithm is SHA-384.
     GSEC_Sha512 sha512;   ///< Inner hash when the algorithm is SHA-512.
-  } inner;
+  } inner; ///< Inner hash state; the member in use is chosen by @p hash.
   unsigned char opad[GSEC_SHA512_BLOCK_LEN]; ///< Key xor 0x5c, block-sized.
   size_t block_len;       ///< Block length of the chosen hash. Public.
   size_t digest_len;      ///< Digest length of the chosen hash. Public.

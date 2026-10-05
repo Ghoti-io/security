@@ -47,20 +47,20 @@ extern "C" {
  * @brief A parsed CRL. The view is valid while the DER is.
  */
 typedef struct GSEC_Crl {
-  const unsigned char * tbs;
-  size_t tbs_len;
-  const unsigned char * issuer;
-  size_t issuer_len;
-  int64_t this_update;
-  int next_set;
-  int64_t next_update;
-  uint32_t sig_key;
-  uint32_t sig_hash;
-  const unsigned char * sig;
-  size_t sig_len;
-  unsigned char ecdsa_raw[96];
-  const unsigned char * revoked;
-  size_t revoked_len;
+  const unsigned char * tbs;      ///< The signed TBSCertList, header included.
+  size_t tbs_len;                 ///< Length of @p tbs.
+  const unsigned char * issuer;   ///< The issuer Name, whole SEQUENCE.
+  size_t issuer_len;              ///< Length of @p issuer.
+  int64_t this_update;            ///< thisUpdate, as seconds since 1970-01-01 UTC.
+  int next_set;                   ///< 1 when the list carries nextUpdate.
+  int64_t next_update;            ///< nextUpdate, in the same units; meaningful when @p next_set is 1.
+  uint32_t sig_key;               ///< Signature key kind, a ::GSEC_X509_RSA or other key constant.
+  uint32_t sig_hash;              ///< Signature digest, a ::GSEC_RSA_SHA256 or other id.
+  const unsigned char * sig;      ///< The signature bits (for ECDSA, see @p ecdsa_raw).
+  size_t sig_len;                 ///< Length of @p sig.
+  unsigned char ecdsa_raw[96];    ///< An ECDSA signature as r then s, each zero-padded to the curve's width.
+  const unsigned char * revoked;  ///< The revokedCertificates entries, or NULL when there are none.
+  size_t revoked_len;             ///< Length of @p revoked.
 } GSEC_Crl;
 
 /**

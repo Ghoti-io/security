@@ -103,7 +103,7 @@ extern "C" {
  *
  * @p key_usage bit 0 is digitalSignature. Bit 5 is keyCertSign.
  *
- * @p eku holds the ::GSEC_X509_EKU_* bits of the purposes named by
+ * @p eku holds the `GSEC_X509_EKU_*` bits of the purposes named by
  * extendedKeyUsage, @p eku_unknown is 1 when it named a purpose this
  * parser does not have a bit for, and @p eku_critical is 1 when the
  * extension was marked critical. All three are 0 when @p eku_set is 0.
@@ -112,41 +112,41 @@ extern "C" {
  * extendedKeyUsage was accepted and then ignored.
  */
 typedef struct GSEC_X509 {
-  const unsigned char * tbs;
-  size_t tbs_len;
-  const unsigned char * issuer;
-  size_t issuer_len;
-  const unsigned char * subject;
-  size_t subject_len;
-  int64_t not_before;
-  int64_t not_after;
-  uint32_t key;
-  const unsigned char * n;
-  size_t n_len;
-  const unsigned char * e;
-  size_t e_len;
-  const unsigned char * point;
-  size_t point_len;
-  uint32_t sig_key;
-  uint32_t sig_hash;
-  const unsigned char * sig;
-  size_t sig_len;
-  unsigned char ecdsa_raw[96];
-  int ca;
-  int basic_constraints;
-  int path_len_set;
-  uint32_t path_len;
-  int key_usage_set;
-  unsigned key_usage;
-  const unsigned char * san;
-  size_t san_len;
-  int dns_san;
-  const unsigned char * name_constraints;
-  size_t name_constraints_len;
-  int eku_set;
-  int eku_critical;
-  int eku_unknown;
-  unsigned eku;
+  const unsigned char * tbs;      ///< The signed TBSCertificate, header included.
+  size_t tbs_len;                 ///< Length of @p tbs.
+  const unsigned char * issuer;   ///< The issuer Name, whole SEQUENCE.
+  size_t issuer_len;              ///< Length of @p issuer.
+  const unsigned char * subject;  ///< The subject Name, whole SEQUENCE.
+  size_t subject_len;             ///< Length of @p subject.
+  int64_t not_before;             ///< notBefore, as seconds since 1970-01-01 UTC.
+  int64_t not_after;              ///< notAfter, in the same units.
+  uint32_t key;                   ///< Subject key kind: ::GSEC_X509_RSA, ::GSEC_X509_P256, ::GSEC_X509_P384 or ::GSEC_X509_ED25519.
+  const unsigned char * n;        ///< RSA modulus, when @p key is RSA.
+  size_t n_len;                   ///< Length of @p n.
+  const unsigned char * e;        ///< RSA public exponent, when @p key is RSA.
+  size_t e_len;                   ///< Length of @p e.
+  const unsigned char * point;    ///< x then y for a curve key, or the 32-byte Ed25519 public key.
+  size_t point_len;               ///< Length of @p point.
+  uint32_t sig_key;               ///< Signature key kind, a ::GSEC_X509_RSA or other key constant.
+  uint32_t sig_hash;              ///< Signature digest, a ::GSEC_RSA_SHA256 or other id.
+  const unsigned char * sig;      ///< The signature bits (for ECDSA, see @p ecdsa_raw).
+  size_t sig_len;                 ///< Length of @p sig.
+  unsigned char ecdsa_raw[96];    ///< An ECDSA signature as r then s, each zero-padded to the curve's width.
+  int ca;                         ///< 1 when basicConstraints sets cA.
+  int basic_constraints;          ///< 1 when the certificate has a basicConstraints extension.
+  int path_len_set;               ///< 1 when basicConstraints carries pathLenConstraint.
+  uint32_t path_len;              ///< pathLenConstraint; meaningful when @p path_len_set is 1.
+  int key_usage_set;              ///< 1 when the certificate has a keyUsage extension.
+  unsigned key_usage;             ///< keyUsage bits (see above); meaningful when @p key_usage_set is 1.
+  const unsigned char * san;      ///< The subjectAltName extension value, or NULL.
+  size_t san_len;                 ///< Length of @p san.
+  int dns_san;                    ///< 1 when subjectAltName names at least one dNSName.
+  const unsigned char * name_constraints; ///< The nameConstraints extension value, or NULL.
+  size_t name_constraints_len;    ///< Length of @p name_constraints.
+  int eku_set;                    ///< 1 when the certificate has an extendedKeyUsage extension.
+  int eku_critical;               ///< 1 when that extension was marked critical.
+  int eku_unknown;                ///< 1 when it named a purpose with no bit here.
+  unsigned eku;                   ///< The `GSEC_X509_EKU_*` bits it names.
 } GSEC_X509;
 
 /**
@@ -254,26 +254,26 @@ GSEC_API GSEC_Result gsec_x509_hostname(const GSEC_X509 * cert,
  * not 0, is one dNSName. @p ca emits a critical basicConstraints.
  */
 typedef struct GSEC_X509_Tbs {
-  const void * issuer;
-  size_t issuer_len;
-  const void * subject;
-  size_t subject_len;
-  int64_t not_before;
-  int64_t not_after;
-  const void * serial;
-  size_t serial_len;
-  uint32_t subject_key;
-  const void * n;
-  size_t n_len;
-  const void * e;
-  size_t e_len;
-  const void * point;
-  size_t point_len;
-  int ca;
-  int path_len_set;
-  uint32_t path_len;
-  const void * dns;
-  size_t dns_len;
+  const void * issuer;     ///< The issuer Name, whole SEQUENCE.
+  size_t issuer_len;       ///< Length of @p issuer.
+  const void * subject;    ///< The subject Name, whole SEQUENCE.
+  size_t subject_len;      ///< Length of @p subject.
+  int64_t not_before;      ///< notBefore, as seconds since 1970-01-01 UTC.
+  int64_t not_after;       ///< notAfter, in the same units.
+  const void * serial;     ///< The serial number, unsigned magnitude.
+  size_t serial_len;       ///< Length of @p serial, 1 to 20 bytes.
+  uint32_t subject_key;    ///< Subject key kind, a ::GSEC_X509_RSA or other key constant.
+  const void * n;          ///< RSA modulus, when the subject key is RSA.
+  size_t n_len;            ///< Length of @p n.
+  const void * e;          ///< RSA public exponent, when the subject key is RSA.
+  size_t e_len;            ///< Length of @p e.
+  const void * point;      ///< x then y for a curve key, or the 32-byte Ed25519 public key.
+  size_t point_len;        ///< Length of @p point.
+  int ca;                  ///< Nonzero to emit a critical basicConstraints with cA set.
+  int path_len_set;        ///< Nonzero to include @p path_len in it.
+  uint32_t path_len;       ///< pathLenConstraint.
+  const void * dns;        ///< One dNSName, when @p dns_len is not 0.
+  size_t dns_len;          ///< Length of @p dns.
 } GSEC_X509_Tbs;
 
 /**
@@ -284,14 +284,14 @@ typedef struct GSEC_X509_Tbs {
  * scalar, or the Ed25519 seed.
  */
 typedef struct GSEC_X509_Signer {
-  uint32_t key;
-  uint32_t hash;
-  const void * n;
-  size_t n_len;
-  const void * e;
-  size_t e_len;
-  const void * d;
-  size_t d_len;
+  uint32_t key;        ///< Issuer key kind, a ::GSEC_X509_RSA or other key constant.
+  uint32_t hash;       ///< RSA digest id; ignored for the curve and Ed25519 keys.
+  const void * n;      ///< RSA modulus, when @p key is RSA.
+  size_t n_len;        ///< Length of @p n.
+  const void * e;      ///< RSA public exponent, when @p key is RSA.
+  size_t e_len;        ///< Length of @p e.
+  const void * d;      ///< The private exponent, the scalar, or the Ed25519 seed.
+  size_t d_len;        ///< Length of @p d.
 } GSEC_X509_Signer;
 
 /**

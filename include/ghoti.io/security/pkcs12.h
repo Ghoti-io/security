@@ -69,11 +69,11 @@ extern "C" {
  * @p key is a PrivateKeyInfo. Each certificate is a full Certificate.
  */
 typedef struct GSEC_Pkcs12 {
-  const unsigned char * key;
-  size_t key_len;
-  const unsigned char * certs[GSEC_PKCS12_CERT_MAX];
-  size_t cert_lens[GSEC_PKCS12_CERT_MAX];
-  size_t cert_count;
+  const unsigned char * key;       ///< The PrivateKeyInfo.
+  size_t key_len;                  ///< Length of @p key.
+  const unsigned char * certs[GSEC_PKCS12_CERT_MAX]; ///< The certificates, each a full Certificate.
+  size_t cert_lens[GSEC_PKCS12_CERT_MAX]; ///< Length of each entry of @p certs.
+  size_t cert_count;               ///< How many entries of @p certs are filled.
 } GSEC_Pkcs12;
 
 /**

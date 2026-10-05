@@ -66,13 +66,13 @@ extern "C" {
 typedef struct GSEC_Pkcs8 {
   uint32_t kind;                  ///< ::GSEC_PKCS8_RSA and the others.
   const unsigned char * n;        ///< RSA modulus.
-  size_t n_len;
+  size_t n_len;                   ///< Length of @p n.
   const unsigned char * e;        ///< RSA public exponent.
-  size_t e_len;
+  size_t e_len;                   ///< Length of @p e.
   const unsigned char * d;        ///< RSA private exponent.
-  size_t d_len;
+  size_t d_len;                   ///< Length of @p d.
   const unsigned char * scalar;   ///< Elliptic-curve scalar or Ed25519 seed.
-  size_t scalar_len;
+  size_t scalar_len;              ///< Length of @p scalar.
 } GSEC_Pkcs8;
 
 /**

@@ -62,15 +62,15 @@ extern "C" {
  * @brief A parsed basic OCSP response. The view is valid while the DER is.
  */
 typedef struct GSEC_Ocsp {
-  const unsigned char * tbs;
-  size_t tbs_len;
-  uint32_t sig_key;
-  uint32_t sig_hash;
-  const unsigned char * sig;
-  size_t sig_len;
-  unsigned char ecdsa_raw[96];
-  const unsigned char * responses;
-  size_t responses_len;
+  const unsigned char * tbs;      ///< The signed ResponseData, header included.
+  size_t tbs_len;                 ///< Length of @p tbs.
+  uint32_t sig_key;               ///< Signature key kind, a ::GSEC_X509_RSA or other key constant.
+  uint32_t sig_hash;              ///< Signature digest, a ::GSEC_RSA_SHA256 or other id.
+  const unsigned char * sig;      ///< The signature bits (for ECDSA, see @p ecdsa_raw).
+  size_t sig_len;                 ///< Length of @p sig.
+  unsigned char ecdsa_raw[96];    ///< An ECDSA signature as r then s, each zero-padded to the curve's width.
+  const unsigned char * responses; ///< The single responses, as they sit in the DER.
+  size_t responses_len;           ///< Length of @p responses.
   /** producedAt, as seconds since 1970-01-01 UTC. */
   int64_t produced_at;
 } GSEC_Ocsp;
@@ -89,11 +89,11 @@ typedef struct GSEC_Ocsp {
  * ::GSEC_OCSP_REVOKED.
  */
 typedef struct GSEC_Ocsp_Single {
-  uint32_t status;
-  int64_t this_update;
-  int64_t next_update;
-  int have_next_update;
-  int64_t revoked_at;
+  uint32_t status;         ///< ::GSEC_OCSP_GOOD, ::GSEC_OCSP_REVOKED or ::GSEC_OCSP_UNKNOWN.
+  int64_t this_update;     ///< thisUpdate, as seconds since 1970-01-01 UTC.
+  int64_t next_update;     ///< nextUpdate, in the same units; meaningful when @p have_next_update is 1.
+  int have_next_update;    ///< 1 when the response carries nextUpdate.
+  int64_t revoked_at;      ///< When the certificate was revoked, in the same units.
 } GSEC_Ocsp_Single;
 
 /**
