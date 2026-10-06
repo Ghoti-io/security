@@ -27,14 +27,12 @@
  * SHA-384, SHA-1, MD5, HMAC over the SHA hashes, HKDF, PBKDF2, AES,
  * AES-CTR, AES-CBC, AES-GCM, ChaCha20-Poly1305, X25519, Ed25519
  * (pure, context, and prehash), P-256 and P-384 ECDH,
- * ECDSA P-256, ECDSA P-384, RSA signature verification, scrypt, bcrypt, Argon2
- * (version 0x13 and version 0x10),
- * and the certificate encodings (strict DER, PEM, PKCS#8 including
- * PBES2, PBES1, and PKCS#12 PBE, PKCS#12, X.509 including issuance, CRLs,
- * and basic OCSP). DES, two-key and three-key Triple DES, RC2, and RC4
- * are included because those encodings still name them.
- * Those encodings live here until a certificates library takes them.
- * The handshake does not. See documentation/design.md.
+ * ECDSA P-256, ECDSA P-384, RSA signatures and encryption, scrypt, bcrypt,
+ * and Argon2 (version 0x13 and version 0x10). DES, two-key and three-key
+ * Triple DES, RC2, and RC4 are included because old file formats still name
+ * them. The certificate encodings (DER, PEM, PKCS#8, PKCS#12, X.509, CRLs, and
+ * OCSP) are the certificate library's, which depends on this one. The
+ * handshake is not here either. See documentation/design.md.
  */
 
 #ifndef GHOTI_IO_GSEC_SECURITY_H
@@ -50,13 +48,7 @@
 #include <ghoti.io/security/hkdf.h>
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/pbkdf2.h>
-#include <ghoti.io/security/crl.h>
-#include <ghoti.io/security/ocsp.h>
-#include <ghoti.io/security/pem.h>
-#include <ghoti.io/security/pkcs8.h>
-#include <ghoti.io/security/pkcs12.h>
 #include <ghoti.io/security/core.h>
-#include <ghoti.io/security/der.h>
 #include <ghoti.io/security/des.h>
 #include <ghoti.io/security/ecdsa_p256.h>
 #include <ghoti.io/security/ecdsa_p384.h>
@@ -78,6 +70,5 @@
 #include <ghoti.io/security/sha384.h>
 #include <ghoti.io/security/sha512.h>
 #include <ghoti.io/security/x25519.h>
-#include <ghoti.io/security/x509.h>
 
 #endif /* GHOTI_IO_GSEC_SECURITY_H */

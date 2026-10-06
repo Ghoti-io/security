@@ -10,10 +10,10 @@ DES (including two-key EDE), RC2, RC4, scrypt, and Argon2 (versions
 algorithms, the curves, including P-384, ECDSA, RSA verification, and
 RSAES-OAEP are judged against the pinned Wycheproof files. bcrypt is judged by
 libxcrypt in the same image. RSA signing, and RSAES-PKCS1-v1_5, are judged
-by a 2048-bit key the image generates. OpenSSL also writes a certificate,
-its PEM, an unencrypted PKCS#8 key, a PBES2 key, a PBES1 key, a
-PKCS#12 archive, a CRL, and an OCSP response, and this library reads
-them. A difference fails the target. A comparison the probe skips is
+by a 2048-bit key the image generates. The encodings that sit on top of these
+- a certificate, a PEM block, a PKCS#8 key, a PKCS#12 archive, a CRL, and an
+OCSP response - are judged in the `certificate` library, against the same
+OpenSSL. A difference fails the target. A comparison the probe skips is
 a failure, and a primitive with an outside judge that the probe never
 asks about is a failure.
 
@@ -124,8 +124,7 @@ a fresh message with `openssl pkeyutl` and decrypts it here. RC4's short
 keys go through `rc4-evp`, because `openssl enc -rc4` zero-pads `-K`.
 RC2's effective length goes through `rc2-evp`, because `openssl enc -rc2`
 treats the key length as the effective length. DES two-key CBC is
-`openssl enc -des-ede-cbc`. DER, PEM, PKCS#8, PKCS#12, X.509, CRL, and
-OCSP read objects OpenSSL just wrote. An OAEP group whose hash this
+`openssl enc -des-ede-cbc`. An OAEP group whose hash this
 library does not name fails the probe.
 
 A host-mode run (`GHOTI_ORACLE=host`) uses the `openssl` on `PATH` and still
@@ -146,6 +145,6 @@ uppercase digit, a boolean expectation, and a length that does not match
 the bytes. `equal`, the five hashes, `hmac`, `hkdf`, `pbkdf2`, `aes`,
 `aes_ctr`, `aes_cbc`, `des`, `rc2`, `rc4`, `scrypt`, `bcrypt`, `argon2`, `aes_gcm`, `chacha20_poly1305`, `x25519`, `ed25519`,
 `ecdh_p256`, `ecdh_p384`, `ecdsa_p256`, `ecdsa_p384`, `rsa_pkcs1`, `rsa_pss`, `rsa_private`,
-`rsa_oaep`, `rsaes_pkcs1`, `der`, `pem`, `pkcs8`, `x509`, `crl`, `ocsp`, and `pkcs12` each have a file. A
+`rsa_oaep`, and `rsaes_pkcs1` each have a file. A
 later primitive adds a file in the same commit as the function, and names
 it on the registry row.

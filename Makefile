@@ -887,15 +887,8 @@ $(eval $(call fuzz-rule,fuzz_md5,md5))
 $(eval $(call fuzz-rule,fuzz_sha1,sha1))
 $(eval $(call fuzz-rule,fuzz_sha256,sha256))
 $(eval $(call fuzz-rule,fuzz_sha512,sha512))
-$(eval $(call fuzz-rule,fuzz_der,der))
-$(eval $(call fuzz-rule,fuzz_pem,pem))
-$(eval $(call fuzz-rule,fuzz_pkcs8,pkcs8))
-$(eval $(call fuzz-rule,fuzz_pkcs12,pkcs12))
-$(eval $(call fuzz-rule,fuzz_crl,crl))
-$(eval $(call fuzz-rule,fuzz_ocsp,ocsp))
-$(eval $(call fuzz-rule,fuzz_x509,x509))
 
-FUZZERS := aes aes_cbc aes_ctr aes_gcm des rc4 scrypt bcrypt argon2 chacha20_poly1305 x25519 ed25519 ecdh_p256 ecdh_p384 ecdsa_p256 ecdsa_p384 rsa_verify rsa_sign rsa_crypt equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512 der pem pkcs8 pkcs12 crl ocsp x509
+FUZZERS := aes aes_cbc aes_ctr aes_gcm des rc4 scrypt bcrypt argon2 chacha20_poly1305 x25519 ed25519 ecdh_p256 ecdh_p384 ecdsa_p256 ecdsa_p384 rsa_verify rsa_sign rsa_crypt equal wipe hkdf hmac md5 pbkdf2 sha1 sha256 sha512
 
 fuzz: $(addprefix fuzz-run-,$(FUZZERS)) ## Build and run every fuzzer
 
@@ -944,14 +937,7 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/argon2$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/bcrypt$(EXE_EXTENSION) \
 		$(APP_DIR)/examples/ecdh_p384$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/rsa_crypt$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/x509$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/pem$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/pkcs8$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/pkcs12$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/crl$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/ocsp$(EXE_EXTENSION) \
-		$(APP_DIR)/examples/der$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
+		$(APP_DIR)/examples/rsa_crypt$(EXE_EXTENSION) ## Fail if OpenSSL and this library disagree
 	@GHOTI_ORACLE_REQUIRED=1 GSEC_SHA256_BIN="$(APP_DIR)/examples/sha256$(EXE_EXTENSION)" \
 		GSEC_HASH_BIN="$(APP_DIR)/examples/hash$(EXE_EXTENSION)" \
 		GSEC_HMAC_BIN="$(APP_DIR)/examples/hmac$(EXE_EXTENSION)" \
@@ -976,13 +962,6 @@ check-oracle: $(APP_DIR)/examples/sha256$(EXE_EXTENSION) \
 		GSEC_BCRYPT_BIN="$(APP_DIR)/examples/bcrypt$(EXE_EXTENSION)" \
 		GSEC_ECDH_P384_BIN="$(APP_DIR)/examples/ecdh_p384$(EXE_EXTENSION)" \
 		GSEC_RSA_CRYPT_BIN="$(APP_DIR)/examples/rsa_crypt$(EXE_EXTENSION)" \
-		GSEC_X509_BIN="$(APP_DIR)/examples/x509$(EXE_EXTENSION)" \
-		GSEC_PEM_BIN="$(APP_DIR)/examples/pem$(EXE_EXTENSION)" \
-		GSEC_PKCS8_BIN="$(APP_DIR)/examples/pkcs8$(EXE_EXTENSION)" \
-		GSEC_PKCS12_BIN="$(APP_DIR)/examples/pkcs12$(EXE_EXTENSION)" \
-		GSEC_CRL_BIN="$(APP_DIR)/examples/crl$(EXE_EXTENSION)" \
-		GSEC_OCSP_BIN="$(APP_DIR)/examples/ocsp$(EXE_EXTENSION)" \
-		GSEC_DER_BIN="$(APP_DIR)/examples/der$(EXE_EXTENSION)" \
 		$(ORACLE_RUN) openssl,wycheproof,libcrypt -- python3 $(ORACLE)/openssl_kat.py
 
 ####################################################################

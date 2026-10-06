@@ -2,11 +2,11 @@
 
 Cryptographic primitives in C. Hashes, message authentication, key
 derivation, symmetric encryption, key agreement, signatures, password
-hashes, and the kernel generator. Strict DER, PEM, PKCS#8, PKCS#12,
-X.509, a certificate revocation list, and a basic OCSP response live
-here until a certificates library takes them. Fetching a list or a
-response, and reading an operating-system trust store, stay with the
-caller. A handshake does not live here.
+hashes, and the kernel generator. Certificates and the encodings they
+travel in - DER, PEM, PKCS#8, PKCS#12, X.509, a revocation list, and an
+OCSP response - are the [certificate](https://github.com/Ghoti-io/certificate)
+library's, which depends on this one: they lived here until 2026-10-06. A
+handshake does not live here either.
 
 ## Algorithms
 
@@ -70,29 +70,18 @@ Argon2id.
 
 ### Keys and certificates
 
-These stay here until a certificates library takes them. A critical
-extension the parser does not understand is rejected. The pointers in a
-parsed result address the caller's buffer.
-
-| Algorithm | |
-| --- | --- |
-| DER | One strict value. The reader does not allocate. |
-| PEM | The first block. |
-| PKCS#8 | An unencrypted key, or PBES2. PBES1 is opened so an old key can be read. A new encrypted key is PBES2 with AES. |
-| PKCS#12 | A PFX, and it must carry a MacData: an archive with none is unauthenticated and is refused. A new encrypted bag is PBES2 with AES. The older schemes are opened so an old archive can be read. |
-| X.509 | One certificate, a signature check, a path, and a name match. The caller supplies the chain and the time. The path refuses MD5 and SHA-1, an RSA key below 2048 bits, and an expired anchor, and checks the leaf's extendedKeyUsage against a purpose the caller names. It does not check revocation. |
-| Issuance | A certificate signed with P-256, P-384, Ed25519, or RSA. |
-| CRL | Parse, check the signature, and look up a serial. Fetching the list stays with the caller. |
-| OCSP | A basic response, with `producedAt`, `thisUpdate` and `nextUpdate`, because a signed response with no visible age can be replayed. Fetching it, judging its freshness, and a delegated responder all stay with the caller. |
+Not here. DER, PEM, PKCS#8, PKCS#12, X.509, a revocation list, and OCSP are
+the [certificate](https://github.com/Ghoti-io/certificate) library's. DES, RC2,
+RC4 and the older hashes stay here because the old schemes those formats name
+still need them.
 
 ## Before you call it
 
 - A comparison of secret bytes goes through `gsec_equal`. It returns `GSEC_OK` or `GSEC_ERR_MISMATCH`. A wrong tag is a status, not a boolean, and `GSEC_OK` is the only success. `memcmp` anywhere under `src/` fails `make test`.
 - `gsec_wipe` overwrites a region through a volatile store, so a later optimisation pass cannot delete the write.
 - Verification returns `GSEC_ERR_MISMATCH` when the tag, MAC, or signature does not match.
-- `gsec_x509_path` is where a trust policy lives: MD5 and SHA-1 links, RSA keys below `GSEC_X509_RSA_MIN_BITS`, and an anchor outside its own validity period are `GSEC_ERR_UNSUPPORTED` or `GSEC_ERR_MISMATCH` there, while `gsec_x509_signed_by` still verifies a weak signature so an old certificate can be identified before it is refused. Pass a `GSEC_X509_EKU_*` purpose, or check it yourself with `gsec_x509_purpose`: without one, a certificate issued for e-mail is a valid TLS certificate as far as the path is concerned.
 - `gsec_result_string` returns one of a fixed set of static strings. There is no function that prints a key.
-- `NULL` for an allocator is cutil's default. `NULL` for limits is `gsec_limits_default`, which caps one `gsec_random_bytes` call at 1 MiB and a password-based derivation at `GSEC_PBE_ITERATIONS_DEFAULT` iterations. That second cap is the one to lower when the files come from outside: the iteration count is in the file, and the default ceiling is about nine seconds of CPU.
+- `NULL` for an allocator is cutil's default. `NULL` for limits is `gsec_limits_default`, which caps one `gsec_random_bytes` call at 1 MiB. The cap on the password-based derivation a file can ask for went to the certificate library with the code that reads such files.
 - A zero length is success and does not read the pointers. A null pointer with a positive length is `GSEC_ERR_INVALID`.
 - `gsec_random_bytes` waits for the kernel generator: `getrandom` without `GRND_NONBLOCK` on Linux, `getentropy` on macOS, and `BCryptGenRandom` on Windows. A failure wipes what was already written and returns `GSEC_ERR_IO`. There is no userspace generator behind that failure.
 - `gsec_random_open` returns a cutil `GCU_Random` whose draws call `gsec_random_bytes` with the default cap. Release it with `gcu_random_free`. A key still goes through `gsec_random_bytes`, which is the call that takes a limit. The handle does not keep unused kernel bytes.
@@ -189,7 +178,6 @@ Everything is prefixed `gsec_` / `GSEC_`, under `<ghoti.io/security/...>`.
 - **`aes.h`**, **`aes_ctr.h`**, **`aes_cbc.h`**, **`aes_gcm.h`**, **`chacha20_poly1305.h`**, **`des.h`**, **`rc2.h`**, **`rc4.h`** — one cipher or mode.
 - **`x25519.h`**, **`ed25519.h`**, **`ecdh_p256.h`**, **`ecdh_p384.h`**, **`ecdsa_p256.h`**, **`ecdsa_p384.h`**, **`rsa.h`** — agreement, signatures, and RSA encryption.
 - **`scrypt.h`**, **`bcrypt.h`**, **`argon2.h`** — password hashes for storage.
-- **`der.h`**, **`pem.h`**, **`pkcs8.h`**, **`pkcs12.h`**, **`x509.h`**, **`crl.h`**, **`ocsp.h`** — the encodings.
 - **`selftest.h`** — `gsec_selftest`.
 - **`allocator.h`** — `GSEC_Allocator`, which is cutil's `GCU_Allocator`.
 - **`core.h`** — the result codes and `GSEC_Limits`.
@@ -219,9 +207,11 @@ program that links `ghoti.io-security-0` links this too.
 
 The algorithms in the tables above are implemented. Known-answer files are in
 [documentation/oracles.md](documentation/oracles.md). The Windows
-`BCryptGenRandom` path is written and has not been compiled.
+`BCryptGenRandom` path was cross-compiled for win64 and run under wine on
+2026-09-29, which is not a real Windows machine; the workspace's
+`tools/xwin/` is how.
 
-`make test` is 180 tests and ten gates. `make test-asan`, `make test-valgrind`
+`make test` is 120 tests and ten gates. `make test-asan`, `make test-valgrind`
 and `make check-oracle` are clean, and every fuzz harness runs without a trap -
 which means something it did not mean before 2026-09-28, because the fuzz build
 now turns undefined behaviour into a failing run rather than a printed
@@ -229,7 +219,9 @@ diagnostic and a zero exit.
 
 The library was audited on 2026-09-28 by a reader who had not written it, and
 the findings were fixed in the fifteen commits from `6b268eb` to `c4112a7`.
-What that changed, for anyone who had already read this file: `gsec_x509_path`
+What that changed, for anyone who had already read this file (the certificate
+functions named here moved to the certificate library on 2026-10-06, and are
+`gcert_` there): `gsec_x509_path`
 refuses MD5 and SHA-1 links, RSA keys under 2048 bits and an expired anchor,
 and takes an extendedKeyUsage purpose; `gsec_pkcs12_open` refuses an archive
 with no MacData; `gsec_ocsp_status` reports the times that make a replayed

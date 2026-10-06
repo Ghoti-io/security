@@ -35,14 +35,12 @@
 #include <ghoti.io/security/scrypt.h>
 #include <ghoti.io/security/rc2.h>
 #include <ghoti.io/security/rc4.h>
-#include <ghoti.io/security/der.h>
 #include <ghoti.io/security/des.h>
 #include <ghoti.io/security/aes_cbc.h>
 #include <ghoti.io/security/aes_ctr.h>
 #include <ghoti.io/security/aes_gcm.h>
 #include <ghoti.io/security/chacha20_poly1305.h>
 #include <ghoti.io/security/hkdf.h>
-#include <ghoti.io/security/pem.h>
 #include <ghoti.io/security/pbkdf2.h>
 #include <ghoti.io/security/hmac.h>
 #include <ghoti.io/security/md5.h>
@@ -1281,14 +1279,6 @@ GSEC_Result gsec_selftest(void) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
     }
   }
-  {
-    static const unsigned char der[] = {0x30, 0x03, 0x02, 0x01, 0x01};
-    GSEC_Der view;
-    result = gsec_der_tlv(der, sizeof der, &view);
-    if (result != GSEC_OK || view.number != 16 || view.value_len != 3) {
-      return result == GSEC_OK ? GSEC_ERR_INTERNAL : result;
-    }
-  }
   /* Everything below was missing, which is what design.md's claim of a known
    * answer for each implemented primitive had quietly become. check-foundation
    * enforces the claim now, at the granularity of a registry row.
@@ -1434,29 +1424,6 @@ GSEC_Result gsec_selftest(void) {
     gsec_wipe(back, sizeof back);
     if (result != GSEC_OK) {
       return result == GSEC_ERR_MISMATCH ? GSEC_ERR_INTERNAL : result;
-    }
-  }
-  /* PEM, which has a writer, so its self test is a round trip. */
-  {
-    static const unsigned char der[] = {0x30, 0x03, 0x02, 0x01, 0x01};
-    unsigned char armour[128];
-    unsigned char back[16];
-    char label[16];
-    size_t armour_len = 0;
-    size_t back_len = 0;
-
-    result = gsec_pem_encode("TEST", der, sizeof der, armour, sizeof armour,
-        &armour_len);
-    if (result == GSEC_OK) {
-      result = gsec_pem_decode(armour, armour_len, back, sizeof back, &back_len,
-          label, sizeof label);
-    }
-    if (result == GSEC_OK && (back_len != sizeof der ||
-        gsec_equal(back, der, sizeof der) != GSEC_OK)) {
-      result = GSEC_ERR_INTERNAL;
-    }
-    if (result != GSEC_OK) {
-      return result;
     }
   }
   return GSEC_OK;

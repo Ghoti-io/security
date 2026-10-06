@@ -55,11 +55,4 @@ scrypt	implemented	openssl	tests/data/vectors/scrypt.vec
 bcrypt	implemented	libcrypt	tests/data/vectors/bcrypt.vec
 
 md5	implemented	openssl	tests/data/vectors/md5.vec
-der	implemented	openssl	tests/data/vectors/der.vec
-pem	implemented	openssl	tests/data/vectors/pem.vec
-pkcs8	implemented	openssl	tests/data/vectors/pkcs8.vec
-x509	implemented	openssl	tests/data/vectors/x509.vec
-crl	implemented	openssl	tests/data/vectors/crl.vec
-ocsp	implemented	openssl	tests/data/vectors/ocsp.vec
-pkcs12	implemented	openssl	tests/data/vectors/pkcs12.vec
 x448	excluded	none	-

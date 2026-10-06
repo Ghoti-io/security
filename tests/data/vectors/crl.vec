@@ -1,2 +1,0 @@
-# make check-oracle asks OpenSSL to issue a list and this library reads it.
-primitive crl

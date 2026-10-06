@@ -137,11 +137,6 @@ def declarations():
 # decision; leaving a primitive out silently was what design.md's claim of "a
 # known answer for each implemented primitive" had quietly become.
 SELFTEST_EXCLUDED = {
-    "pkcs8": "parses only; its known answers are pkcs8.vec and the fixtures",
-    "pkcs12": "parses only; a PFX in the library would be 1.5 KB of fixture",
-    "x509": "parses and issues; issuance needs a key and a clock",
-    "crl": "parses only; its known answer is a fixture",
-    "ocsp": "parses only; its known answer is a fixture",
     "rsa_pss": "verification's known answer is rsa_pss.vec, as design.md says",
     "rsa_pkcs1_v15_verify": "same, rsa_pkcs1.vec",
 }
@@ -260,14 +255,6 @@ def main():
         "gsec_rsa_oaep_encrypt", "gsec_rsa_oaep_decrypt",
         "gsec_rsa_oaep_mgf_encrypt", "gsec_rsa_oaep_mgf_decrypt",
         "gsec_rsa_private_pkcs1_v15_sign", "gsec_rsa_private_pss_sign",
-        "gsec_der_tlv",
-        "gsec_pem_decode", "gsec_pem_encode",
-        "gsec_pkcs8_parse", "gsec_pkcs8_decrypt",
-        "gsec_pkcs12_open",
-        "gsec_crl_parse", "gsec_crl_signed_by", "gsec_crl_contains",
-        "gsec_ocsp_parse", "gsec_ocsp_signed_by", "gsec_ocsp_status",
-        "gsec_x509_parse", "gsec_x509_signed_by", "gsec_x509_path",
-        "gsec_x509_hostname", "gsec_x509_issue",
     }
     clean = classify(present, rows)
     if clean:

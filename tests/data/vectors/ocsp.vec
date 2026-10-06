@@ -1,2 +1,0 @@
-# make check-oracle asks OpenSSL for a basic response and this library reads it.
-primitive ocsp

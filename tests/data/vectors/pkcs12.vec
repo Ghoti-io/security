@@ -1,2 +1,0 @@
-# make check-oracle asks OpenSSL to write a PFX and this library opens it.
-primitive pkcs12
