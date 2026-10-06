@@ -85,11 +85,14 @@ else ifeq ($(UNAME_S), Darwin)
 	PC_LIB_DIR := $(LIB_INSTALL_PATH)/$(SUITE)
 	override BUILD := mac/$(BUILD)
 
-# TODO(windows): the Windows branches in this file were adapted from font's
-# and have never been run, nor has GSEC_API's dllexport/dllimport switching -
-# the win64 cross build in the workspace's tools/xwin/ links archives, so it
-# exercises the GSEC_STATIC arm and not those two. BCryptGenRandom itself has
-# run; see src/random/random.c. Check list: notes/suite/WINDOWS-TODO.md.
+# TODO(windows): the Windows branches in this file were adapted from font's.
+# They have run once, on 2026-10-06: tools/xwin/certificate.sh with
+# WITH_SECURITY=1 cross-builds the DLL and archive with them, under a shim
+# that makes the container answer MINGW64_NT, and runs all 120 tests under
+# wine. That imitates MSYS2 and wine is not Windows. Not run: GSEC_API's
+# dllimport arm (the tests link the archive, so they take GSEC_STATIC),
+# `make install` into /mingw64, and a real MSYS2. The entropy call itself is
+# tools/xwin/run-security.sh's. Check list: notes/suite/WINDOWS-TODO.md.
 else ifeq ($(findstring MINGW32_NT,$(UNAME_S)),MINGW32_NT)
 	OS_NAME := Windows
 	LIB_EXTENSION := dll
