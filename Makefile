@@ -183,11 +183,15 @@ CXXFLAGS += -DGSEC_STATIC
 endif
 LIB_CFLAGS := $(CFLAGS) -fvisibility=hidden -DGSEC_BUILD $(EXTRA_CFLAGS)
 LDFLAGS := -L /usr/lib -lstdc++ -lm $(EXTRA_LDFLAGS)
+# System libraries the archive needs, named AFTER it on a link line. -lbcrypt is
+# here and not in LDFLAGS because LDFLAGS precedes the archive on every link
+# line, and a static import library is searched once, in order: bcrypt
+# before the archive that references BCryptGenRandom resolves nothing. The
+# first run of this Makefile's own Windows arm (tools/xwin/certificate.sh,
+# 2026-10-06) failed to link every test for exactly that reason.
+SYS_LIBS :=
 ifeq ($(OS_NAME), Windows)
-# TODO(windows): bcrypt, for BCryptGenRandom. The flag is right - the win64
-# probe in the workspace's tools/xwin/ links it and the import binds - but
-# this Makefile's own Windows link has never run.
-LDFLAGS += -lbcrypt
+SYS_LIBS := -lbcrypt
 endif
 ifeq ($(OS_NAME), Linux)
 # Full RELRO. Partial is what a bare link gives: the GOT stays writable for
@@ -249,7 +253,7 @@ TEST_HELPER_OBJ := $(patsubst tests/%.cpp,$(OBJ_DIR)/tests/%.o,$(TEST_HELPER_SRC
 # dropped. The archive is a normal prerequisite of every test, so a clean
 # tree builds it; the .so is order-only because check-symbols wants it and
 # the tests do not link it.
-SECLIBRARY := -Wl,--whole-archive $(APP_DIR)/$(STATIC_TARGET) -Wl,--no-whole-archive $(CUTIL_LIBS)
+SECLIBRARY := -Wl,--whole-archive $(APP_DIR)/$(STATIC_TARGET) -Wl,--no-whole-archive $(CUTIL_LIBS) $(SYS_LIBS)
 
 ifeq ($(OS_NAME), Windows)
 TEST_LDFLAGS := -Wl,--wrap=__mingw_fprintf
@@ -312,7 +316,7 @@ $(OBJ_DIR)/%.o: src/%.c $(FLAGS_STAMP) | $(LIBVER_GEN)
 
 $(APP_DIR)/$(TARGET): $(LIBOBJECTS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -shared -o $@ $^ $(LDFLAGS) $(CUTIL_LIBS) $(OS_SPECIFIC_LIBRARY_NAME_FLAG)
+	$(CXX) $(CXXFLAGS) -shared -o $@ $^ $(LDFLAGS) $(CUTIL_LIBS) $(SYS_LIBS) $(OS_SPECIFIC_LIBRARY_NAME_FLAG)
 ifeq ($(OS_NAME), Linux)
 	@ln -f -s $(TARGET) $(APP_DIR)/$(SO_NAME)
 	@ln -f -s $(SO_NAME) $(APP_DIR)/$(BASE_NAME)
@@ -1078,7 +1082,7 @@ help: ## Display this help
 
 $(FLAGS_STAMP): force-flags
 	@mkdir -p $(@D)
-	@printf '%s\n' '$(CC) $(CXX) $(LIB_CFLAGS) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $(INCLUDE) $(TEST_DATA) $(SECLIBRARY) $(CUTIL_LIBS) $(TESTFLAGS) $(TEST_LDFLAGS) $(OS_SPECIFIC_LIBRARY_NAME_FLAG)' > $@.new
+	@printf '%s\n' '$(CC) $(CXX) $(LIB_CFLAGS) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $(INCLUDE) $(TEST_DATA) $(SECLIBRARY) $(CUTIL_LIBS) $(SYS_LIBS) $(TESTFLAGS) $(TEST_LDFLAGS) $(OS_SPECIFIC_LIBRARY_NAME_FLAG)' > $@.new
 	@cmp -s $@.new $@ 2>/dev/null && rm -f $@.new || mv -f $@.new $@
 
 $(ASAN_FLAGS_STAMP): force-flags
