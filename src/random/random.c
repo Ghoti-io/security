@@ -88,7 +88,7 @@ GSEC_Result gsec_random_bytes(void * out, size_t n,
 
 #if defined(_WIN32)
   /* Cross-compiled for win64 and run under wine on 2026-09-29, by
-   * tools/xwin/run-security.sh in the workspace: the call, its NTSTATUS
+   * suite/tools/xwin/run-security.sh in the workspace: the call, its NTSTATUS
    * check, the ULONG guard below and the refusals above all behave, and a
    * control that breaks the call proves the probe would notice.  Not yet run
    * on a real Windows machine, where bcrypt.dll is not wine's. */

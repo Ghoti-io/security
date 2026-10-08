@@ -209,7 +209,7 @@ The algorithms in the tables above are implemented. Known-answer files are in
 [documentation/oracles.md](documentation/oracles.md). The Windows
 `BCryptGenRandom` path was cross-compiled for win64 and run under wine on
 2026-09-29, which is not a real Windows machine; the workspace's
-`tools/xwin/` is how.
+`suite/tools/xwin/` is how.
 
 `make test` is 120 tests and ten gates. `make test-asan`, `make test-valgrind`
 and `make check-oracle` are clean, and every fuzz harness runs without a trap -

@@ -155,7 +155,7 @@ Twister under `src/`.
 
 The Windows branch calls `BCryptGenRandom` with
 `BCRYPT_USE_SYSTEM_PREFERRED_RNG` and links `bcrypt`. It is cross-compiled for
-win64 and run under wine by `tools/xwin/run-security.sh` in the workspace,
+win64 and run under wine by `suite/tools/xwin/run-security.sh` in the workspace,
 which also runs a control whose `BCryptGenRandom` call must fail. That covers
 the call, its `NTSTATUS`, the `ULONG` guard, the refusals that precede it, and
 `gsec_selftest`. It is not a statement about a real Windows machine: under
