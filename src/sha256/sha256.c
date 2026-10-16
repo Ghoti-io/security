@@ -171,10 +171,12 @@ GSEC_Result gsec_sha256_update(GSEC_Sha256 * ctx, const void * data, size_t n) {
    * Check before any byte is absorbed, and kill the context if it does
    * not: a caller who keeps hashing after a refusal would otherwise
    * finish a prefix. */
+#if SIZE_MAX > (UINT64_MAX >> 3)
   if (n > (UINT64_MAX >> 3)) {
     gsec_wipe(ctx, sizeof *ctx);
     return GSEC_ERR_LIMIT;
   }
+#endif
   add = (uint64_t)n << 3;
   if (ctx->nbits > UINT64_MAX - add) {
     gsec_wipe(ctx, sizeof *ctx);

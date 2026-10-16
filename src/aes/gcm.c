@@ -49,11 +49,21 @@ static int tag_len_ok(size_t n) {
 }
 
 static int bit_len_ok(size_t n) {
-  return (uint64_t)n <= (UINT64_MAX >> 3);
+#if SIZE_MAX <= (UINT64_MAX >> 3)
+  (void)n;
+  return 1;
+#else
+  return n <= (size_t)(UINT64_MAX >> 3);
+#endif
 }
 
 static int pt_len_ok(size_t n) {
-  return (uint64_t)n <= ((UINT64_C(1) << 36) - 32u);
+#if SIZE_MAX <= ((UINT64_C(1) << 36) - 32u)
+  (void)n;
+  return 1;
+#else
+  return n <= (size_t)((UINT64_C(1) << 36) - 32u);
+#endif
 }
 
 static void store_be64(unsigned char out[8], uint64_t n) {

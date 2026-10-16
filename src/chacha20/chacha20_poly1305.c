@@ -323,7 +323,12 @@ static void poly_finish(struct poly * p, unsigned char tag[16]) {
 }
 
 static int pt_len_ok(size_t n) {
-  return (uint64_t)n <= (((UINT64_C(1) << 32) - 1u) * 64u);
+#if SIZE_MAX <= (((UINT64_C(1) << 32) - 1u) * 64u)
+  (void)n;
+  return 1;
+#else
+  return n <= (size_t)(((UINT64_C(1) << 32) - 1u) * 64u);
+#endif
 }
 
 static int partial_overlap(const unsigned char * a, const unsigned char * b,
