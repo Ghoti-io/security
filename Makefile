@@ -160,7 +160,7 @@ CC := cc
 # distributions have compiled everything else with for a decade, and this one
 # shipped without them: no stack protector, lazy binding, no fortified string
 # functions. They are *probed* rather than assumed, because this tree builds
-# with GCC 14 here, GCC 16 on the EVO-X2, clang on macOS and mingw on
+# with GCC 14 and GCC 16 on Linux, clang on macOS and mingw on
 # Windows, and `-fcf-protection` is an error on a compiler targeting anything
 # but x86 - with -Werror in play an unknown flag would break the build rather
 # than degrade it. `-U_FORTIFY_SOURCE` first because a distribution compiler
